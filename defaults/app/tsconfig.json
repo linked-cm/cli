@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "sourceMap": true,
+    "target": "es6",
+    "outDir": "lib",
+    "declaration": false,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "downlevelIteration": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "paths": {
+      "react": ["../node_modules/@types/react","../../../node_modules/@types/react"]
+    },
+    "baseUrl": "./src"
+  },
+  "files": ["./src/index.tsx"]
+}

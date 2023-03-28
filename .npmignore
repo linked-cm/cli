@@ -1,0 +1,13 @@
+**/node_modules
+*.ts
+!defaults/*
+!defaults/**/*
+!defaults/**/.*
+!.yarnrc.yml
+.idea
+.git
+tsconfig.json
+.gitignore
+src
+.npmrc
+.yarnrc.yml
