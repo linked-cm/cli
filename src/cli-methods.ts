@@ -3,9 +3,7 @@ import fs from 'fs-extra';
 import {execp, execPromise, getPackageJSON} from './utils';
 import chalk from 'chalk';
 import {exec} from 'child_process';
-import {getPackageMetadata} from 'lincd-modules/lib/scripts/package-metadata.js';
 import {NamedNode} from 'lincd/lib/models';
-import {Module} from 'lincd-modules/lib/shapes/Module';
 import {GetEnvVars} from 'env-cmd';
 import {JSONLDWriter} from 'lincd-jsonld/lib/utils/JSONLDWriter';
 import {createNameSpace} from 'lincd/lib/utils/NameSpace';
@@ -309,6 +307,7 @@ export function buildAll(target, target2, target3) {
       debugInfo('Now building: ' + chalk.blue(packageGroup.map((i) => i.packageName)));
       return async (pkg: PackageDetails) => {
         let command;
+        let skipping = false;
         //if we're skipping builds until a certain package
         if (!building) {
           //if the package name matches the package we're supposed to start from then start building packages
@@ -319,6 +318,7 @@ export function buildAll(target, target2, target3) {
           else {
             log(chalk.blue('skipping ' + pkg.packageName));
             command = Promise.resolve(true);
+            skipping=true;
           }
         }
         //unless told otherwise, build the package
@@ -361,7 +361,10 @@ export function buildAll(target, target2, target3) {
             }
           })
           .then((res) => {
-            log(chalk.green('Built ' + pkg.packageName));
+            if(!skipping)
+            {
+              log(chalk.green('Built ' + pkg.packageName));
+            }
             done.add(pkg);
 
             packagesLeft--;
@@ -948,33 +951,37 @@ export const buildMetadata = async (): Promise<string[]> => {
 
   for (const [packageCodeName, packagePath, lincdPackagePath, isAppPackage] of localPackagePaths) {
     let errors = false;
-    await getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
-      if (response.errors.length > 0) {
-        // console.log(JSON.stringify(response));
-        warn('Error processing ' + packagePath + ':\n' + response.errors.join('\n'));
-        // throw response
-        errors = true;
-      } else {
-        let pkg = Module.getFromURI(response.packageUri);
-        //connect the packages to the app
-        let lincdApp = createNameSpace('http://lincd.org/ont/lincd-app/');
-        Prefix.add('lincdApp', 'http://lincd.org/ont/lincd-app/');
-        if (isAppPackage) {
-          //Note: this needs to match with LincdWebApp.ownPackage accessor;
-          app.overwrite(lincdApp('ownPackage'), pkg.namedNode);
+    import ('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
+      await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
+        if (response.errors.length > 0) {
+          // console.log(JSON.stringify(response));
+          warn('Error processing ' + packagePath + ':\n' + response.errors.join('\n'));
+          // throw response
+          errors = true;
         } else {
-          //Note: this needs to match with LincdWebApp.packages accessor;
-          app.set(lincdApp('maintainsPackage'), pkg.namedNode);
-        }
+          let pkgNode = NamedNode.getOrCreate(response.packageUri);
+          //connect the packages to the app
+          let lincdApp = createNameSpace('http://lincd.org/ont/lincd-app/');
+          Prefix.add('lincdApp', 'http://lincd.org/ont/lincd-app/');
+          if (isAppPackage) {
+            //Note: this needs to match with LincdWebApp.ownPackage accessor;
+            app.overwrite(lincdApp('ownPackage'), pkgNode);
+          } else {
+            //Note: this needs to match with LincdWebApp.packages accessor;
+            app.set(lincdApp('maintainsPackage'), pkgNode);
+          }
 
-        //write this graph to a jsonld file
-        let packageMetaData = JSON.stringify(response.result, null, 2);
-        let metadataFile = path.join(metadataFolder, packageCodeName + '.json');
-        await fs.writeFile(metadataFile, packageMetaData).then(() => {
-          updatedPaths.push(metadataFile);
-        });
-      }
+          //write this graph to a jsonld file
+          let packageMetaData = JSON.stringify(response.result, null, 2);
+          let metadataFile = path.join(metadataFolder, packageCodeName + '.json');
+          await fs.writeFile(metadataFile, packageMetaData).then(() => {
+            updatedPaths.push(metadataFile);
+          });
+        }
+      });
+
     });
+
     //enable this when testing if you don't want to continue with building other metadata when an errors occur
     // if (errors) break;
   }

@@ -60,7 +60,7 @@
     "lincd": "^0.5",
     "lincd-app": "^0.1",
     "lincd-jsonld": "^0.1.13",
-    "lincd-modules": "^0.1",
+    "lincd-modules": "0.1.2",
     "load-grunt-tasks": "^5.1.0",
     "mini-css-extract-plugin": "^2.7.5",
     "open": "^8.4.0",
