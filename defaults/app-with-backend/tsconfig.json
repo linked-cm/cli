@@ -16,5 +16,6 @@
     },
     "pretty": true
   },
-  "files": ["./frontend/src/index.tsx"]
+  "files": ["./frontend/src/index.tsx"],
+  "include": ["./frontend/src/backend.ts"]
 }

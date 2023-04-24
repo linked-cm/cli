@@ -15,7 +15,7 @@ import {
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
-  getLincdPackages,
+  getLincdPackages,publishPackage,
   publishUpdated,
   register,
 } from './cli-methods';
@@ -121,6 +121,9 @@ program.command('build-metadata').action(() => {
 });
 program.command('publish-updated').action(() => {
   return publishUpdated();
+});
+program.command('publish [version]').action((version) => {
+  return publishPackage(null,false,null,version);
 });
 
 program.command('status').action(() => {
