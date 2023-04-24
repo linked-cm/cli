@@ -952,7 +952,6 @@ export const buildMetadata = async (): Promise<string[]> => {
 
   for (const [packageCodeName, packagePath, lincdPackagePath, isAppPackage] of localPackagePaths) {
     let errors = false;
-<<<<<<< HEAD
     import ('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
       await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
         if (response.errors.length > 0) {
@@ -982,43 +981,6 @@ export const buildMetadata = async (): Promise<string[]> => {
         }
       });
 
-=======
-
-    import('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
-      await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
-        if (response.errors.length > 0) {
-          // console.log(JSON.stringify(response));
-          warn('Error processing ' + packagePath + ':\n' + response.errors.join('\n'));
-          // throw response
-          errors = true;
-        } else {
-          let pkg = Module.getFromURI(response.packageUri);
-          //connect the packages to the app
-          let lincdApp = createNameSpace('http://lincd.org/ont/lincd-app/');
-          Prefix.add('lincdApp', 'http://lincd.org/ont/lincd-app/');
-          if (isAppPackage) {
-            //Note: this needs to match with LincdWebApp.ownPackage accessor;
-            app.overwrite(lincdApp('ownPackage'), pkg.namedNode);
-          } else {
-            //Note: this needs to match with LincdWebApp.packages accessor;
-            app.set(lincdApp('maintainsPackage'), pkg.namedNode);
-          }
-
-          //write this graph to a jsonld file
-          let packageMetaData = JSON.stringify(response.result, null, 2);
-          let metadataFile = path.join(metadataFolder, packageCodeName + '.json');
-          await fs.writeFile(metadataFile, packageMetaData).then(() => {
-            updatedPaths.push(metadataFile);
-          });
-        }
-      }).catch(() => {
-        //this probably happens because the lincd-modules package is LINKED locally and is not yet built
-        //in order to build it, we need to CLI to work! so we've just ignore this, and this functionality will pick up
-        //once the initial build of packages is done
-        console.log("Could not get package metadata");
-      })
-
->>>>>>> 717f74c74798ce945902146222fbce6b78a577d1
     });
 
     //enable this when testing if you don't want to continue with building other metadata when an errors occur
