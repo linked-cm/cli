@@ -6,10 +6,10 @@ import {BrowserRouter} from 'react-router-dom';
 import App from './App';
 import React from 'react';
 import {Storage} from 'lincd/lib/utils/Storage';
-import {FrontendFileStore} from 'lincd-server/lib/shapes/FrontendFileStore';
+import {BackendFileStore} from 'lincd-server/lib/shapes/BackendFileStore';
 
 //store all quads in a file on the backend named 'main'
-export const store = new FrontendFileStore('main');
+export const store = new BackendFileStore('main');
 Storage.setDefaultStore(store);
 
 hydrateRoot(

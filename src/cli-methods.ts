@@ -8,6 +8,7 @@ import {GetEnvVars} from 'env-cmd';
 import {JSONLDWriter} from 'lincd-jsonld/lib/utils/JSONLDWriter';
 import {createNameSpace} from 'lincd/lib/utils/NameSpace';
 import {Prefix} from 'lincd/lib/utils/Prefix';
+import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 var glob = require('glob');
 var variables = {};
 var open = require('open');
@@ -951,6 +952,7 @@ export const buildMetadata = async (): Promise<string[]> => {
 
   for (const [packageCodeName, packagePath, lincdPackagePath, isAppPackage] of localPackagePaths) {
     let errors = false;
+<<<<<<< HEAD
     import ('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
       await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
         if (response.errors.length > 0) {
@@ -980,6 +982,43 @@ export const buildMetadata = async (): Promise<string[]> => {
         }
       });
 
+=======
+
+    import('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
+      await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
+        if (response.errors.length > 0) {
+          // console.log(JSON.stringify(response));
+          warn('Error processing ' + packagePath + ':\n' + response.errors.join('\n'));
+          // throw response
+          errors = true;
+        } else {
+          let pkg = Module.getFromURI(response.packageUri);
+          //connect the packages to the app
+          let lincdApp = createNameSpace('http://lincd.org/ont/lincd-app/');
+          Prefix.add('lincdApp', 'http://lincd.org/ont/lincd-app/');
+          if (isAppPackage) {
+            //Note: this needs to match with LincdWebApp.ownPackage accessor;
+            app.overwrite(lincdApp('ownPackage'), pkg.namedNode);
+          } else {
+            //Note: this needs to match with LincdWebApp.packages accessor;
+            app.set(lincdApp('maintainsPackage'), pkg.namedNode);
+          }
+
+          //write this graph to a jsonld file
+          let packageMetaData = JSON.stringify(response.result, null, 2);
+          let metadataFile = path.join(metadataFolder, packageCodeName + '.json');
+          await fs.writeFile(metadataFile, packageMetaData).then(() => {
+            updatedPaths.push(metadataFile);
+          });
+        }
+      }).catch(() => {
+        //this probably happens because the lincd-modules package is LINKED locally and is not yet built
+        //in order to build it, we need to CLI to work! so we've just ignore this, and this functionality will pick up
+        //once the initial build of packages is done
+        console.log("Could not get package metadata");
+      })
+
+>>>>>>> 717f74c74798ce945902146222fbce6b78a577d1
     });
 
     //enable this when testing if you don't want to continue with building other metadata when an errors occur
@@ -1079,19 +1118,24 @@ const getLastModifiedSourceTime = (packagePath) => {
     ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
   });
 };
-const getLastCommitTime = (packagePath): Promise<Date> => {
+const getLastCommitTime = (packagePath): Promise<{date:Date,changes:string,commitId:string}> => {
   // console.log(`git log -1 --format=%ci -- ${packagePath}`);
   // process.exit();
-  return execPromise(`git log -1 --format=%ci -- ${packagePath}`)
-    .then((result) => {
-      let lastCommit = new Date(result);
-      // console.log(packagePath,result,lastCommit);
-      return lastCommit;
+  return execPromise(`git log -1 --format="%h %ci" -- ${packagePath}`)
+    .then(async (result) => {
+      let commitId = result.substring(0,result.indexOf(" "));
+      let date = result.substring(commitId.length+1);
+      let lastCommitDate = new Date(date);
+
+      let changes = await execPromise(`git show --stat --oneline ${commitId} -- ${packagePath}`);
+      // log(packagePath,result,lastCommit);
+      // log(changes);
+      return {date:lastCommitDate,changes,commitId};
     })
     .catch(({error, stdout, stderr}) => {
       debugInfo(chalk.red('Git error: ') + error.message.toString());
       return null;
-    }) as Promise<Date>;
+    });
 };
 const getLastModifiedFile = (filePath, config = {}) => {
   var files = glob.sync(filePath, config);
@@ -1119,8 +1163,6 @@ const getLastModifiedFile = (filePath, config = {}) => {
 
 export var publishUpdated = function (test: boolean = false) {
   let packages = getLocalLincdModules();
-
-  let browserCoreBuilt = false;
 
   var p: Promise<any> = Promise.resolve('');
   let packagesLeft = packages.length;
@@ -1176,8 +1218,8 @@ export var publishUpdated = function (test: boolean = false) {
 
                 let lastPublishDate = new Date(lastPublish);
                 // let {lastModifiedTime, lastModifiedName, lastModified} = getLastModifiedSourceTime(pkg.path);
-                let lastCommit = await getLastCommitTime(pckg.path);
-                if (!lastCommit) {
+                let lastCommitInfo = await getLastCommitTime(pckg.path);
+                if (!lastCommitInfo) {
                   shouldPublish = false;
                   debugInfo('Could not determine last git commit');
                   // return previousResult + ' ' + chalk.red(pckg.packageName + ' - could not determine last commit\n');
@@ -1185,19 +1227,22 @@ export var publishUpdated = function (test: boolean = false) {
                 } else {
                   //NOTE: removed lastModified, because switching branches will say that the file was modified and cause everything to publish
                   //SO: now you NEED TO commit before it picks up that you should publish
-                  shouldPublish = lastPublishDate.getTime() < lastCommit.getTime();
-                  // if (shouldPublish) {
-                  //   log(
-                  //     lastPublishDate.toDateString() +
-                  //     ' ' +
-                  //     lastPublishDate.toTimeString() +
-                  //     ' published ' +
-                  //     info.version,
-                  //   );
-                  //   log(
-                  //     lastCommit.toDateString() + ' ' + new Date(lastCommit).toTimeString() + ' source last committed',
-                  //   );
-                  // }
+                  shouldPublish = lastPublishDate.getTime() < lastCommitInfo.date.getTime();
+                  if (shouldPublish) {
+
+                    log(chalk.magenta(pckg.packageName)+' should be published because:')
+                    log(
+                      lastPublishDate.toDateString() +
+                      ' ' +
+                      lastPublishDate.toTimeString() +
+                      ' published ' +
+                      info.version,
+                    );
+                    log(
+                      lastCommitInfo.date.toDateString() + ' ' + new Date(lastCommitInfo.date).toTimeString() + ' source last committed:',
+                    );
+                    log(lastCommitInfo.changes);
+                  }
                 }
               }
             } catch (err) {
@@ -1209,24 +1254,8 @@ export var publishUpdated = function (test: boolean = false) {
               return chalk.red(pckg.packageName + ' failed: ' + err.message);
             }
             if (shouldPublish) {
-              let res = publishPackage(pckg, test, info, version);
-
-              if (pckg.packageName == 'browser-core') {
-                browserCoreBuilt = true;
-              }
-
-              //when publishing core, also make sure to publish browser-core
-              if (pckg.packageName == 'core' && !browserCoreBuilt) {
-                var browserModule = packages.find((m) => m.packageName == 'browser-core');
-
-                return Promise.resolve(res).then((previousResult) => {
-                  log('# Automatically also publishing package browser-core');
-                  return publishPackage(browserModule, test);
-                });
-              }
-              return res;
+              return publishPackage(pckg, test, info, version);
             }
-            // return previousResult + ' ' + chalk.green(pckg.packageName + ' latest version is up to date\n');
             return chalk.green(pckg.packageName + ' latest version is up to date');
           })
           .catch(({error, stdout, stderr}) => {
@@ -1264,39 +1293,66 @@ export var publishUpdated = function (test: boolean = false) {
     // }
   });
 };
-var publishPackage = function (pkg, test, info?, publishVersion?) {
+
+async function getEnvJsonPath(relativeToPath=process.cwd())
+{
+  let path = '';
+  if(!relativeToPath.endsWith('/'))
+  {
+    relativeToPath += '/'
+  }
+  // let path = './';
+  for(let i=0;i<=10;i++) {
+    let envFile = await getEnvFile({filePath:relativeToPath+path+'.env.json'}).catch(err => {
+      return null;
+    });
+    if(envFile) {
+      //note: we're getting the actual contents here, so we could also use that more directly?
+      return path+'.env.json';
+    }
+    path += '../';
+  }
+}
+
+export var publishPackage = async function (pkg?, test?, info?, publishVersion?) {
+  if(!pkg) {
+    let localPackageJson = getPackageJSON();
+    pkg = {
+      path: process.cwd(),
+      packageName: localPackageJson.name,
+    }
+  }
   if (!publishVersion) {
-    // publishVersion = info ? getNextVersion(info.data.version) : '';
-    publishVersion = info ? getNextVersion(info.version) : '';
+    publishVersion = info ? getNextVersion(info.version) : 'patch';
   }
   if (test) {
     debugInfo('should publish ' + pkg.packageName + ' ' + publishVersion);
-  } else {
-    console.log(chalk.blue('publishing ' + pkg.packageName + ' ' + publishVersion));
-  }
-  if (!test) {
-    return execPromise(`cd ${pkg.path} && yarn version ${publishVersion} && yarn npm publish`, true, false, {}, true)
-      .then((res) => {
-        if (
-          res.indexOf('Aborted due to warnings') !== -1 ||
-          res.indexOf('Could not publish') !== -1 ||
-          res.indexOf("Couldn't publish") !== -1
-        ) {
-          console.log(res);
-          return chalk.red(pkg.packageName + ' failed\n');
-        }
-
-        console.log(chalk.green('Successfully published ' + pkg.path + ' ' + publishVersion));
-        return chalk.green(pkg.packageName + ' published ' + publishVersion + '\n');
-      })
-      .catch(({error, stdout, stderr}) => {
-        console.log(chalk.red('Failed to publish: ' + error.message));
-        return chalk.red(pkg.packageName + ' failed to publish\n');
-      });
-  } else {
     //when testing what needs to be published
     return chalk.blue(pkg.packageName + ' should publish');
   }
+  console.log(chalk.blue('publishing ' + pkg.packageName + ' ' + publishVersion));
+
+  //looking for an .env.json file in our workspace, which may store our NPM AUTH key
+  let envJsonPath = await getEnvJsonPath(pkg.path);
+
+  return execPromise(`cd ${pkg.path} && ${envJsonPath ? `env-cmd -f ${envJsonPath} --use-shell "` : ''}yarn version ${publishVersion} && yarn npm publish${envJsonPath ? `"` : ''}`, true, false, {}, true)
+    .then((res) => {
+      if (
+        res.indexOf('Aborted due to warnings') !== -1 ||
+        res.indexOf('Could not publish') !== -1 ||
+        res.indexOf("Couldn't publish") !== -1
+      ) {
+        console.log(res);
+        return chalk.red(pkg.packageName + ' failed\n');
+      }
+
+      console.log(chalk.green('Successfully published ' + pkg.path + ' ' + publishVersion));
+      return chalk.green(pkg.packageName + ' published ' + publishVersion);
+    })
+    .catch(({error, stdout, stderr}) => {
+      console.log(chalk.red('Failed to publish: ' + error.message));
+      return chalk.red(pkg.packageName + ' failed to publish');
+    });
 };
 
 export var buildUpdated = async function (back, target, target2, test: boolean = false) {
@@ -1309,17 +1365,18 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
   let packages = getLocalLincdPackageMap();
 
   let jsonldPkgUpdated = needsRebuilding(packages.get('lincd-jsonld'));
-  let cliPkgUpdated = needsRebuilding(packages.get('lincd-cli'));
+  // let cliPkgUpdated = needsRebuilding(packages.get('lincd-cli'));
 
   //if either cli or jsonldPkg needs to be rebuilt
-  if (jsonldPkgUpdated || cliPkgUpdated) {
+  // if (jsonldPkgUpdated || cliPkgUpdated) {
+  if (jsonldPkgUpdated) {
     await execPromise('yarn build-core', false, false, {}, true);
   }
   let rebuildAllModules = false;
-  if (cliPkgUpdated) {
-    rebuildAllModules = true;
-    log(chalk.magenta('Rebuilding all packages because the build tools (lincd-cli) got updated'));
-  }
+  // if (cliPkgUpdated) {
+  //   rebuildAllModules = true;
+  //   log(chalk.magenta('Rebuilding all packages because the build tools (lincd-cli) got updated'));
+  // }
 
   let packagesLeft = packages.size;
   runOnPackagesGroupedByDependencies(

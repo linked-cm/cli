@@ -18,6 +18,68 @@ export var getPackageJSON = function (root = process.cwd(), error = true) {
     }
   }
 };
+
+/**
+ * Scans package.json for dependencies that are LINCD packages
+ * Also looks into dependencies of dependencies
+ * If no packageJson is given, it will attempt to obtain it from the current working directory
+ * Returns an array of lincd packages, with each entry containing an array with the package name and the local path to the package
+ * @param packageJson
+ */
+export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<string> = new Set()):[string,string][] {
+  if(!packageJson) {
+    packageJson = getPackageJSON();
+  }
+  let dependencies = {...packageJson.dependencies, ...packageJson.devDependencies};
+  let lincdPackagePaths = [];
+  for (var dependency of Object.keys(dependencies)) {
+    try {
+      if(!checkedPackages.has(dependency))
+      {
+        checkedPackages.add(dependency);
+        let [modulePackageJson,modulePath] = getModulePackageJSON(dependency);
+        if (modulePackageJson?.lincd) {
+          lincdPackagePaths.push([modulePackageJson.name,modulePath]);
+          //also check if this package has any dependencies that are lincd packages
+          lincdPackagePaths = lincdPackagePaths.concat(getLINCDDependencies(modulePackageJson,checkedPackages));
+        }
+        if(!modulePackageJson){
+          //this seems to only happen with yarn workspaces for some grunt related dependencies of lincd-cli
+          // console.log(`could not find package.json of ${dependency}`);
+        }
+      }
+    } catch (err) {
+      console.log(`could not check if ${dependency} is a lincd package: ${err}`);
+    }
+  }
+  return lincdPackagePaths;
+}
+
+//from https://github.com/haalcala/node-packagejson/blob/master/index.js
+export var getModulePackageJSON = function(module_name, work_dir?) {
+  if (!work_dir) {
+    work_dir = process.cwd();
+  }
+  else {
+    work_dir = path.resolve(work_dir);
+  }
+
+  var package_json;
+
+  if (fs.existsSync(path.resolve(work_dir, "./node_modules"))) {
+    var module_dir = path.resolve(work_dir, "./node_modules/" + module_name);
+
+    if (fs.existsSync(module_dir) && fs.existsSync(module_dir + "/package.json")) {
+      package_json = JSON.parse(fs.readFileSync((module_dir + "/package.json"),'utf-8'));
+    }
+  }
+
+  if (!package_json && work_dir != "/") {
+    return getModulePackageJSON(module_name, path.resolve(work_dir, ".."));
+  }
+
+  return [package_json,module_dir];
+}
 export var getGruntConfig = function (root = process.cwd(), error = true) {
   let gruntFile = path.join(root, 'Gruntfile.js');
   if (fs.existsSync(gruntFile)) {
@@ -178,4 +240,11 @@ export function flatten(arr) {
   return arr.reduce(function (a, b) {
     return b ? a.concat(b) : a;
   }, []);
+}
+
+export function getLinkedTailwindColors() {
+  return {
+    'primary-color': 'var(--primary-color)',
+    'font-color': 'var(--font-color)',
+  }
 }

@@ -1,7 +1,7 @@
 import DeclarationPlugin from './plugins/declaration-plugin';
 import externaliseModules from './plugins/externalise-modules';
 import WatchRunPlugin from './plugins/watch-run';
-import {generateScopedName, getPackageJSON, warn} from './utils';
+import {generateScopedName,getLinkedTailwindColors,getPackageJSON,warn} from './utils';
 import {AdjustedModuleConfig} from './interfaces';
 import colors = require('colors');
 
@@ -19,6 +19,7 @@ const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPl
 const TerserPlugin = require('terser-webpack-plugin');
 const exec = require('child_process').exec;
 const CopyPlugin = require('copy-webpack-plugin');
+const tailwindPlugin = require('tailwindcss/plugin');
 
 declare var __dirname: string;
 declare var require: any;
@@ -200,6 +201,7 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
     postcssPlugins.push([
       'tailwindcss',
       {
+        content: ['./src/**/*.{tsx,ts}', ...lincdPackagePaths],
         safelist: productionMode
           ? {}
           : {
@@ -207,7 +209,22 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
               pattern: /./,
               variants: ['sm', 'md', 'lg', 'xl', '2xl'],
             },
-        content: ['./src/**/*.{tsx,ts}', ...lincdPackagePaths],
+        theme: {
+          extend: {
+            colors: getLinkedTailwindColors(),
+          },
+        },
+        plugins: [
+          tailwindPlugin(function ({addBase, config}) {
+            //we can use LINCD CSS variables for default font color, size etc.
+            // addBase({
+            //   'h1': { fontSize: config('theme.fontSize.2xl') },
+            //   'h2': { fontSize: config('theme.fontSize.xl') },
+            //   'h3': { fontSize: config('theme.fontSize.lg') },
+            // })
+          }),
+        ],
+
       },
     ]);
   }
