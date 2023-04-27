@@ -18,12 +18,13 @@ const Page1 = lazy(() => import('./pages/Page1' /* webpackPrefetch: true */));
 declare var window;
 export default function App({
   assets = typeof window !== 'undefined' ? window['assetManifest'] : {},
-  //on the frontend data will not be set yet, but it will be present in the initial HTML as a script tag with JSON-LD inside, with the ID: lincd_data
+  //on the frontend data will not be set yet, but it will be present in the initial HTML as a script tag with JSON-LD inside, with the ID: request-ld
   //so here we read that back to the data variable, so that the rendering (of that same <script> tag) will be identical as the backend
-  data = typeof document !== 'undefined' ? document.getElementById('lincd_data')?.innerText : null,
+  requestLD = typeof document !== 'undefined' ? document.getElementById('request-ld')?.innerText : null,
+  requestObject = typeof document !== 'undefined' ? document.getElementById('request-json')?.innerText : null,
 }) {
     return (
-    <Html assets={assets} data={data} title="${name} - LINCD App">
+    <Html assets={assets} requestObject={requestObject} requestLD={requestLD} title="${name} - LINCD App">
       <Suspense fallback={<Spinner />}>
         <ErrorBoundary FallbackComponent={Error}>
           <Content />
@@ -90,20 +91,25 @@ function Header() {
   );
 }
 
-function Html({assets, data, children, title}) {
+function Html({assets,requestObject,requestLD,children,title}) {
   return (
     <html lang="en">
       {globalThis.document?.head ? (
         <head dangerouslySetInnerHTML={{__html: document.head.innerHTML}} />
       ) : (
         <head>
+          <title>{title}</title>
+
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
+
           <link rel="shortcut icon" href="/static/favicon.ico" />
           <link rel="stylesheet" href={assets['main.css']} />
+
           {assets['tailwind-cdn'] && <script src={assets['tailwind-cdn']}></script>}
-          <title>{title}</title>
-          <script id='lincd_data' type='application/ld+json' dangerouslySetInnerHTML={{__html: data}} />
+          <script id='request-ld' type='application/ld+json' dangerouslySetInnerHTML={{__html: requestLD}} />
+          <script id='request-json' type='application/json' dangerouslySetInnerHTML={{__html: requestObject}} />
+
         </head>
       )}
       <body>

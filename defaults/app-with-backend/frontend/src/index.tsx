@@ -1,3 +1,5 @@
+import {initFrontend} from 'lincd-server/lib/utils/Frontend';
+
 window['$RefreshReg$'] = () => {};
 window['$RefreshSig$'] = () => () => {};
 
@@ -12,11 +14,14 @@ import {BackendFileStore} from 'lincd-server/lib/shapes/BackendFileStore';
 export const store = new BackendFileStore('main');
 Storage.setDefaultStore(store);
 
-hydrateRoot(
-  document,
-  <React.StrictMode>
-    <BrowserRouter>
-      <App assets={window['assetManifest']} />
-    </BrowserRouter>
-  </React.StrictMode>,
-);
+
+initFrontend().then(() => {
+  hydrateRoot(
+    document,
+    <React.StrictMode>
+      <BrowserRouter>
+        <App assets={window['assetManifest']} />
+      </BrowserRouter>
+    </React.StrictMode>,
+  );
+});
