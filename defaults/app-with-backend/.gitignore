@@ -1,5 +1,7 @@
 node_modules
 frontend/build
+data/uploads
+data/metadata
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
