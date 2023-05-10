@@ -1,4 +1,4 @@
-import {initFrontend} from 'lincd-server/lib/utils/Frontend';
+import {initFrontend} from 'lincd-server-utils/lib/utils/Frontend';
 
 window['$RefreshReg$'] = () => {};
 window['$RefreshSig$'] = () => () => {};

@@ -10,6 +10,7 @@
     "downlevelIteration": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
+    "types": ["node", "react", "react-dom"],
     "jsx": "react",
     "baseUrl": "./",
     "rootDir": "src"

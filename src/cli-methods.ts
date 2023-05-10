@@ -237,12 +237,47 @@ function runOnPackagesGroupedByDependencies(
       ) {
         stack.push(pkg);
       }
-      // else if(!done.has(package))
-      // {
-      // 	console.log(chalk.red(package+' not yet'))
-      // 	console.log('UNMET DEPS: '+deps.filter(dependency => !done.has(dependency)).join(" "))
-      // }
     });
+
+    if(stack.length <= 0 && done.size < lincdPackages.size)
+    {
+      console.log(chalk.red('Only '+done.size+ ' out of '+lincdPackages.size+' packages have been built'));
+      console.log('ALL remaining packages have dependencies that have not been met. This may point to '+chalk.red('circular dependencies.'));
+      console.log('Already built: '+Array.from(done).map(p => chalk.green(p.packageName)).join(', '));
+      console.log(chalk.blue('\nTo solve this issue')+': find the circular dependencies below and fix the dependencies:\n\n');
+      //TODO: actually find and name the packages that have circular dependencies
+      // let circular = [];
+      // lincdPackages.forEach((pkg) => {
+      //   if (!done.has(pkg))
+      //   {
+      //     let deps = dependencies.get(pkg);
+      //     if (deps.some(dependency => {
+      //       //return true if this dependency (indirectly) depends on the package whos' dependency it is
+      //       return hasDependency(dependency,pkg,dependencies)
+      //     }))
+      //     {
+      //       circular.push(pkg);
+      //     }
+      //     process.exit();
+      //   }
+      // });
+      lincdPackages.forEach(pkg => {
+        let deps = dependencies.get(pkg);
+        if (!done.has(pkg))
+        {
+          console.log(chalk.red(pkg.packageName)+' has not been built yet. Unbuilt dependencies:\n' + deps.filter(dependency => {
+            return !Array.from(done).some(p => {
+              // console.log(p.packageName,dependency.packageName,p===dependency)
+              return p === dependency
+            })
+          }).map(p => chalk.red('\t- '+p.packageName+'\n')).join(" "))
+          // console.log(chalk.red(pkg.packageName)+' has not been built yet. Built dependencies:\n' + deps.filter(dependency => {
+          //   return Array.from(done).some(p => p.packageName === pkg.packageName)
+          // }).map(p => chalk.green('\t- '+p.packageName+'\n')).join(" "))
+          // console.log(chalk.red(pkg.packageName)+' has not been built yet. Built dependencies:\n' + deps.filter(dependency => done.has(pkg)).map(p => chalk.green('\t- '+p.packageName+'\n')).join(" "))
+        }
+      });
+    }
 
     //if more to be built, iterate
     if (stack.length > 0) {
@@ -254,6 +289,21 @@ function runOnPackagesGroupedByDependencies(
 
   //starts the process
   runStack(startStack);
+}
+function hasDependency(pkg,childPkg,dependencies,depth=1) {
+  console.log("Does "+pkg.packageName+" have dep "+childPkg.packageName+" ?");
+  let deps = dependencies.get(pkg);
+  if(deps.some(dependency => {
+    console.log(dependency.packageName,childPkg.packageName,dependency === childPkg)
+    if(depth === 2) return false;
+    // return dependency === childPkg;
+    return dependency === childPkg || hasDependency(dependency,childPkg,dependencies,depth++)
+  })) {
+    console.log("##YES");
+    return true
+  }
+  console.log("going up");
+  return false;
 }
 
 export function buildAll(target, target2, target3) {
@@ -1326,6 +1376,7 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
   // let packages = getLocalLincdModules();
   let packages = getLocalLincdPackageMap();
 
+  // console.log(packages);
   let jsonldPkgUpdated = needsRebuilding(packages.get('lincd-jsonld'));
   // let cliPkgUpdated = needsRebuilding(packages.get('lincd-cli'));
 
@@ -1344,8 +1395,8 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
   runOnPackagesGroupedByDependencies(
     packages,
     (packageGroup, dependencies) => {
-      // console.log('Now checking: ' + chalk.blue(packageGroup.map((i) => i.packageName)));
-      // console.log((packagesLeft) + " packages left.");
+      debugInfo('Now checking: ' + chalk.blue(packageGroup.map((i) => i.packageName)));
+      debugInfo((packagesLeft) + " packages left.");
 
       packagesLeft = packagesLeft - packageGroup.length;
       return async (pkg: PackageDetails) => {
@@ -1473,11 +1524,11 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
   // });
 };
 
-const needsRebuilding = function (pkg: PackageDetails, logDetailsIfTrue: boolean = false) {
+const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
   let lastModifiedSource = getLastModifiedSourceTime(pkg.path);
   let lastModifiedBundle = getLastBuildTime(pkg.path);
   let result = lastModifiedSource.lastModifiedTime > lastModifiedBundle.lastModifiedTime;
-  if (logDetailsIfTrue) {
+  if (log) {
     debugInfo(
       chalk.cyan(
         'Last modified source: ' +

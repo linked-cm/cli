@@ -12,7 +12,7 @@
     "resolveJsonModule": true,
     "downlevelIteration": true,
     "jsx": "react",
-    "types": ["node"],
+    "types": ["node", "react", "react-dom"],
     "paths": {
       "react": ["../node_modules/@types/react","../../../node_modules/@types/react"]
     },
