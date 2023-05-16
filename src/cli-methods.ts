@@ -165,7 +165,7 @@ function runOnPackagesGroupedByDependencies(
   onBuildStack: (packageGroup, dependencies) => (pkg: PackageDetails) => Promise<any>,
   onStackEnd,
 ) {
-  let dependencies: Map<PackageDetails, (PackageDetails | string)[]> = new Map();
+  let dependencies: Map<PackageDetails, PackageDetails[]> = new Map();
 
   //get dependencies of each package
   let leastDependentPackage;
@@ -270,7 +270,7 @@ function runOnPackagesGroupedByDependencies(
               // console.log(p.packageName,dependency.packageName,p===dependency)
               return p === dependency
             })
-          }).map(p => chalk.red('\t- '+p.packageName+'\n')).join(" "))
+          }).map(p => chalk.red('\t- '+(p?.packageName ? p.packageName : p.toString())+'\n')).join(" "))
           // console.log(chalk.red(pkg.packageName)+' has not been built yet. Built dependencies:\n' + deps.filter(dependency => {
           //   return Array.from(done).some(p => p.packageName === pkg.packageName)
           // }).map(p => chalk.green('\t- '+p.packageName+'\n')).join(" "))
@@ -1602,21 +1602,41 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   log('Adding capacitor');
   fs.copySync(path.join(__dirname, '..', 'defaults', 'app-static'), targetFolder);
 
+  //update .env-cmdrc.json file
+  let envCmdPath = path.resolve(basePath, '.env-cmdrc.json');
+  let envCmd = JSON.parse(fs.readFileSync(envCmdPath,{encoding:'utf8'}));
+  envCmd['static-dev'] = {
+    "NODE_ENV": "production",
+    "SITE_ROOT": "http://localhost:4000",
+    "DATA_ROOT": "http://localhost:4000/data",
+    "OUTPUT_PATH" : "./frontend/web/assets",
+    "ASSET_PATH" : "./assets/",
+    "ENTRY_PATH" : "./frontend/src/index-static.tsx"
+  }
+  fs.writeFile(envCmdPath, JSON.stringify(envCmd,null,2));
+  log('Edited .env-cmdrc.json');
+
+
   //update package.json scripts
   let pack = getPackageJSON(basePath);
   pack.scripts['build-static'] = 'env-cmd -e static-dev node frontend/scripts/build.js';
-  fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack));
+  pack.scripts['cap:android'] = 'yarn cap open android';
+  pack.scripts['cap:sync'] = 'yarn cap sync';
 
-  await execPromise(`yarn add -W -D @capacitor/cli`, false, false, null, true);
+    fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack,null,2));
+  log('Added new run script to package.json');
+
+  await execPromise(`yarn add -D @capacitor/cli`, true, false, null, true);
   await execPromise(
-    `yarn add -W @capacitor/android @capacitor/core @capacitor/geolocation @capacitor/ios @capacitor/push-notifications`,
+    `yarn add @capacitor/android @capacitor/core @capacitor/geolocation @capacitor/ios @capacitor/push-notifications`,
     false,
     false,
     null,
     true,
   );
 
-  log('Done! Run `yarn build-static` to generate static bundles. Then `yarn cap add android` or `yarn cap add ios`');
+  log(`Done! Run ${chalk.magenta('yarn build-static')} to generate static bundles. Then run ${chalk.magenta('yarn cap add android')} and/or ${chalk.magenta('yarn cap add ios')}')`);
+  log(`Also see the app icons in /frontend/web`);
 };
 
 export var executeCommandForPackage = function (packageName, command) {

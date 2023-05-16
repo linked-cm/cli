@@ -26,6 +26,7 @@ var program = require('commander');
 var fs = require('fs-extra');
 var path = require('path');
 
+
 program
   .command('create-app')
   .action((name) => {
@@ -180,7 +181,7 @@ program
   .argument('[command]', 'the lincd command you want to execute. Like dev or build')
   .argument('[args...]', 'the additional arguments of that command');
 
-program.command('add-capacitor').action(() => {
+program.command('enable-capacitor').action(() => {
   addCapacitor();
 });
 
