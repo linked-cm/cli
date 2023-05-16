@@ -89,11 +89,11 @@ function debugInfo(...messages) {
   //   console.log(gruntConfig);
   //   process.exit();
   // }
-  if (gruntConfig && gruntConfig.analyse === true) {
+  // if (gruntConfig && gruntConfig.analyse === true) {
     messages.forEach((message) => {
       console.log(chalk.cyan('Info: ') + message);
     });
-  }
+  // }
 }
 
 function warn(...messages) {
