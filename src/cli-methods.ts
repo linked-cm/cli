@@ -40,6 +40,7 @@ export const createApp = async (name, basePath = process.cwd()) => {
   replaceVariablesInFilesWithRoot(
     targetFolder,
     'package.json',
+    'pm2.config.json',
     'frontend/src/App.tsx',
     'frontend/src/package.ts',
     'frontend/src/App.scss.json',
@@ -1002,6 +1003,7 @@ export const buildMetadata = async (): Promise<string[]> => {
 
   for (const [packageCodeName, packagePath, lincdPackagePath, isAppPackage] of localPackagePaths) {
     let errors = false;
+    //TODO: check if this resolves, if not, skip it (for initial setup)
     import ('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
       await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
         if (response.errors.length > 0) {
@@ -1240,6 +1242,15 @@ export var publishUpdated = function (test: boolean = false) {
                   //NOTE: removed lastModified, because switching branches will say that the file was modified and cause everything to publish
                   //SO: now you NEED TO commit before it picks up that you should publish
                   shouldPublish = lastPublishDate.getTime() < lastCommitInfo.date.getTime();
+
+                  //ignore changes to package.json if that's the only change, because when we publish the version number changes, which is then committed
+                  //(note there is always 2 lines for commit info + number of files changed)
+                  let changedFiles = lastCommitInfo.changes.split("\n").filter(line => line.includes("|"));
+                  let numberOfFilesChanges = changedFiles.length;
+                  // console.log("CHECK "+lastCommitInfo.changes.includes("package.json")+" - "+numberOfFilesChanges)
+                  if(shouldPublish && lastCommitInfo.changes.includes("package.json") && numberOfFilesChanges === 1){
+                    shouldPublish = false;
+                  }
                   if (shouldPublish) {
 
                     log(chalk.magenta(pckg.packageName)+' should be published because:')
@@ -1268,7 +1279,7 @@ export var publishUpdated = function (test: boolean = false) {
             if (shouldPublish) {
               return publishPackage(pckg, test, info, version);
             }
-            return chalk.green(pckg.packageName + ' latest version is up to date');
+            return chalk.blue(pckg.packageName) + ' latest version is up to date';
           })
           .catch(({error, stdout, stderr}) => {
             if (error) {
@@ -1358,8 +1369,8 @@ export var publishPackage = async function (pkg?, test?, info?, publishVersion?)
         return chalk.red(pkg.packageName + ' failed\n');
       }
 
-      console.log(chalk.green('Successfully published ' + pkg.path + ' ' + publishVersion));
-      return chalk.green(pkg.packageName + ' published ' + publishVersion);
+      console.log('Successfully published ' + chalk.green(pkg.path) + ' ' + chalk.magenta(publishVersion));
+      return chalk.green(pkg.packageName) + ' published ' + chalk.magenta(publishVersion);
     })
     .catch(({error, stdout, stderr}) => {
       console.log(chalk.red('Failed to publish: ' + error.message));
