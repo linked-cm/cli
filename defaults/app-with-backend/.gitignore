@@ -1,5 +1,6 @@
 node_modules
 frontend/build
+frontend/web/assets
 data/uploads
 data/metadata
 data/sessions
@@ -17,3 +18,5 @@ packages/**/.yarn/*
 !packages/**/.yarn/releases
 !packages/**/.yarn/sdks
 !packages/**/.yarn/versions
+android/app/build
+ios/App/App/public

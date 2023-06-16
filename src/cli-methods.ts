@@ -40,7 +40,7 @@ export const createApp = async (name, basePath = process.cwd()) => {
   replaceVariablesInFilesWithRoot(
     targetFolder,
     'package.json',
-    'pm2.config.json',
+    'pm2.config.js',
     'frontend/src/App.tsx',
     'frontend/src/package.ts',
     'frontend/src/App.scss.json',
@@ -1187,7 +1187,7 @@ export var publishUpdated = function (test: boolean = false) {
     p = p
       .then((previousResult) => {
         // progressUpdate(packagesLeft-- + ' packages left. Now checking ' + pckg.packageName);
-        // log('# Checking package ' + pckg.packageName);
+        log('# Checking package ' + pckg.packageName);
         // log('# Requesting ' + 'yarn info '+pkg.packageName+' --json');
         // return execPromise('yarn info '+pkg.packageName+' --json').then((output:string) => {
         // console.log("Will be requesting npm view from this current working directory:\n"+process.cwd());
@@ -1203,8 +1203,10 @@ export var publishUpdated = function (test: boolean = false) {
           return chalk.gray(pckg.packageName + ' is private');
           // return previousResult + ' ' + chalk.gray(pckg.packageName + ' is private\n');
         }
+        console.log("testing npm")
         return execPromise('npm info ' + pckg.packageName + ' --json')
           .then(async (output: string) => {
+            console.log("testing npm done")
             var info;
             try {
               if (output == '' || output.includes('E404')) {
@@ -1411,7 +1413,7 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
 
       packagesLeft = packagesLeft - packageGroup.length;
       return async (pkg: PackageDetails) => {
-        debugInfo('# Checking package ' + pkg.packageName);
+        // debugInfo('# Checking package ' + pkg.packageName);
         let needRebuild = needsRebuilding(pkg, true);
 
         if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated) {
