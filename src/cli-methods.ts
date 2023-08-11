@@ -31,21 +31,18 @@ export const createApp = async (name, basePath = process.cwd()) => {
   }
 
   fs.copySync(path.join(__dirname, '..', 'defaults', 'app-with-backend'), targetFolder);
-  fs.renameSync(path.join(targetFolder, '.yarnrc.yml.template'), path.join(targetFolder, '.yarnrc.yml'));
+  //make sure the data folder exists (even though its empty).. copying empty folders does not work with fs.copySync
+  fs.mkdirSync(path.join(targetFolder,'data'),{recursive:true});
+
+  // fs.renameSync(path.join(targetFolder, '.yarnrc.yml.template'), path.join(targetFolder, '.yarnrc.yml'));
+
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
   log("Creating new LINCD application '" + name + "'");
 
   //replace variables in some copied files
-  replaceVariablesInFilesWithRoot(
+  await replaceVariablesInFolder(
     targetFolder,
-    'package.json',
-    'pm2.config.js',
-    'frontend/src/App.tsx',
-    'frontend/src/package.ts',
-    'frontend/src/App.scss.json',
-    '.vscode/launch.json',
-    'frontend/src/components/Spinner.scss.json',
   );
 
   let hasYarn = await hasYarnInstalled();
@@ -547,7 +544,9 @@ function setVariable(name, replacement) {
 }
 
 var replaceVariablesInFile = async (filePath: string) => {
-  var fileContent = await fs.readFile(filePath, 'utf8');
+  var fileContent = await fs.readFile(filePath, 'utf8').catch(err => {
+    console.warn(chalk.red("Could not read file "+filePath));
+  })
   var newContent = replaceCurlyVariables(fileContent);
   return fs.writeFile(filePath, newContent);
 };
@@ -653,6 +652,22 @@ const replaceVariablesInFiles = function (...files: string[]) {
     }),
   );
 };
+const replaceVariablesInFolder = function (folder:string) {
+  //get all files in folder, including files that start with a dot
+
+  glob(folder + '/**/*', {dot: true,nodir:true},function (err, files) {
+    if (err) {
+      console.log('Error', err);
+    } else {
+      // console.log(files);
+      return Promise.all(
+        files.map((file) => {
+          return replaceVariablesInFile(file);
+        }),
+      );
+    }
+  });
+};
 
 const replaceVariablesInFilesWithRoot = function (root: string, ...files: string[]) {
   return replaceVariablesInFiles(...files.map((f) => path.join(root, f)));
@@ -692,14 +707,16 @@ const setNameVariables = function (name) {
   let hyphenName = name.replace(/[-_\s]+/g, '-');
   let camelCaseName = camelCase(name); //some-package --> someModule
   let underscoreName = name.replace(/[-\s]+/g, '_');
+  let plainName = name.replace(/[-\s]+/g, '');
 
   //longer similar variables names should come before the shorter ones
   setVariable('underscore_name', underscoreName);
   setVariable('hyphen_name', hyphenName);
   setVariable('camel_name', camelCaseName);
   setVariable('name', name);
+  setVariable('plain_name', plainName);
 
-  return {hyphenName, camelCaseName, underscoreName};
+  return {hyphenName, camelCaseName, underscoreName,plainName};
 };
 
 function getSourceFolder(basePath = process.cwd()) {
@@ -1012,6 +1029,10 @@ export const buildMetadata = async (): Promise<string[]> => {
           // throw response
           errors = true;
         } else {
+          if(!response.packageUri) {
+            console.warn("No package URI from meta data. Not building meta data for this package");
+            return;
+          }
           let pkgNode = NamedNode.getOrCreate(response.packageUri);
           //connect the packages to the app
           let lincdApp = createNameSpace('http://lincd.org/ont/lincd-app/');

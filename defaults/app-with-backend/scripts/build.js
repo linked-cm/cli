@@ -35,8 +35,8 @@ webpack(config, async (err, stats) => {
     // );
 
     //build metadata (JSON-LD files containing metadata about the lincd components, shapes & ontologies in this app or its packages)
-    let updatedPaths = await buildMetadata();
-    console.log(chalk.green("Updated metadata:\n")+" - "+updatedPaths.map(p => chalk.magenta(p.replace(process.cwd(),''))).join("\n - "));
+    // let updatedPaths = await buildMetadata();
+    // console.log(chalk.green("Updated metadata:\n")+" - "+updatedPaths.map(p => chalk.magenta(p.replace(process.cwd(),''))).join("\n - "));
   }
   process.exit();
 });
