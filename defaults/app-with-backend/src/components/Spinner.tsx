@@ -1,5 +1,6 @@
 import './Spinner.scss';
 import * as style from './Spinner.scss.json';
+
 export function Spinner({active = true}) {
   return (
     <div

@@ -1,6 +1,5 @@
-import React from 'react';
-import {lazy, Suspense} from 'react';
-import {Route, Routes} from 'react-router-dom';
+import React,{lazy,Suspense} from 'react';
+import {Route,Routes} from 'react-router-dom';
 import {Spinner} from './components/Spinner';
 
 //In React 18 you can use 'lazy' to import pages only when you need them.

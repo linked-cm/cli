@@ -18,7 +18,7 @@
   "scripts": {
     "start": "npm run server:dev",
     "build": "env-cmd -e _main,production node scripts/build.js",
-    "prepare": "husky install",
+    "postinstall": "husky install && echo 'Please run this command manually: node scripts/prepare.js'",
     "server:dev": "env-cmd -e _main,development nodemon --quiet --watch ./src/index.tsx ./scripts/start-server.js",
     "server:prod": "env-cmd -e _main,production node ./scripts/start-server.js",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\""
@@ -65,8 +65,10 @@
     "@types/react": "^18.0.17",
     "@types/react-dom": "^18.0.6",
     "env-cmd": "^10.1.0",
+    "husky": "^8.0.0",
     "lincd-cli": "^0.2",
     "nodemon": "^2.0.22",
-    "pm2": "^5.3.0"
+    "pm2": "^5.3.0",
+    "which": "^3.0.1"
   }
 }

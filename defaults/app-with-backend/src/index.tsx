@@ -5,7 +5,7 @@ import App from './App';
 import React from 'react';
 import {Storage} from 'lincd/lib/utils/Storage';
 import {BackendAPIStore} from 'lincd-server/lib/shapes/BackendAPIStore';
-import { AppContextProvider } from 'lincd-server-utils/lib/components/AppContext';
+import {AppContextProvider} from 'lincd-server-utils/lib/components/AppContext';
 
 window['$RefreshReg$'] = () => {};
 window['$RefreshSig$'] = () => () => {};
@@ -15,7 +15,6 @@ export const store = new BackendAPIStore();
 Storage.setDefaultStore(store);
 
 initFrontend().then(() => {
-
   hydrateRoot(
     document,
     <React.StrictMode>
@@ -28,6 +27,6 @@ initFrontend().then(() => {
           <App />
         </AppContextProvider>
       </BrowserRouter>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 });
