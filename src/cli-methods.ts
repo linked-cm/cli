@@ -61,7 +61,7 @@ export const createApp = async (name, basePath = process.cwd()) => {
 };
 
 function logHelp() {
-  execp('yarn lincd help');
+  execp('yarn exec lincd help');
 }
 
 function log(...messages) {
@@ -373,7 +373,7 @@ export function buildAll(target, target2, target3) {
         //unless told otherwise, build the package
         if (!command) {
           command = execPromise(
-            'cd ' + pkg.path + ' && yarn lincd build' + (target ? ' ' + target : '') + (target2 ? ' ' + target2 : ''),
+            'cd ' + pkg.path + ' && yarn exec lincd build' + (target ? ' ' + target : '') + (target2 ? ' ' + target2 : ''),
             false,
             false,
             {},
@@ -1679,9 +1679,9 @@ export var executeCommandForPackage = function (packageName, command) {
       modDetails.packageName.indexOf(packageName) !== -1 || modDetails.packageName.indexOf(packageName) !== -1,
   );
   if (packageDetails) {
-    log("Executing 'cd " + packageDetails.path + ' && yarn lincd' + (command ? ' ' + command : '') + "'");
+    log("Executing 'cd " + packageDetails.path + ' && yarn exec lincd' + (command ? ' ' + command : '') + "'");
 
-    return execp('cd ' + packageDetails.path + ' && yarn lincd' + (command ? ' ' + command : ''));
+    return execp('cd ' + packageDetails.path + ' && yarn exec lincd' + (command ? ' ' + command : ''));
   } else {
     warn("Could not find a pkg who's name (partially) matched " + chalk.cyan(packageName));
   }
