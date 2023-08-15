@@ -1,5 +1,5 @@
-import React,{lazy,Suspense} from 'react';
-import {Route,Routes} from 'react-router-dom';
+import React, {lazy, Suspense} from 'react';
+import {Route, Routes} from 'react-router-dom';
 import {Spinner} from './components/Spinner';
 
 //In React 18 you can use 'lazy' to import pages only when you need them.
@@ -21,8 +21,8 @@ export default function AppRoutes() {
   return (
     <Routes>
       {Object.keys(ROUTES).map((routeName) => {
-        let route = ROUTES[routeName];
-        let Component = route.component;
+        const route = ROUTES[routeName];
+        const Component = route.component;
         return (
           <Route
             key={route.path}
