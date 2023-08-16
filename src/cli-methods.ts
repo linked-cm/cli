@@ -547,8 +547,15 @@ var replaceVariablesInFile = async (filePath: string) => {
   var fileContent = await fs.readFile(filePath, 'utf8').catch(err => {
     console.warn(chalk.red("Could not read file "+filePath));
   })
-  var newContent = replaceCurlyVariables(fileContent);
-  return fs.writeFile(filePath, newContent);
+  if(fileContent)
+  {
+    var newContent = replaceCurlyVariables(fileContent);
+    return fs.writeFile(filePath, newContent);
+  }
+  else
+  {
+    return Promise.resolve();
+  }
 };
 
 var replaceCurlyVariables = function (string) {
