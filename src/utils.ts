@@ -26,20 +26,23 @@ export var getPackageJSON = function (root = process.cwd(), error = true) {
  * Returns an array of lincd packages, with each entry containing an array with the package name and the local path to the package
  * @param packageJson
  */
-export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<string> = new Set()):[string,string][] {
+export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<string> = new Set()):[string,string,string[]][] {
   if(!packageJson) {
     packageJson = getPackageJSON();
   }
   let dependencies = {...packageJson.dependencies, ...packageJson.devDependencies};
-  let lincdPackagePaths = [];
+  let lincdPackagePaths:[string,string,string[]][] = [];
+  let firstTime = checkedPackages.size === 0;
+
   for (var dependency of Object.keys(dependencies)) {
     try {
       if(!checkedPackages.has(dependency))
       {
-        checkedPackages.add(dependency);
         let [modulePackageJson,modulePath] = getModulePackageJSON(dependency);
+        checkedPackages.add(dependency);
+
         if (modulePackageJson?.lincd) {
-          lincdPackagePaths.push([modulePackageJson.name,modulePath]);
+          lincdPackagePaths.push([modulePackageJson.name,modulePath,[...Object.keys({...modulePackageJson.dependencies, ...modulePackageJson.devDependencies})]]);
           //also check if this package has any dependencies that are lincd packages
           lincdPackagePaths = lincdPackagePaths.concat(getLINCDDependencies(modulePackageJson,checkedPackages));
         }
@@ -52,8 +55,44 @@ export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<stri
       console.log(`could not check if ${dependency} is a lincd package: ${err}`);
     }
   }
+
+  if(firstTime) {
+
+    let dependencyMap:Map<string,Set<string>> = new Map();
+    let lincdPackageNames = new Set(lincdPackagePaths.map(([packageName, modulePath, pkgDependencies]) => packageName));
+    //remove lincd-cli from the list of lincd packages
+    lincdPackageNames.delete('lincd-cli');
+
+    lincdPackagePaths.forEach(([packageName,modulePath,pkgDependencies]) => {
+      dependencyMap.set(packageName, new Set(pkgDependencies.filter(dependency => lincdPackageNames.has(dependency))));
+    });
+    //remove lincd-modules from the dependencies of lincd-cli (it's not a hard dependency, and it messes things up)
+    dependencyMap.get('lincd-cli')?.delete('lincd-modules');
+
+    //add the nested dependencies for each lincd package
+    for (let [packageName,pkgDependencies] of dependencyMap) {
+      pkgDependencies.forEach((dependency) => {
+        if (dependencyMap.has(dependency)) {
+          dependencyMap.get(dependency).forEach((nestedDependency) => {
+            pkgDependencies.add(nestedDependency);
+          });
+        }
+      });
+    }
+
+    //sort the lincd packages by least dependent first
+    lincdPackagePaths.sort(([packageNameA,modulePathA,pkgDependenciesA],[packageNameB,modulePathB,pkgDependenciesB]) => {
+      //if package A depends on package B, then package B should come first
+      if (dependencyMap.get(packageNameA).has(packageNameB)) {
+          return 1;
+      }
+      return -1;
+    });
+  }
+
   return lincdPackagePaths;
 }
+
 
 //from https://github.com/haalcala/node-packagejson/blob/master/index.js
 export var getModulePackageJSON = function(module_name, work_dir?) {

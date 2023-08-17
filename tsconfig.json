@@ -3,6 +3,7 @@
     "module": "commonjs",
     "newLine": "lf",
     "esModuleInterop": true,
+    "target": "es6",
     "baseUrl": "./src",
     "downlevelIteration": true,
     "outDir": "./lib",
