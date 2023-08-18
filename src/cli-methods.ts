@@ -1655,6 +1655,7 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   let targetFolder = ensureFolderExists(basePath);
   log('Adding capacitor');
   fs.copySync(path.join(__dirname, '..', 'defaults', 'app-static'), targetFolder);
+  fs.copySync(path.join(__dirname, '..', 'defaults', 'capacitor', 'scripts'), path.join(targetFolder, 'scripts'));
 
   //update .env-cmdrc.json file
   let envCmdPath = path.resolve(basePath, '.env-cmdrc.json');
