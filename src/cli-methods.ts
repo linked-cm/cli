@@ -1638,6 +1638,19 @@ export var executeCommandForEachPackage = function (packages, command, filterMet
   });
   return p;
 };
+
+var gitIgnore = function(...entries) {
+  //add each entry to the .gitignore file
+  let gitIgnorePath = path.resolve(process.cwd(),'.gitignore');
+  addLinesToFile(gitIgnorePath,entries);
+}
+var addLinesToFile = function(filePath, entries) {
+  let fileContents = fs.readFileSync(filePath, {encoding: 'utf8'});
+  entries.forEach(entry => {
+    fileContents += '\n'+entry;
+  });
+  fs.writeFileSync(filePath, fileContents);
+}
 export var addCapacitor = async function (basePath = process.cwd()) {
   let targetFolder = ensureFolderExists(basePath);
   log('Adding capacitor');
@@ -1657,6 +1670,7 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   fs.writeFile(envCmdPath, JSON.stringify(envCmd,null,2));
   log('Edited .env-cmdrc.json');
 
+  gitIgnore('android/app/build','android/**/capacitor.build.gradle','ios/App/App/public','ios/App/Podfile');
 
   //update package.json scripts
   let pack = getPackageJSON(basePath);
