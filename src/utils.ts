@@ -58,36 +58,77 @@ export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<stri
 
   if(firstTime) {
 
-    let dependencyMap:Map<string,Set<string>> = new Map();
+    // let dependencyMap:Map<string,Set<string>> = new Map();
     let lincdPackageNames = new Set(lincdPackagePaths.map(([packageName, modulePath, pkgDependencies]) => packageName));
     //remove lincd-cli from the list of lincd packages
     lincdPackageNames.delete('lincd-cli');
 
-    lincdPackagePaths.forEach(([packageName,modulePath,pkgDependencies]) => {
-      dependencyMap.set(packageName, new Set(pkgDependencies.filter(dependency => lincdPackageNames.has(dependency))));
-    });
-    //remove lincd-modules from the dependencies of lincd-cli (it's not a hard dependency, and it messes things up)
-    dependencyMap.get('lincd-cli')?.delete('lincd-modules');
+    lincdPackagePaths.forEach(([packageName,modulePath,pkgDependencies],key) => {
+      let lincdDependencies = pkgDependencies.filter(dependency => lincdPackageNames.has(dependency))
+      if(packageName === 'lincd-cli') {
+        //remove lincd-modules from the dependencies of lincd-cli (it's not a hard dependency, and it messes things up)
+        lincdDependencies.splice(lincdDependencies.indexOf('lincd-modules'),1);
+      }
+      // dependencyMap.set(packageName, new Set(lincdDependencies));
+      //update dependencies to be the actual lincd package objects
+      lincdPackagePaths[key][2] = lincdDependencies
 
-    //add the nested dependencies for each lincd package
-    for (let [packageName,pkgDependencies] of dependencyMap) {
-      pkgDependencies.forEach((dependency) => {
-        if (dependencyMap.has(dependency)) {
-          dependencyMap.get(dependency).forEach((nestedDependency) => {
-            pkgDependencies.add(nestedDependency);
-          });
+    });
+
+    // //add the nested dependencies for each lincd package
+    // for (let [packageName,pkgDependencies] of dependencyMap) {
+    //   pkgDependencies.forEach((dependency) => {
+    //     if (dependencyMap.has(dependency)) {
+    //       dependencyMap.get(dependency).forEach((nestedDependency) => {
+    //         pkgDependencies.add(nestedDependency);
+    //       });
+    //     }
+    //   });
+    // }
+    //
+    // dependencyMap.forEach((dependencies,packageName) => {
+    //   //check for circular dependencies
+    //   if([...dependencies].some(dependency => {
+    //     return dependencyMap.get(dependency).has(packageName);
+    //   }))
+    //   {
+    //     console.warn(`Circular dependency detected between ${packageName} and ${dependency}`);
+    //   }
+    //
+    // });
+
+    // a simple sort with dependencyMap doesn't seem to work,so we start with LINCD (least dependencies) and from there add packages that have all their dependencies already added
+    let sortedPackagePaths = [];
+    let addedPackages = new Set(['lincd']);
+    sortedPackagePaths.push(lincdPackagePaths.find(([packageName]) => {
+      return packageName === 'lincd';
+    }));
+
+    while(addedPackages.size !== lincdPackagePaths.length) {
+      let startSize = addedPackages.size;
+      lincdPackagePaths.forEach(([packageName,modulePath,pkgDependencies]) => {
+        if(!addedPackages.has(packageName) && pkgDependencies.every(dependency => addedPackages.has(dependency))) {
+          sortedPackagePaths.push([packageName,modulePath,pkgDependencies]);
+          addedPackages.add(packageName);
         }
       });
+      if(startSize === addedPackages.size) {
+        console.warn('Could not sort lincd packages, circular dependencies?');
+        break;
+      }
     }
 
     //sort the lincd packages by least dependent first
-    lincdPackagePaths.sort(([packageNameA,modulePathA,pkgDependenciesA],[packageNameB,modulePathB,pkgDependenciesB]) => {
-      //if package A depends on package B, then package B should come first
-      if (dependencyMap.get(packageNameA).has(packageNameB)) {
-          return 1;
-      }
-      return -1;
-    });
+    // lincdPackagePaths = lincdPackagePaths.sort(([packageNameA],[packageNameB]) => {
+    //   //if package A depends on package B, then package B should come first
+    //   if (dependencyMap.get(packageNameA).has(packageNameB)) {
+    //     console.log(packageNameA+' depends on '+packageNameB+ ' (below)')
+    //       return 1;
+    //   }
+    //   console.log(packageNameA+' above '+packageNameB)
+    //   return -1;
+    // });
+    return sortedPackagePaths;
   }
 
   return lincdPackagePaths;

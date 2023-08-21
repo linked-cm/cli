@@ -4,7 +4,6 @@ import WatchRunPlugin from './plugins/watch-run';
 import {generateScopedName,getLinkedTailwindColors,getPackageJSON,warn} from './utils';
 import {AdjustedModuleConfig} from './interfaces';
 import colors = require('colors');
-
 // console.log('Webpack '+require('webpack/package.json').version);
 // console.log('ts-loader '+require('ts-loader/package.json').version);
 
