@@ -1653,6 +1653,7 @@ var addLinesToFile = function(filePath, entries) {
 }
 export var addCapacitor = async function (basePath = process.cwd()) {
   let targetFolder = ensureFolderExists(basePath);
+
   log('Adding capacitor');
   fs.copySync(path.join(__dirname, '..', 'defaults', 'app-static'), targetFolder);
   fs.copySync(path.join(__dirname, '..', 'defaults', 'capacitor', 'scripts'), path.join(targetFolder, 'scripts'));
@@ -1660,14 +1661,22 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   //update .env-cmdrc.json file
   let envCmdPath = path.resolve(basePath, '.env-cmdrc.json');
   let envCmd = JSON.parse(fs.readFileSync(envCmdPath,{encoding:'utf8'}));
-  envCmd['static-dev'] = {
-    "NODE_ENV": "production",
-    "SITE_ROOT": "http://localhost:4000",
-    "DATA_ROOT": "http://localhost:4000/data",
-    "OUTPUT_PATH" : "./frontend/web/assets",
-    "ASSET_PATH" : "./assets/",
-    "ENTRY_PATH" : "./frontend/src/index-static.tsx"
+
+  envCmd['app-main'] = {
+    "APP_ENV": true,
+    "OUTPUT_PATH": "./web/assets",
+    "ASSET_PATH": "./assets/",
+    "ENTRY_PATH": "./src/index-static.tsx"
   }
+  envCmd['app-local-android'] = {
+    "NODE_ENV": "app",
+    "SITE_ROOT": "http://10.0.2.2:4000"
+  }
+  envCmd['app-local-ios'] = {
+    "NODE_ENV": "app",
+    "SITE_ROOT": "http://localhost:4000"
+  }
+
   fs.writeFile(envCmdPath, JSON.stringify(envCmd,null,2));
   log('Edited .env-cmdrc.json');
 
@@ -1675,24 +1684,39 @@ export var addCapacitor = async function (basePath = process.cwd()) {
 
   //update package.json scripts
   let pack = getPackageJSON(basePath);
-  pack.scripts['build-static'] = 'env-cmd -e static-dev node frontend/scripts/build.js';
+  pack.scripts['build-staging'] = 'env-cmd -e _main, staging node scripts/build.js';
+  pack.scripts['fix-app'] = 'node scripts/fix-namespace.js';
+  pack.scripts['app'] = 'env-cmd -e _main,production,app-main node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app-local-ios'] = 'env-cmd -e _main,development,app-main,app-local-ios node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app-local-android'] = 'env-cmd -e _main,development,app-main,app-local-android node scripts/build.js && npx cap sync && yarn run fix-app';
   pack.scripts['cap:android'] = 'yarn cap open android';
+  pack.scripts['cap:ios'] = 'yarn cap open ios';
   pack.scripts['cap:sync'] = 'yarn cap sync';
+  
 
-    fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack,null,2));
+  fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack,null,2));
   log('Added new run script to package.json');
 
   await execPromise(`yarn add -D @capacitor/cli`, true, false, null, true);
   await execPromise(
-    `yarn add @capacitor/android @capacitor/core @capacitor/geolocation @capacitor/ios @capacitor/push-notifications`,
+    `yarn add @capacitor/android @capacitor/core @capacitor/app @capacitor/ios`,
     false,
     false,
     null,
     true,
   );
 
-  log(`Done! Run ${chalk.magenta('yarn build-static')} to generate static bundles. Then run ${chalk.magenta('yarn cap add android')} and/or ${chalk.magenta('yarn cap add ios')}')`);
-  log(`Also see the app icons in /frontend/web`);
+  // TODO: Do we need to add `npx cap init`? If yes, we should not copy capacitor config.ts yet 
+  // await execPromise(`npx cap init`, true, false, null, true);
+  // got error:
+  // [error] Non-interactive shell detected.
+  // Run the command with --help to see a list of arguments that must be provided.
+  // [error] Non-interactive shell detected.
+  // Run the command with --help to see a list of arguments that must be provided.
+
+  log(`Done! Now update your Capacitor configuration by providing an app name, app ID, and web directory at ${chalk.blue('capacitor.config.ts')}`);
+  log(`And then run ${chalk.magenta('yarn cap add android')} and/or ${chalk.magenta('yarn cap add ios')}')`);
+  log(`Last, run ${chalk.magenta('yarn app')} or ${chalk.magenta('yarn app-local-ios')} or ${chalk.magenta('yarn app-local-android')}`);
 };
 
 export var executeCommandForPackage = function (packageName, command) {
