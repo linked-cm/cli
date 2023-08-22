@@ -92,7 +92,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     flatten([
       'prepare-build',
       buildFrontend ? 'webpack:build-es6' : null,
-      buildServer ? ['clean:lib', 'exec:build-lib', 'copy:lib'] : null,
+      buildServer ? ['clean:lib', 'exec:build-lib', 'copy:lib','exec:depcheck'] : null,
       // 'exec:shapes',
     ]),
   );
@@ -116,6 +116,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'build-lib-es5': 'yarn exec tsc --pretty -p tsconfig-es5.json',
       beforeBuildCommand: config.beforeBuildCommand,
       'server-dev': 'tsc -w',
+      depcheck: 'yarn lincd depcheck',
       test: 'tsc -w',
       // shapes: 'lincd shapes',
       'css-declarations': 'tcm -p **/*.scss',

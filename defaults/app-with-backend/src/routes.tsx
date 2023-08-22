@@ -10,10 +10,12 @@ export const ROUTES = {
     path: '/',
     component: lazy(() => import('./pages/Home' /* webpackPrefetch: true */)),
     requireAuth: true,
+    label:"Home",
   },
   page1: {
     path: '/page1',
     component: lazy(() => import('./pages/Page1' /* webpackPrefetch: true */)),
+    label:"Page 1",
   },
 };
 

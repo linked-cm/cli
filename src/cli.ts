@@ -11,7 +11,7 @@ import {
   createOntology,
   createPackage,
   createSetComponent,
-  createShape,
+  createShape,depCheck,
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
@@ -153,6 +153,10 @@ program.command('all [action] [filter] [filter-value]').action((command, filter,
 
 program.command('dev [target] [mode]').action((target, mode) => {
   developPackage(target, mode);
+});
+
+program.command('depcheck').action((target, mode) => {
+  depCheck();
 });
 
 program

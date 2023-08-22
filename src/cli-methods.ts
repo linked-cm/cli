@@ -9,6 +9,7 @@ import {JSONLDWriter} from 'lincd-jsonld/lib/utils/JSONLDWriter';
 import {createNameSpace} from 'lincd/lib/utils/NameSpace';
 import {Prefix} from 'lincd/lib/utils/Prefix';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
+import depcheck from "depcheck";
 var glob = require('glob');
 var variables = {};
 var open = require('open');
@@ -813,6 +814,27 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   }
 };
 
+export const depCheck = async () => {
+  depcheck(process.cwd(), {}, (results) => {
+    if(results.missing) {
+      let missing = Object.keys(results.missing);
+      //currently react is not an explicit dependency, but we should add it as a peer dependency
+      missing.splice(missing.indexOf("react"));
+      if(missing.length > 0) {
+        console.warn(chalk.red("Missing dependencies:\n")+missing.join(",\n"));
+      }
+    }
+    // if(Object.keys(results.invalidFiles).length > 0) {
+    //   console.warn(chalk.red("Invalid files:\n")+Object.keys(results.invalidFiles).join(",\n"));
+    // }
+    // if(Object.keys(results.invalidDirs).length > 0) {
+    //   console.warn(chalk.red("Invalid dirs:\n")+results.invalidDirs.toString());
+    // }
+    // if(results.unused) {
+    //   console.warn("Unused dependencies: "+results.missing.join(", "));
+    // }
+  });
+}
 export const createPackage = async (name, uriBase?, basePath = process.cwd()) => {
   //if ran with npx, basePath will be the root directory of the repository, even if we're executing from a sub folder (the root directory is where node_modules lives and package.json with workspaces)
   //so we manually find a packages folder, if it exists we go into that.
