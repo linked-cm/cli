@@ -1702,7 +1702,7 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   fs.writeFile(envCmdPath, JSON.stringify(envCmd,null,2));
   log('Edited .env-cmdrc.json');
 
-  gitIgnore('android/app/build','android/**/capacitor.build.gradle','ios/App/App/public','ios/App/Podfile');
+  gitIgnore('android/app/build','android/**/capacitor.build.gradle','ios/App/App/public');
 
   //update package.json scripts
   let pack = getPackageJSON(basePath);
