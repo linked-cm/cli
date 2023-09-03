@@ -9,8 +9,13 @@ export function Header() {
     <header className={style.header}>
       <h1>${name}</h1>
       <nav className={style.menu}>
-        {Object.keys(ROUTES).map(key => {
-          return <Link key={key} to={ROUTES[key].path}>{ROUTES[key].label || key}</Link>
+        {Object.keys(ROUTES).map((key) => {
+          if (ROUTES[key].excludeFromMenu) return null;
+          return (
+            <Link key={key} to={ROUTES[key].path}>
+              {ROUTES[key].label || key}
+            </Link>
+          );
         })}
       </nav>
     </header>

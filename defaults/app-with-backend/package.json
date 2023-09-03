@@ -59,6 +59,7 @@
     "@babel/register": "^7.22.5",
     "chalk": "4.1.2",
     "lincd": "^0.5.22",
+    "lincd-auth": "^0.1.19",
     "lincd-jsonld": "^0.1.21",
     "lincd-server": "^0.1.39",
     "lincd-server-utils": "^0.1.7",

@@ -3,11 +3,10 @@
 !defaults/*
 !defaults/**/*
 !defaults/**/.*
-!.yarnrc.yml
 .idea
-.git
+#.git/
+#!.gitignore
 tsconfig.json
-.gitignore
 src
 .npmrc
 .yarnrc.yml

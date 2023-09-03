@@ -9,7 +9,7 @@ import {JSONLDWriter} from 'lincd-jsonld/lib/utils/JSONLDWriter';
 import {createNameSpace} from 'lincd/lib/utils/NameSpace';
 import {Prefix} from 'lincd/lib/utils/Prefix';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
-import depcheck from "depcheck";
+import depcheck from 'depcheck';
 var glob = require('glob');
 var variables = {};
 var open = require('open');
@@ -33,21 +33,23 @@ export const createApp = async (name, basePath = process.cwd()) => {
 
   fs.copySync(path.join(__dirname, '..', 'defaults', 'app-with-backend'), targetFolder);
   //make sure the data folder exists (even though its empty).. copying empty folders does not work with fs.copySync
-  fs.mkdirSync(path.join(targetFolder,'data'),{recursive:true});
+  fs.mkdirSync(path.join(targetFolder, 'data'), {recursive: true});
+  fs.mkdirSync(path.join(targetFolder, 'data/uploads/resized'), {recursive: true});
 
-  // fs.renameSync(path.join(targetFolder, '.yarnrc.yml.template'), path.join(targetFolder, '.yarnrc.yml'));
+  fs.renameSync(path.join(targetFolder, 'gitignore.template'), path.join(targetFolder, '.gitignore'));
+  fs.renameSync(path.join(targetFolder, 'yarnrc.yml.template'), path.join(targetFolder, '.yarnrc.yml'));
 
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
   log("Creating new LINCD application '" + name + "'");
 
   //replace variables in some copied files
-  await replaceVariablesInFolder(
-    targetFolder,
-  );
+  await replaceVariablesInFolder(targetFolder);
 
   let hasYarn = await hasYarnInstalled();
-  let installCommand = hasYarn ? 'yarn install' : 'npm install';
+  let installCommand = hasYarn
+    ? 'export NODE_OPTIONS="--no-network-family-autoselection" && yarn install'
+    : 'npm install';
 
   await execp(`cd ${hyphenName} && ${installCommand}`, true).catch((err) => {
     console.warn('Could not install dependencies or start application');
@@ -88,11 +90,11 @@ function debugInfo(...messages) {
   //   console.log(gruntConfig);
   //   process.exit();
   // }
-  // if (gruntConfig && gruntConfig.analyse === true) {
+  if (gruntConfig && gruntConfig.analyse === true) {
     messages.forEach((message) => {
       console.log(chalk.cyan('Info: ') + message);
     });
-  // }
+  }
 }
 
 function warn(...messages) {
@@ -238,12 +240,21 @@ function runOnPackagesGroupedByDependencies(
       }
     });
 
-    if(stack.length <= 0 && done.size < lincdPackages.size)
-    {
-      console.log(chalk.red('Only '+done.size+ ' out of '+lincdPackages.size+' packages have been built'));
-      console.log('ALL remaining packages have dependencies that have not been met. This may point to '+chalk.red('circular dependencies.'));
-      console.log('Already built: '+Array.from(done).map(p => chalk.green(p.packageName)).join(', '));
-      console.log(chalk.blue('\nTo solve this issue')+': find the circular dependencies below and fix the dependencies:\n\n');
+    if (stack.length <= 0 && done.size < lincdPackages.size) {
+      console.log(chalk.red('Only ' + done.size + ' out of ' + lincdPackages.size + ' packages have been built'));
+      console.log(
+        'ALL remaining packages have dependencies that have not been met. This may point to ' +
+          chalk.red('circular dependencies.'),
+      );
+      console.log(
+        'Already built: ' +
+          Array.from(done)
+            .map((p) => chalk.green(p.packageName))
+            .join(', '),
+      );
+      console.log(
+        chalk.blue('\nTo solve this issue') + ': find the circular dependencies below and fix the dependencies:\n\n',
+      );
       //TODO: actually find and name the packages that have circular dependencies
       // let circular = [];
       // lincdPackages.forEach((pkg) => {
@@ -260,16 +271,22 @@ function runOnPackagesGroupedByDependencies(
       //     process.exit();
       //   }
       // });
-      lincdPackages.forEach(pkg => {
+      lincdPackages.forEach((pkg) => {
         let deps = dependencies.get(pkg);
-        if (!done.has(pkg))
-        {
-          console.log(chalk.red(pkg.packageName)+' has not been built yet. Unbuilt dependencies:\n' + deps.filter(dependency => {
-            return !Array.from(done).some(p => {
-              // console.log(p.packageName,dependency.packageName,p===dependency)
-              return p === dependency
-            })
-          }).map(p => chalk.red('\t- '+(p?.packageName ? p.packageName : p.toString())+'\n')).join(" "))
+        if (!done.has(pkg)) {
+          console.log(
+            chalk.red(pkg.packageName) +
+              ' has not been built yet. Unbuilt dependencies:\n' +
+              deps
+                .filter((dependency) => {
+                  return !Array.from(done).some((p) => {
+                    // console.log(p.packageName,dependency.packageName,p===dependency)
+                    return p === dependency;
+                  });
+                })
+                .map((p) => chalk.red('\t- ' + (p?.packageName ? p.packageName : p.toString()) + '\n'))
+                .join(' '),
+          );
           // console.log(chalk.red(pkg.packageName)+' has not been built yet. Built dependencies:\n' + deps.filter(dependency => {
           //   return Array.from(done).some(p => p.packageName === pkg.packageName)
           // }).map(p => chalk.green('\t- '+p.packageName+'\n')).join(" "))
@@ -289,19 +306,21 @@ function runOnPackagesGroupedByDependencies(
   //starts the process
   runStack(startStack);
 }
-function hasDependency(pkg,childPkg,dependencies,depth=1) {
-  console.log("Does "+pkg.packageName+" have dep "+childPkg.packageName+" ?");
+function hasDependency(pkg, childPkg, dependencies, depth = 1) {
+  console.log('Does ' + pkg.packageName + ' have dep ' + childPkg.packageName + ' ?');
   let deps = dependencies.get(pkg);
-  if(deps.some(dependency => {
-    console.log(dependency.packageName,childPkg.packageName,dependency === childPkg)
-    if(depth === 2) return false;
-    // return dependency === childPkg;
-    return dependency === childPkg || hasDependency(dependency,childPkg,dependencies,depth++)
-  })) {
-    console.log("##YES");
-    return true
+  if (
+    deps.some((dependency) => {
+      console.log(dependency.packageName, childPkg.packageName, dependency === childPkg);
+      if (depth === 2) return false;
+      // return dependency === childPkg;
+      return dependency === childPkg || hasDependency(dependency, childPkg, dependencies, depth++);
+    })
+  ) {
+    console.log('##YES');
+    return true;
   }
-  console.log("going up");
+  console.log('going up');
   return false;
 }
 
@@ -368,13 +387,17 @@ export function buildAll(target, target2, target3) {
           else {
             log(chalk.blue('skipping ' + pkg.packageName));
             command = Promise.resolve(true);
-            skipping=true;
+            skipping = true;
           }
         }
         //unless told otherwise, build the package
         if (!command) {
           command = execPromise(
-            'cd ' + pkg.path + ' && yarn exec lincd build' + (target ? ' ' + target : '') + (target2 ? ' ' + target2 : ''),
+            'cd ' +
+              pkg.path +
+              ' && yarn exec lincd build' +
+              (target ? ' ' + target : '') +
+              (target2 ? ' ' + target2 : ''),
             false,
             false,
             {},
@@ -411,8 +434,7 @@ export function buildAll(target, target2, target3) {
             }
           })
           .then((res) => {
-            if(!skipping)
-            {
+            if (!skipping) {
               log(chalk.green('Built ' + pkg.packageName));
             }
             done.add(pkg);
@@ -545,16 +567,13 @@ function setVariable(name, replacement) {
 }
 
 var replaceVariablesInFile = async (filePath: string) => {
-  var fileContent = await fs.readFile(filePath, 'utf8').catch(err => {
-    console.warn(chalk.red("Could not read file "+filePath));
-  })
-  if(fileContent)
-  {
+  var fileContent = await fs.readFile(filePath, 'utf8').catch((err) => {
+    console.warn(chalk.red('Could not read file ' + filePath));
+  });
+  if (fileContent) {
     var newContent = replaceCurlyVariables(fileContent);
     return fs.writeFile(filePath, newContent);
-  }
-  else
-  {
+  } else {
     return Promise.resolve();
   }
 };
@@ -660,10 +679,10 @@ const replaceVariablesInFiles = function (...files: string[]) {
     }),
   );
 };
-const replaceVariablesInFolder = function (folder:string) {
+const replaceVariablesInFolder = function (folder: string) {
   //get all files in folder, including files that start with a dot
 
-  glob(folder + '/**/*', {dot: true,nodir:true},function (err, files) {
+  glob(folder + '/**/*', {dot: true, nodir: true}, function (err, files) {
     if (err) {
       console.log('Error', err);
     } else {
@@ -711,7 +730,7 @@ const ensureFolderExists = function (...folders: string[]) {
   return targetFolder;*/
 };
 
-const setNameVariables = function (name) {
+export const setNameVariables = function (name) {
   let hyphenName = name.replace(/[-_\s]+/g, '-');
   let camelCaseName = camelCase(name); //some-package --> someModule
   let underscoreName = name.replace(/[-\s]+/g, '_');
@@ -724,7 +743,7 @@ const setNameVariables = function (name) {
   setVariable('name', name);
   setVariable('plain_name', plainName);
 
-  return {hyphenName, camelCaseName, underscoreName,plainName};
+  return {hyphenName, camelCaseName, underscoreName, plainName};
 };
 
 function getSourceFolder(basePath = process.cwd()) {
@@ -816,12 +835,12 @@ export const createComponent = async (name, basePath = process.cwd()) => {
 
 export const depCheck = async () => {
   depcheck(process.cwd(), {}, (results) => {
-    if(results.missing) {
+    if (results.missing) {
       let missing = Object.keys(results.missing);
       //currently react is not an explicit dependency, but we should add it as a peer dependency
-      missing.splice(missing.indexOf("react"));
-      if(missing.length > 0) {
-        console.warn(chalk.red("Missing dependencies:\n")+missing.join(",\n"));
+      missing.splice(missing.indexOf('react'));
+      if (missing.length > 0) {
+        console.warn(chalk.red('Missing dependencies:\n\t' + missing.join(',\n\t')));
       }
     }
     // if(Object.keys(results.invalidFiles).length > 0) {
@@ -834,7 +853,7 @@ export const depCheck = async () => {
     //   console.warn("Unused dependencies: "+results.missing.join(", "));
     // }
   });
-}
+};
 export const createPackage = async (name, uriBase?, basePath = process.cwd()) => {
   //if ran with npx, basePath will be the root directory of the repository, even if we're executing from a sub folder (the root directory is where node_modules lives and package.json with workspaces)
   //so we manually find a packages folder, if it exists we go into that.
@@ -1050,7 +1069,7 @@ export const buildMetadata = async (): Promise<string[]> => {
   for (const [packageCodeName, packagePath, lincdPackagePath, isAppPackage] of localPackagePaths) {
     let errors = false;
     //TODO: check if this resolves, if not, skip it (for initial setup)
-    import ('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
+    import('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
       await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
         if (response.errors.length > 0) {
           // console.log(JSON.stringify(response));
@@ -1058,8 +1077,8 @@ export const buildMetadata = async (): Promise<string[]> => {
           // throw response
           errors = true;
         } else {
-          if(!response.packageUri) {
-            console.warn("No package URI from meta data. Not building meta data for this package");
+          if (!response.packageUri) {
+            console.warn('No package URI from meta data. Not building meta data for this package');
             return;
           }
           let pkgNode = NamedNode.getOrCreate(response.packageUri);
@@ -1082,7 +1101,6 @@ export const buildMetadata = async (): Promise<string[]> => {
           });
         }
       });
-
     });
 
     //enable this when testing if you don't want to continue with building other metadata when an errors occur
@@ -1182,19 +1200,19 @@ const getLastModifiedSourceTime = (packagePath) => {
     ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
   });
 };
-const getLastCommitTime = (packagePath): Promise<{date:Date,changes:string,commitId:string}> => {
+const getLastCommitTime = (packagePath): Promise<{date: Date; changes: string; commitId: string}> => {
   // console.log(`git log -1 --format=%ci -- ${packagePath}`);
   // process.exit();
   return execPromise(`git log -1 --format="%h %ci" -- ${packagePath}`)
     .then(async (result) => {
-      let commitId = result.substring(0,result.indexOf(" "));
-      let date = result.substring(commitId.length+1);
+      let commitId = result.substring(0, result.indexOf(' '));
+      let date = result.substring(commitId.length + 1);
       let lastCommitDate = new Date(date);
 
       let changes = await execPromise(`git show --stat --oneline ${commitId} -- ${packagePath}`);
       // log(packagePath,result,lastCommit);
       // log(changes);
-      return {date:lastCommitDate,changes,commitId};
+      return {date: lastCommitDate, changes, commitId};
     })
     .catch(({error, stdout, stderr}) => {
       debugInfo(chalk.red('Git error: ') + error.message.toString());
@@ -1253,10 +1271,10 @@ export var publishUpdated = function (test: boolean = false) {
           return chalk.gray(pckg.packageName + ' is private');
           // return previousResult + ' ' + chalk.gray(pckg.packageName + ' is private\n');
         }
-        console.log("testing npm")
+        console.log('testing npm');
         return execPromise('npm info ' + pckg.packageName + ' --json')
           .then(async (output: string) => {
-            console.log("testing npm done")
+            console.log('testing npm done');
             var info;
             try {
               if (output == '' || output.includes('E404')) {
@@ -1297,24 +1315,26 @@ export var publishUpdated = function (test: boolean = false) {
 
                   //ignore changes to package.json if that's the only change, because when we publish the version number changes, which is then committed
                   //(note there is always 2 lines for commit info + number of files changed)
-                  let changedFiles = lastCommitInfo.changes.split("\n").filter(line => line.includes("|"));
+                  let changedFiles = lastCommitInfo.changes.split('\n').filter((line) => line.includes('|'));
                   let numberOfFilesChanges = changedFiles.length;
                   // console.log("CHECK "+lastCommitInfo.changes.includes("package.json")+" - "+numberOfFilesChanges)
-                  if(shouldPublish && lastCommitInfo.changes.includes("package.json") && numberOfFilesChanges === 1){
+                  if (shouldPublish && lastCommitInfo.changes.includes('package.json') && numberOfFilesChanges === 1) {
                     shouldPublish = false;
                   }
                   if (shouldPublish) {
-
-                    log(chalk.magenta(pckg.packageName)+' should be published because:')
+                    log(chalk.magenta(pckg.packageName) + ' should be published because:');
                     log(
                       lastPublishDate.toDateString() +
-                      ' ' +
-                      lastPublishDate.toTimeString() +
-                      ' published ' +
-                      info.version,
+                        ' ' +
+                        lastPublishDate.toTimeString() +
+                        ' published ' +
+                        info.version,
                     );
                     log(
-                      lastCommitInfo.date.toDateString() + ' ' + new Date(lastCommitInfo.date).toTimeString() + ' source last committed:',
+                      lastCommitInfo.date.toDateString() +
+                        ' ' +
+                        new Date(lastCommitInfo.date).toTimeString() +
+                        ' source last committed:',
                     );
                     log(lastCommitInfo.changes);
                   }
@@ -1369,33 +1389,31 @@ export var publishUpdated = function (test: boolean = false) {
   });
 };
 
-async function getEnvJsonPath(relativeToPath=process.cwd())
-{
+async function getEnvJsonPath(relativeToPath = process.cwd()) {
   let path = '';
-  if(!relativeToPath.endsWith('/'))
-  {
-    relativeToPath += '/'
+  if (!relativeToPath.endsWith('/')) {
+    relativeToPath += '/';
   }
   // let path = './';
-  for(let i=0;i<=10;i++) {
-    let envFile = await getEnvFile({filePath:relativeToPath+path+'.env.json'}).catch(err => {
+  for (let i = 0; i <= 10; i++) {
+    let envFile = await getEnvFile({filePath: relativeToPath + path + '.env.json'}).catch((err) => {
       return null;
     });
-    if(envFile) {
+    if (envFile) {
       //note: we're getting the actual contents here, so we could also use that more directly?
-      return path+'.env.json';
+      return path + '.env.json';
     }
     path += '../';
   }
 }
 
 export var publishPackage = async function (pkg?, test?, info?, publishVersion?) {
-  if(!pkg) {
+  if (!pkg) {
     let localPackageJson = getPackageJSON();
     pkg = {
       path: process.cwd(),
       packageName: localPackageJson.name,
-    }
+    };
   }
   if (!publishVersion) {
     publishVersion = info ? getNextVersion(info.version) : 'patch';
@@ -1410,7 +1428,15 @@ export var publishPackage = async function (pkg?, test?, info?, publishVersion?)
   //looking for an .env.json file in our workspace, which may store our NPM AUTH key
   let envJsonPath = await getEnvJsonPath(pkg.path);
 
-  return execPromise(`cd ${pkg.path} && ${envJsonPath ? `env-cmd -f ${envJsonPath} --use-shell "` : ''}yarn version ${publishVersion} && yarn npm publish${envJsonPath ? `"` : ''}`, true, false, {}, true)
+  return execPromise(
+    `cd ${pkg.path} && ${
+      envJsonPath ? `env-cmd -f ${envJsonPath} --use-shell "` : ''
+    }yarn version ${publishVersion} && yarn npm publish${envJsonPath ? `"` : ''}`,
+    true,
+    false,
+    {},
+    true,
+  )
     .then((res) => {
       if (
         res.indexOf('Aborted due to warnings') !== -1 ||
@@ -1459,7 +1485,7 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
     packages,
     (packageGroup, dependencies) => {
       debugInfo('Now checking: ' + chalk.blue(packageGroup.map((i) => i.packageName)));
-      debugInfo((packagesLeft) + " packages left.");
+      debugInfo(packagesLeft + ' packages left.');
 
       packagesLeft = packagesLeft - packageGroup.length;
       return async (pkg: PackageDetails) => {
@@ -1661,18 +1687,18 @@ export var executeCommandForEachPackage = function (packages, command, filterMet
   return p;
 };
 
-var gitIgnore = function(...entries) {
+var gitIgnore = function (...entries) {
   //add each entry to the .gitignore file
-  let gitIgnorePath = path.resolve(process.cwd(),'.gitignore');
-  addLinesToFile(gitIgnorePath,entries);
-}
-var addLinesToFile = function(filePath, entries) {
+  let gitIgnorePath = path.resolve(process.cwd(), '.gitignore');
+  addLinesToFile(gitIgnorePath, entries);
+};
+export var addLinesToFile = function (filePath, entries) {
   let fileContents = fs.readFileSync(filePath, {encoding: 'utf8'});
-  entries.forEach(entry => {
-    fileContents += '\n'+entry;
+  entries.forEach((entry) => {
+    fileContents += '\n' + entry;
   });
   fs.writeFileSync(filePath, fileContents);
-}
+};
 export var addCapacitor = async function (basePath = process.cwd()) {
   let targetFolder = ensureFolderExists(basePath);
   log('Adding capacitor');
@@ -1680,19 +1706,19 @@ export var addCapacitor = async function (basePath = process.cwd()) {
 
   //update .env-cmdrc.json file
   let envCmdPath = path.resolve(basePath, '.env-cmdrc.json');
-  let envCmd = JSON.parse(fs.readFileSync(envCmdPath,{encoding:'utf8'}));
+  let envCmd = JSON.parse(fs.readFileSync(envCmdPath, {encoding: 'utf8'}));
   envCmd['static-dev'] = {
-    "NODE_ENV": "production",
-    "SITE_ROOT": "http://localhost:4000",
-    "DATA_ROOT": "http://localhost:4000/data",
-    "OUTPUT_PATH" : "./frontend/web/assets",
-    "ASSET_PATH" : "./assets/",
-    "ENTRY_PATH" : "./frontend/src/index-static.tsx"
-  }
-  fs.writeFile(envCmdPath, JSON.stringify(envCmd,null,2));
+    NODE_ENV: 'production',
+    SITE_ROOT: 'http://localhost:4000',
+    DATA_ROOT: 'http://localhost:4000/data',
+    OUTPUT_PATH: './frontend/web/assets',
+    ASSET_PATH: './assets/',
+    ENTRY_PATH: './frontend/src/index-static.tsx',
+  };
+  fs.writeFile(envCmdPath, JSON.stringify(envCmd, null, 2));
   log('Edited .env-cmdrc.json');
 
-  gitIgnore('android/app/build','android/**/capacitor.build.gradle','ios/App/App/public','ios/App/Podfile');
+  gitIgnore('android/app/build', 'android/**/capacitor.build.gradle', 'ios/App/App/public', 'ios/App/Podfile');
 
   //update package.json scripts
   let pack = getPackageJSON(basePath);
@@ -1700,7 +1726,7 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   pack.scripts['cap:android'] = 'yarn cap open android';
   pack.scripts['cap:sync'] = 'yarn cap sync';
 
-    fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack,null,2));
+  fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack, null, 2));
   log('Added new run script to package.json');
 
   await execPromise(`yarn add -D @capacitor/cli`, true, false, null, true);
@@ -1712,7 +1738,11 @@ export var addCapacitor = async function (basePath = process.cwd()) {
     true,
   );
 
-  log(`Done! Run ${chalk.magenta('yarn build-static')} to generate static bundles. Then run ${chalk.magenta('yarn cap add android')} and/or ${chalk.magenta('yarn cap add ios')}')`);
+  log(
+    `Done! Run ${chalk.magenta('yarn build-static')} to generate static bundles. Then run ${chalk.magenta(
+      'yarn cap add android',
+    )} and/or ${chalk.magenta('yarn cap add ios')}')`,
+  );
   log(`Also see the app icons in /frontend/web`);
 };
 

@@ -18,5 +18,6 @@ packages/**/.yarn/*
 !packages/**/.yarn/releases
 !packages/**/.yarn/sdks
 !packages/**/.yarn/versions
+.idea
 android/app/build
 ios/App/App/public
