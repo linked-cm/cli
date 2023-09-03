@@ -3,7 +3,6 @@ import {NamedNode} from 'lincd/lib/models';
 import {linkedShape} from '../package';
 
 @linkedShape
-export class ${camel_name} extends Shape
-{
-  static targetClass: NamedNode;
+export class ${camel_name} extends Shape {
+  static targetClass:NamedNode;
 }

@@ -1,9 +1,8 @@
 /// <reference path="colors.d.ts" />
 import colors = require('colors');
 import path = require('path');
-
 const webpack = require('webpack');
-const {Compilation} = webpack;
+const { Compilation } = webpack;
 export default class DeclarationPlugin {
   options: any;
   moduleName: string;
@@ -40,72 +39,76 @@ export default class DeclarationPlugin {
     compiler.hooks.compilation.tap('DeclarationPlugin', (compilation) => {
       //NOTE: even though the stage comes from the processAssets hook and not the afterProcessAssets hook
       // somehow this only works WITH the stage defined
-      compilation.hooks.afterProcessAssets.tap(
+      compilation.hooks.afterProcessAssets.tap({
+        stage: Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE,
+        name:'DeclarationPlugin'
+      },() => {
+
+        // this.debug('indexing and removing declaration assets');
+        //collect all generated declaration files
+        //and remove them from the assets that will be emitted
+
+        //NOTE: at some point we decided to overwrite declaration files between emits because sometimes only one new declaration file is emitted
+        //this may cause issues when you remove a file during the continuous building process, but better than the other way around for now
+        if (!this.declarationFiles)
         {
-          stage: Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE,
-          name: 'DeclarationPlugin',
-        },
-        () => {
-          // this.debug('indexing and removing declaration assets');
-          //collect all generated declaration files
-          //and remove them from the assets that will be emitted
+          this.declarationFiles = {};
+        }
 
-          //NOTE: at some point we decided to overwrite declaration files between emits because sometimes only one new declaration file is emitted
-          //this may cause issues when you remove a file during the continuous building process, but better than the other way around for now
-          if (!this.declarationFiles) {
-            this.declarationFiles = {};
-          }
-
-          compilation.getAssets().forEach((asset, key) => {
-            // this.debug('key '+key.toString())
-            // this.debug('value '+Object.getOwnPropertyNames(asset).join(", "))
-            // this.debug('asset: ' + asset.name);
-            if (asset.name.indexOf('.d.ts') !== -1) {
-              if (this.declarationFiles[asset.name]) {
-                this.debug('overwriting ' + asset.name);
-              }
-              this.declarationFiles[asset.name] = asset;
-
-              this.debug('indexed and removed asset: ' + colors.green(asset.name));
-              compilation.deleteAsset(asset.name);
+        compilation.getAssets().forEach((asset,key) => {
+          // this.debug('key '+key.toString())
+          // this.debug('value '+Object.getOwnPropertyNames(asset).join(", "))
+          // this.debug('asset: ' + asset.name);
+          if (asset.name.indexOf('.d.ts') !== -1)
+          {
+            if (this.declarationFiles[asset.name])
+            {
+              this.debug('overwriting ' + asset.name);
             }
-          });
+            this.declarationFiles[asset.name] = asset;
 
-          if (Object.keys(this.declarationFiles).length == 0) {
-            this.debug(
-              "Didn't build .d.ts file because no declaration assets were emitted during build process.".yellow,
-            );
-            this.debug('This is likely because webpack is using cache.'.yellow);
-            this.debug('In watch mode, declaration assets will be emitted once you change a ts(x) source file'.yellow);
-            // this.log('Make sure to run '.yellow + 'tsc'.blue + ' before running webpack'.yellow);
-            // this.log(
-            //   'Make sure to test for '.yellow +
-            //   '/(?!.*.d.ts).ts(x?)$/'.blue.bold['underline'] +
-            //   ' in the ts-loader in webpack.config.json'.yellow,
-            // );
-            // this.log(('Assets: ' + Object.keys(compilation.assets).toString()).yellow);
-            // callback();
-            return;
+            this.debug('indexed and removed asset: ' + colors.green(asset.name));
+            compilation.deleteAsset(asset.name);
           }
+        });
 
-          //combine them into one declaration file
-          var combinedDeclaration = this.generateCombinedDeclaration(this.declarationFiles); //moduleConfig
+        if (Object.keys(this.declarationFiles).length == 0)
+        {
+          this.debug('Didn\'t build .d.ts file because no declaration assets were emitted during build process.'.yellow);
+          this.debug('This is likely because webpack is using cache.'.yellow);
+          this.debug('In watch mode, declaration assets will be emitted once you change a ts(x) source file'.yellow);
+          // this.log('Make sure to run '.yellow + 'tsc'.blue + ' before running webpack'.yellow);
+          // this.log(
+          //   'Make sure to test for '.yellow +
+          //   '/(?!.*.d.ts).ts(x?)$/'.blue.bold['underline'] +
+          //   ' in the ts-loader in webpack.config.json'.yellow,
+          // );
+          // this.log(('Assets: ' + Object.keys(compilation.assets).toString()).yellow);
+          // callback();
+          return;
+        }
 
-          //and insert that back into the assets
-          // compilation.assets[this.options.out] = {
-          //   source: function() {
-          //     return combinedDeclaration;
-          //   },
-          //   size: function() {
-          //     return combinedDeclaration.length;
-          //   },
-          // };
+        //combine them into one declaration file
+        var combinedDeclaration = this.generateCombinedDeclaration(this.declarationFiles); //moduleConfig
 
-          // As suggested by @JonWallsten here: https://github.com/TypeStrong/ts-loader/pull/1251#issuecomment-800032753
-          compilation.emitAsset(this.options.out, new webpack.sources.RawSource(combinedDeclaration));
+        //and insert that back into the assets
+        // compilation.assets[this.options.out] = {
+        //   source: function() {
+        //     return combinedDeclaration;
+        //   },
+        //   size: function() {
+        //     return combinedDeclaration.length;
+        //   },
+        // };
 
-          //get meta data from module exports
-          /*var metaRdfJson = this.generateMetaRdfJson(compilation,moduleConfig);
+        // As suggested by @JonWallsten here: https://github.com/TypeStrong/ts-loader/pull/1251#issuecomment-800032753
+        compilation.emitAsset(
+          this.options.out,
+          new webpack.sources.RawSource(combinedDeclaration)
+        );
+
+        //get meta data from module exports
+        /*var metaRdfJson = this.generateMetaRdfJson(compilation,moduleConfig);
           //and insert that back into the assets as [module_name].meta.json
           compilation.assets[this.options.out.replace(".d.ts",".meta.rdf.json")] = {
             source: function() {
@@ -115,9 +118,8 @@ export default class DeclarationPlugin {
               return metaRdfJson.length;
             }
           };*/
-          //}
-        },
-      );
+        //}
+      });
     });
   }
 

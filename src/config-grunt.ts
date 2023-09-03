@@ -92,7 +92,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     flatten([
       'prepare-build',
       buildFrontend ? 'webpack:build-es6' : null,
-      buildServer ? ['clean:lib', 'exec:build-lib', 'copy:lib', 'exec:depcheck'] : null,
+      buildServer ? ['clean:lib', 'exec:build-lib', 'copy:lib','exec:depcheck'] : null,
       // 'exec:shapes',
     ]),
   );
