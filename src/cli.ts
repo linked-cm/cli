@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import {execp, execPromise, getPackageJSON} from './utils';
 import {
   addCapacitor,
   buildAll,
@@ -11,11 +10,13 @@ import {
   createOntology,
   createPackage,
   createSetComponent,
-  createShape,depCheck,
+  createShape,
+  depCheck,
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
-  getLincdPackages,publishPackage,
+  getLincdPackages,
+  publishPackage,
   publishUpdated,
   register,
 } from './cli-methods';
@@ -26,22 +27,31 @@ var program = require('commander');
 var fs = require('fs-extra');
 var path = require('path');
 
-
 program
   .command('create-app')
   .action((name) => {
     return createApp(name);
   })
-  .description('Creates a new folder with all the required files for a LINCD app')
-  .argument('<name>', 'the name of your LINCD app. To use spaces, wrap the name in double quotes.');
+  .description(
+    'Creates a new folder with all the required files for a LINCD app',
+  )
+  .argument(
+    '<name>',
+    'the name of your LINCD app. To use spaces, wrap the name in double quotes.',
+  );
 
 program
   .command('create-package')
   .action((name, uriBase) => {
     return createPackage(name, uriBase);
   })
-  .description('Create a new folder with all the required files for a new LINCD package')
-  .argument('<name>', 'The name of the package. Will be used as package name in package.json')
+  .description(
+    'Create a new folder with all the required files for a new LINCD package',
+  )
+  .argument(
+    '<name>',
+    'The name of the package. Will be used as package name in package.json',
+  )
   .argument(
     '[uri_base]',
     'The base URL used for data of this package. Leave blank to use the URL of your package on lincd.org after you register it',
@@ -52,31 +62,48 @@ program
   .action((name, uriBase) => {
     return createShape(name);
   })
-  .description('Creates a new ShapeClass file for your package. Execute this from your package folder.')
-  .argument('<name>', 'The name of the shape. Will be used for the file name and the class name');
+  .description(
+    'Creates a new ShapeClass file for your package. Execute this from your package folder.',
+  )
+  .argument(
+    '<name>',
+    'The name of the shape. Will be used for the file name and the class name',
+  );
 
 program
   .command('create-component')
   .action((name, uriBase) => {
     return createComponent(name);
   })
-  .description('Creates a new Component file for your package. Execute this from your package folder.')
-  .argument('<name>', 'The name of the component. Will be used for the file name and the export name');
+  .description(
+    'Creates a new Component file for your package. Execute this from your package folder.',
+  )
+  .argument(
+    '<name>',
+    'The name of the component. Will be used for the file name and the export name',
+  );
 
 program
   .command('create-set-component')
   .action((name, uriBase) => {
     return createSetComponent(name);
   })
-  .description('Creates a new SetComponent file for your package. Execute this from your package folder.')
-  .argument('<name>', 'The name of the component. Will be used for the file name and the export name');
+  .description(
+    'Creates a new SetComponent file for your package. Execute this from your package folder.',
+  )
+  .argument(
+    '<name>',
+    'The name of the component. Will be used for the file name and the export name',
+  );
 
 program
   .command('create-ontology')
   .action((prefix, uriBase) => {
     return createOntology(prefix, uriBase);
   })
-  .description('Creates a new ontology file for your package. Execute this from your package folder.')
+  .description(
+    'Creates a new ontology file for your package. Execute this from your package folder.',
+  )
   .argument(
     '<suggested-prefix>',
     'The suggested prefix for your ontology. Also the shorthand code used for the file name and the exported ontology object',
@@ -107,15 +134,21 @@ program
 program
   .command('info')
   .action(() => {
-    var ownPackage = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    var ownPackage = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'),
+    );
     console.log(ownPackage.version);
     console.log('Running from: ' + __dirname);
   })
-  .description("Log the version of this tool and the path that it's running from");
+  .description(
+    "Log the version of this tool and the path that it's running from",
+  );
 
-program.command('build [target] [target2]', {isDefault: true}).action((target, target2) => {
-  buildPackage(target, target2);
-});
+program
+  .command('build [target] [target2]', {isDefault: true})
+  .action((target, target2) => {
+    buildPackage(target, target2);
+  });
 
 program.command('build-metadata').action(() => {
   buildMetadata();
@@ -124,7 +157,7 @@ program.command('publish-updated').action(() => {
   return publishUpdated();
 });
 program.command('publish [version]').action((version) => {
-  return publishPackage(null,false,null,version);
+  return publishPackage(null, false, null, version);
 });
 
 program.command('status').action(() => {
@@ -134,19 +167,32 @@ program.command('status').action(() => {
     return buildUpdated(undefined, '', '', true);
   });
 });
-program.command('build-updated [target] [target2]').action((target, target2) => {
-  return buildUpdated(1, target, target2);
-});
-program.command('build-updated-since [num-commits-back] [target] [target2]').action((back, target, target2) => {
-  return buildUpdated(back, target, target2);
-});
-program.command('build-all [target] [target2] [target3]').action((target, target2, target3) => {
-  buildAll(target, target2, target3);
-});
+program
+  .command('build-updated [target] [target2]')
+  .action((target, target2) => {
+    return buildUpdated(1, target, target2);
+  });
+program
+  .command('build-updated-since [num-commits-back] [target] [target2]')
+  .action((back, target, target2) => {
+    return buildUpdated(back, target, target2);
+  });
+program
+  .command('build-all [target] [target2] [target3]')
+  .action((target, target2, target3) => {
+    buildAll(target, target2, target3);
+  });
 
-program.command('all [action] [filter] [filter-value]').action((command, filter, filterValue) => {
-  executeCommandForEachPackage(getLincdPackages(), command, filter, filterValue);
-});
+program
+  .command('all [action] [filter] [filter-value]')
+  .action((command, filter, filterValue) => {
+    executeCommandForEachPackage(
+      getLincdPackages(),
+      command,
+      filter,
+      filterValue,
+    );
+  });
 // program.command('all-except [excludedSpaces] [action]').action((excludedSpaces, command) => {
 //   executeCommandForEachModule(getLincdModules(), command, null, excludedSpaces);
 // });
@@ -182,7 +228,10 @@ program
     'Searches for a package in this workspace with a partially matching name and executes a command for that package (without needing to execute it from the folder of the package)',
   )
   .argument('<name>', 'the name of the package. Can be a part of the name.')
-  .argument('[command]', 'the lincd command you want to execute. Like dev or build')
+  .argument(
+    '[command]',
+    'the lincd command you want to execute. Like dev or build',
+  )
   .argument('[args...]', 'the additional arguments of that command');
 
 program.command('enable-capacitor').action(() => {

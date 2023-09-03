@@ -6,7 +6,19 @@
   "scripts": {
     "prepublishOnly": "npm exec tsc",
     "build": "npm exec tsc",
-    "dev": "npm exec tsc -w"
+    "postinstall": "husky install",
+    "dev": "npm exec tsc -w",
+    "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
+    "prettier:fix": "yarn prettier --write",
+    "format": "yarn prettier:fix && yarn lint:fix"
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx}": [
+      "prettier --write"
+    ],
+    "*.{scss,css}": [
+      "prettier --write"
+    ]
   },
   "keywords": [
     "lincd",
@@ -85,7 +97,9 @@
     "webpack-license-plugin": "^4.2.2"
   },
   "devDependencies": {
-    "optimize-css-assets-webpack-plugin": "^6.0.1"
+    "husky": "^8.0.0",
+    "optimize-css-assets-webpack-plugin": "^6.0.1",
+    "prettier": "^3.0.3"
   },
   "peerDepencencies": {}
 }

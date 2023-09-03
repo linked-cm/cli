@@ -29,7 +29,7 @@ var externaliseModules = function (config, es5) {
 
   //return the function that is handed to webpack in the 'externals' option.
   //it determines for each request what is external and what is not
-  return function ({context, request,contextInfo}, callback) {
+  return function ({context, request, contextInfo}, callback) {
     // debug('checking '+request);
     // debug('imported by '+contextInfo.issuer);
 
@@ -37,7 +37,7 @@ var externaliseModules = function (config, es5) {
       if (!excludedExternals.has(request)) {
         excludedExternals.add(request);
         // debug(colors.magenta('Excluding request as defined in Gruntfile: ' + request));
-        debug(colors.red(request)+' is defined as external --> excluded');
+        debug(colors.red(request) + ' is defined as external --> excluded');
       }
 
       // return callback(config.externals[request]);
@@ -94,16 +94,22 @@ var externaliseModules = function (config, es5) {
     // --> match[0] = @dacore/some-mod
     // --> match[1] = @dacore
     // --> match[2] = some-mod
-    let [packageName, scope, cleanPackageName] = request.match(/(@[\w\-]+\/)?([\w\-]+)/);
+    let [packageName, scope, cleanPackageName] = request.match(
+      /(@[\w\-]+\/)?([\w\-]+)/,
+    );
 
     //if this module is listed as internal module in the config (or if we internalize all modules with '*')
-    if (config && config.internals && (config.internals.indexOf(packageName) !== -1 || config.internals === '*')) {
+    if (
+      config &&
+      config.internals &&
+      (config.internals.indexOf(packageName) !== -1 || config.internals === '*')
+    ) {
       //then don't exclude and don't continue this function
 
       //only log once
       if (!includedInternals.has(packageName)) {
         includedInternals.add(packageName);
-        debug(colors.blue(request)+' marked internal --> included');
+        debug(colors.blue(request) + ' marked internal --> included');
       }
       return callback();
     }
@@ -111,21 +117,18 @@ var externaliseModules = function (config, es5) {
     //check if this module is a lincd module
     let isLincd = isLincdModule(debug, packageName);
     if (isLincd) {
-      if(!includedLincdModules.has(packageName))
-      {
+      if (!includedLincdModules.has(packageName)) {
         includedLincdModules.add(packageName);
         debug(
           colors.magenta(
             packageName +
-            ' is a lincd module, imports will be excluded from this bundle and refer to a global variable instead',
+              ' is a lincd module, imports will be excluded from this bundle and refer to a global variable instead',
           ),
         );
       }
-
     } else {
       //avoid duplicate messages
-      if(!excluded.has(packageName))
-      {
+      if (!excluded.has(packageName)) {
         excluded.add(packageName);
         debug(colors.green(packageName) + ' --> included');
       }
@@ -166,7 +169,8 @@ var externaliseModules = function (config, es5) {
         //so here we return the entire module as the result of such imports
         //and ComponentName_1 will contain all things linked/exported by the module
         //and ComponentName_1.ComponentName resolves to the desired class/function
-        targetVariable = libraryName + "._modules['" + packageName.replace(/\-/g, '_') + "']";
+        targetVariable =
+          libraryName + "._modules['" + packageName.replace(/\-/g, '_') + "']";
 
         //import {PersonView} from 'lincd-test/lib/PersonView';
         //lincd._modules.lincd_test

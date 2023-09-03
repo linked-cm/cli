@@ -10,6 +10,7 @@ import {createNameSpace} from 'lincd/lib/utils/NameSpace';
 import {Prefix} from 'lincd/lib/utils/Prefix';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import depcheck from 'depcheck';
+
 var glob = require('glob');
 var variables = {};
 var open = require('open');
@@ -31,13 +32,24 @@ export const createApp = async (name, basePath = process.cwd()) => {
     fs.mkdirSync(targetFolder);
   }
 
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'app-with-backend'), targetFolder);
+  fs.copySync(
+    path.join(__dirname, '..', 'defaults', 'app-with-backend'),
+    targetFolder,
+  );
   //make sure the data folder exists (even though its empty).. copying empty folders does not work with fs.copySync
   fs.mkdirSync(path.join(targetFolder, 'data'), {recursive: true});
-  fs.mkdirSync(path.join(targetFolder, 'data/uploads/resized'), {recursive: true});
+  fs.mkdirSync(path.join(targetFolder, 'data/uploads/resized'), {
+    recursive: true,
+  });
 
-  fs.renameSync(path.join(targetFolder, 'gitignore.template'), path.join(targetFolder, '.gitignore'));
-  fs.renameSync(path.join(targetFolder, 'yarnrc.yml.template'), path.join(targetFolder, '.yarnrc.yml'));
+  fs.renameSync(
+    path.join(targetFolder, 'gitignore.template'),
+    path.join(targetFolder, '.gitignore'),
+  );
+  fs.renameSync(
+    path.join(targetFolder, 'yarnrc.yml.template'),
+    path.join(targetFolder, '.yarnrc.yml'),
+  );
 
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
@@ -57,9 +69,9 @@ export const createApp = async (name, basePath = process.cwd()) => {
 
   log(
     `Your LINCD App is ready at ${chalk.blueBright(targetFolder)}`,
-    `To start, run\n${chalk.blueBright(`cd ${hyphenName}`)} and then ${chalk.blueBright(
-      (hasYarn ? 'yarn' : 'npm') + ' start',
-    )}`,
+    `To start, run\n${chalk.blueBright(
+      `cd ${hyphenName}`,
+    )} and then ${chalk.blueBright((hasYarn ? 'yarn' : 'npm') + ' start')}`,
   );
 };
 
@@ -74,7 +86,9 @@ function log(...messages) {
 }
 
 function progressUpdate(message) {
-  process.stdout.write('                                                                    \r');
+  process.stdout.write(
+    '                                                                    \r',
+  );
   process.stdout.write(message + '\r');
 }
 
@@ -107,12 +121,23 @@ function warn(...messages) {
 export function developPackage(target, mode) {
   if (!target) target = 'es6';
   if (mode !== 'production') mode = '';
-  else if (target !== 'es6') log('target must be es6 when developing for production');
+  else if (target !== 'es6')
+    log('target must be es6 when developing for production');
   if (target == 'es5' || target == 'es6') {
     // log('> Starting continuous development build for '+target+' target')
     log('starting continuous development build');
-    log('grunt dev' + (target ? '-' + target : '') + (mode ? '-' + mode : '') + ' --color');
-    var command = exec('grunt dev' + (target ? '-' + target : '') + (mode ? '-' + mode : '') + ' --color');
+    log(
+      'grunt dev' +
+        (target ? '-' + target : '') +
+        (mode ? '-' + mode : '') +
+        ' --color',
+    );
+    var command = exec(
+      'grunt dev' +
+        (target ? '-' + target : '') +
+        (mode ? '-' + mode : '') +
+        ' --color',
+    );
     command.stdout.pipe(process.stdout);
     command.stderr.pipe(process.stderr);
   } else {
@@ -163,7 +188,10 @@ function checkPackagePath(rootPath, packagePath, res) {
 
 function runOnPackagesGroupedByDependencies(
   lincdPackages,
-  onBuildStack: (packageGroup, dependencies) => (pkg: PackageDetails) => Promise<any>,
+  onBuildStack: (
+    packageGroup,
+    dependencies,
+  ) => (pkg: PackageDetails) => Promise<any>,
   onStackEnd,
 ) {
   let dependencies: Map<PackageDetails, PackageDetails[]> = new Map();
@@ -177,7 +205,9 @@ function runOnPackagesGroupedByDependencies(
       let packageDependencies = Object.keys(pack.dependencies)
         .filter((dependency) => lincdPackages.has(dependency))
         .map((dependency) => {
-          return lincdPackages.has(dependency) ? lincdPackages.get(dependency) : dependency;
+          return lincdPackages.has(dependency)
+            ? lincdPackages.get(dependency)
+            : dependency;
         });
       // console.log(package.packageName,packageDependencies.map())
       dependencies.set(pkg, packageDependencies);
@@ -187,7 +217,10 @@ function runOnPackagesGroupedByDependencies(
   dependencies.forEach((PackageDependencies, pkg) => {
     if (
       !PackageDependencies.some((dependency) => {
-        return typeof dependency !== 'string' && lincdPackages.has(dependency.packageName);
+        return (
+          typeof dependency !== 'string' &&
+          lincdPackages.has(dependency.packageName)
+        );
       })
     ) {
       leastDependentPackage = pkg;
@@ -206,7 +239,11 @@ function runOnPackagesGroupedByDependencies(
         // p = p.then(() => {
         return runFunction(pck)
           .catch(({error, stdout, stderr}) => {
-            warn('Uncaught exception whilst running parallel function on ' + pck.packageName, error.message);
+            warn(
+              'Uncaught exception whilst running parallel function on ' +
+                pck.packageName,
+              error.message,
+            );
             // warn(chalk.red(pck.packageName+' failed:'));
             // console.log(stdout);
           })
@@ -233,7 +270,10 @@ function runOnPackagesGroupedByDependencies(
       if (
         !done.has(pkg) &&
         deps.every((dependency) => {
-          return typeof dependency !== 'string' && (done.has(dependency) || !lincdPackages.has(dependency.packageName));
+          return (
+            typeof dependency !== 'string' &&
+            (done.has(dependency) || !lincdPackages.has(dependency.packageName))
+          );
         })
       ) {
         stack.push(pkg);
@@ -241,7 +281,15 @@ function runOnPackagesGroupedByDependencies(
     });
 
     if (stack.length <= 0 && done.size < lincdPackages.size) {
-      console.log(chalk.red('Only ' + done.size + ' out of ' + lincdPackages.size + ' packages have been built'));
+      console.log(
+        chalk.red(
+          'Only ' +
+            done.size +
+            ' out of ' +
+            lincdPackages.size +
+            ' packages have been built',
+        ),
+      );
       console.log(
         'ALL remaining packages have dependencies that have not been met. This may point to ' +
           chalk.red('circular dependencies.'),
@@ -253,7 +301,8 @@ function runOnPackagesGroupedByDependencies(
             .join(', '),
       );
       console.log(
-        chalk.blue('\nTo solve this issue') + ': find the circular dependencies below and fix the dependencies:\n\n',
+        chalk.blue('\nTo solve this issue') +
+          ': find the circular dependencies below and fix the dependencies:\n\n',
       );
       //TODO: actually find and name the packages that have circular dependencies
       // let circular = [];
@@ -284,7 +333,13 @@ function runOnPackagesGroupedByDependencies(
                     return p === dependency;
                   });
                 })
-                .map((p) => chalk.red('\t- ' + (p?.packageName ? p.packageName : p.toString()) + '\n'))
+                .map((p) =>
+                  chalk.red(
+                    '\t- ' +
+                      (p?.packageName ? p.packageName : p.toString()) +
+                      '\n',
+                  ),
+                )
                 .join(' '),
           );
           // console.log(chalk.red(pkg.packageName)+' has not been built yet. Built dependencies:\n' + deps.filter(dependency => {
@@ -306,15 +361,25 @@ function runOnPackagesGroupedByDependencies(
   //starts the process
   runStack(startStack);
 }
+
 function hasDependency(pkg, childPkg, dependencies, depth = 1) {
-  console.log('Does ' + pkg.packageName + ' have dep ' + childPkg.packageName + ' ?');
+  console.log(
+    'Does ' + pkg.packageName + ' have dep ' + childPkg.packageName + ' ?',
+  );
   let deps = dependencies.get(pkg);
   if (
     deps.some((dependency) => {
-      console.log(dependency.packageName, childPkg.packageName, dependency === childPkg);
+      console.log(
+        dependency.packageName,
+        childPkg.packageName,
+        dependency === childPkg,
+      );
       if (depth === 2) return false;
       // return dependency === childPkg;
-      return dependency === childPkg || hasDependency(dependency, childPkg, dependencies, depth++);
+      return (
+        dependency === childPkg ||
+        hasDependency(dependency, childPkg, dependencies, depth++)
+      );
     })
   ) {
     console.log('##YES');
@@ -325,7 +390,9 @@ function hasDependency(pkg, childPkg, dependencies, depth = 1) {
 }
 
 export function buildAll(target, target2, target3) {
-  console.log('Building all LINCD packages of this repository in order of dependencies');
+  console.log(
+    'Building all LINCD packages of this repository in order of dependencies',
+  );
   let lincdPackages = getLocalLincdPackageMap();
 
   let startFrom: string;
@@ -369,11 +436,15 @@ export function buildAll(target, target2, target3) {
     (packageGroup, dependencies) => {
       if (done.size > 0) {
         debugInfo(
-          chalk.magenta('\n-------\nThese packages are next, since all their dependencies have now been build:'),
+          chalk.magenta(
+            '\n-------\nThese packages are next, since all their dependencies have now been build:',
+          ),
         );
         // log(stack);
       }
-      debugInfo('Now building: ' + chalk.blue(packageGroup.map((i) => i.packageName)));
+      debugInfo(
+        'Now building: ' + chalk.blue(packageGroup.map((i) => i.packageName)),
+      );
       return async (pkg: PackageDetails) => {
         let command;
         let skipping = false;
@@ -466,7 +537,9 @@ export function buildAll(target, target2, target3) {
             let deps = dependencies.get(pkg);
             if (first) {
               console.log(
-                chalk.red('CYCLICAL DEPENDENCIES? - could not build some packages because they depend on each other.'),
+                chalk.red(
+                  'CYCLICAL DEPENDENCIES? - could not build some packages because they depend on each other.',
+                ),
               );
               first = false;
             }
@@ -479,7 +552,9 @@ export function buildAll(target, target2, target3) {
                     return typeof dependency !== 'string';
                   })
                   .map((d: PackageDetails) => {
-                    return done.has(d) ? d.packageName : chalk.red(d.packageName);
+                    return done.has(d)
+                      ? d.packageName
+                      : chalk.red(d.packageName);
                   })
                   .join(', '),
             );
@@ -493,7 +568,11 @@ export function buildAll(target, target2, target3) {
                     stringDependencies.join(', '),
                 ),
               );
-              console.log(chalk.red('Could you remove this from dependencies? Should it be a devDependency?'));
+              console.log(
+                chalk.red(
+                  'Could you remove this from dependencies? Should it be a devDependency?',
+                ),
+              );
             }
           }
         });
@@ -549,7 +628,11 @@ export function getLincdPackages(rootPath = process.cwd()): PackageDetails[] {
   }
 
   if (!pack || !pack.workspaces) {
-    warn(chalk.red('Could not find package workspaces. Make sure you run this command from a yarn workspace.'));
+    warn(
+      chalk.red(
+        'Could not find package workspaces. Make sure you run this command from a yarn workspace.',
+      ),
+    );
     logHelp();
     process.exit();
   }
@@ -581,12 +664,16 @@ var replaceVariablesInFile = async (filePath: string) => {
 var replaceCurlyVariables = function (string) {
   // var reg = new RegExp('\\$\\{'+key+'\\}','g');
   for (var key in variables) {
-    string = string.replace(new RegExp('\\$\\{' + key + '\\}', 'g'), variables[key]);
+    string = string.replace(
+      new RegExp('\\$\\{' + key + '\\}', 'g'),
+      variables[key],
+    );
   }
   return string;
 };
 
-const capitalize = (str) => str.charAt(0).toUpperCase() + str.toLowerCase().slice(1);
+const capitalize = (str) =>
+  str.charAt(0).toUpperCase() + str.toLowerCase().slice(1);
 const camelCase = (str) => {
   let string = str.replace(/[^A-Za-z0-9]/g, ' ').split(' ');
   if (string.length > 1) {
@@ -595,7 +682,11 @@ const camelCase = (str) => {
   return str;
 };
 
-export const createOntology = async (prefix, uriBase?, basePath = process.cwd()) => {
+export const createOntology = async (
+  prefix,
+  uriBase?,
+  basePath = process.cwd(),
+) => {
   if (!prefix) {
     console.warn('Please provide a suggested prefix as the first argument');
     return;
@@ -615,32 +706,73 @@ export const createOntology = async (prefix, uriBase?, basePath = process.cwd())
   log("Creating files for ontology '" + prefix + "'");
   let targetFile = path.join(targetFolder, hyphenName + '.ts');
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'package', 'src', 'ontologies', 'example-ontology.ts'),
+    path.join(
+      __dirname,
+      '..',
+      'defaults',
+      'package',
+      'src',
+      'ontologies',
+      'example-ontology.ts',
+    ),
     targetFile,
   );
 
   //copy data files
-  let targetDataFile = path.join(targetFolder, '..', 'data', hyphenName + '.json');
-  let targetDataFile2 = path.join(targetFolder, '..', 'data', hyphenName + '.json.d.ts');
+  let targetDataFile = path.join(
+    targetFolder,
+    '..',
+    'data',
+    hyphenName + '.json',
+  );
+  let targetDataFile2 = path.join(
+    targetFolder,
+    '..',
+    'data',
+    hyphenName + '.json.d.ts',
+  );
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'package', 'src', 'data', 'example-ontology.json'),
+    path.join(
+      __dirname,
+      '..',
+      'defaults',
+      'package',
+      'src',
+      'data',
+      'example-ontology.json',
+    ),
     targetDataFile,
   );
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'package', 'src', 'data', 'example-ontology.json.d.ts'),
+    path.join(
+      __dirname,
+      '..',
+      'defaults',
+      'package',
+      'src',
+      'data',
+      'example-ontology.json.d.ts',
+    ),
     targetDataFile2,
   );
 
   await replaceVariablesInFiles(targetFile, targetDataFile, targetDataFile2);
   log(
-    `Prepared a new ontology data files in ${chalk.magenta(targetDataFile.replace(basePath, ''))}`,
-    `And an ontology accessor file in ${chalk.magenta(targetFile.replace(basePath, ''))}`,
+    `Prepared a new ontology data files in ${chalk.magenta(
+      targetDataFile.replace(basePath, ''),
+    )}`,
+    `And an ontology accessor file in ${chalk.magenta(
+      targetFile.replace(basePath, ''),
+    )}`,
   );
 
   //if this is not a lincd app (but a lincd package instead)
   if (!sourceFolder.includes('frontend')) {
     //then also add an import to index
-    let indexPath = addLineToIndex(`import './ontologies/${hyphenName}';`, 'ontologies');
+    let indexPath = addLineToIndex(
+      `import './ontologies/${hyphenName}';`,
+      'ontologies',
+    );
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
@@ -696,7 +828,10 @@ const replaceVariablesInFolder = function (folder: string) {
   });
 };
 
-const replaceVariablesInFilesWithRoot = function (root: string, ...files: string[]) {
+const replaceVariablesInFilesWithRoot = function (
+  root: string,
+  ...files: string[]
+) {
   return replaceVariablesInFiles(...files.map((f) => path.join(root, f)));
 };
 const hasYarnInstalled = async function () {
@@ -772,7 +907,11 @@ export const createShape = async (name, basePath = process.cwd()) => {
 
   //replace variables in some of the copied files
   await replaceVariablesInFiles(targetFile);
-  log(`Created a new shape class template in ${chalk.magenta(targetFile.replace(basePath, ''))}`);
+  log(
+    `Created a new shape class template in ${chalk.magenta(
+      targetFile.replace(basePath, ''),
+    )}`,
+  );
 
   //if this is NOT a lincd app (but a lincd package)
   let indexPath;
@@ -789,19 +928,32 @@ export const createSetComponent = async (name, basePath = process.cwd()) => {
   //copy default shape file
   log("Creating files for set component '" + name + "'");
   let targetFile = path.join(targetFolder, hyphenName + '.tsx');
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'set-component.tsx'), targetFile);
+  fs.copySync(
+    path.join(__dirname, '..', 'defaults', 'set-component.tsx'),
+    targetFile,
+  );
 
   let targetFile2 = path.join(targetFolder, hyphenName + '.scss');
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'component.scss'), targetFile2);
+  fs.copySync(
+    path.join(__dirname, '..', 'defaults', 'component.scss'),
+    targetFile2,
+  );
 
   //replace variables in some of the copied files
   await replaceVariablesInFiles(targetFile, targetFile2);
 
-  let indexPath = addLineToIndex(`import './components/${hyphenName}';`, 'components');
+  let indexPath = addLineToIndex(
+    `import './components/${hyphenName}';`,
+    'components',
+  );
 
   log(
-    `Created a new set component in ${chalk.magenta(targetFile.replace(basePath, ''))}`,
-    `Created a new stylesheet in ${chalk.magenta(targetFile2.replace(basePath, ''))}`,
+    `Created a new set component in ${chalk.magenta(
+      targetFile.replace(basePath, ''),
+    )}`,
+    `Created a new stylesheet in ${chalk.magenta(
+      targetFile2.replace(basePath, ''),
+    )}`,
     `Added an import of this file from ${chalk.magenta(indexPath)}`,
   );
 };
@@ -813,22 +965,35 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   //copy default shape file
   log("Creating files for component '" + name + "'");
   let targetFile = path.join(targetFolder, hyphenName + '.tsx');
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'component.tsx'), targetFile);
+  fs.copySync(
+    path.join(__dirname, '..', 'defaults', 'component.tsx'),
+    targetFile,
+  );
 
   let targetFile2 = path.join(targetFolder, hyphenName + '.scss');
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'component.scss'), targetFile2);
+  fs.copySync(
+    path.join(__dirname, '..', 'defaults', 'component.scss'),
+    targetFile2,
+  );
 
   //replace variables in some of the copied files
   await replaceVariablesInFiles(targetFile, targetFile2);
   log(
-    `Created a new component template in ${chalk.magenta(targetFile.replace(basePath, ''))}`,
-    `Created component stylesheet template in ${chalk.magenta(targetFile2.replace(basePath, ''))}`,
+    `Created a new component template in ${chalk.magenta(
+      targetFile.replace(basePath, ''),
+    )}`,
+    `Created component stylesheet template in ${chalk.magenta(
+      targetFile2.replace(basePath, ''),
+    )}`,
   );
 
   //if this is not a lincd app (but a lincd package instead)
   if (!sourceFolder.includes('frontend')) {
     //then also add an import to index
-    let indexPath = addLineToIndex(`import './components/${hyphenName}';`, 'components');
+    let indexPath = addLineToIndex(
+      `import './components/${hyphenName}';`,
+      'components',
+    );
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
@@ -840,7 +1005,9 @@ export const depCheck = async () => {
       //currently react is not an explicit dependency, but we should add it as a peer dependency
       missing.splice(missing.indexOf('react'));
       if (missing.length > 0) {
-        console.warn(chalk.red('Missing dependencies:\n\t' + missing.join(',\n\t')));
+        console.warn(
+          chalk.red('Missing dependencies:\n\t' + missing.join(',\n\t')),
+        );
       }
     }
     // if(Object.keys(results.invalidFiles).length > 0) {
@@ -854,7 +1021,11 @@ export const depCheck = async () => {
     // }
   });
 };
-export const createPackage = async (name, uriBase?, basePath = process.cwd()) => {
+export const createPackage = async (
+  name,
+  uriBase?,
+  basePath = process.cwd(),
+) => {
   //if ran with npx, basePath will be the root directory of the repository, even if we're executing from a sub folder (the root directory is where node_modules lives and package.json with workspaces)
   //so we manually find a packages folder, if it exists we go into that.
   if (fs.existsSync(path.join(basePath, 'packages'))) {
@@ -866,7 +1037,9 @@ export const createPackage = async (name, uriBase?, basePath = process.cwd()) =>
   }
 
   //let's remove scope for variable names
-  let [packageName, scope, cleanPackageName] = name.match(/(@[\w\-]+\/)?([\w\-]+)/);
+  let [packageName, scope, cleanPackageName] = name.match(
+    /(@[\w\-]+\/)?([\w\-]+)/,
+  );
 
   let targetFolder = ensureFolderExists(basePath, cleanPackageName);
 
@@ -887,7 +1060,8 @@ export const createPackage = async (name, uriBase?, basePath = process.cwd()) =>
   //extra variable for clarity (will be same as 'name')
   setVariable('output_file_name', name);
 
-  let {hyphenName, camelCaseName, underscoreName} = setNameVariables(cleanPackageName);
+  let {hyphenName, camelCaseName, underscoreName} =
+    setNameVariables(cleanPackageName);
 
   log("Creating new LINCD package '" + name + "'");
   fs.copySync(path.join(__dirname, '..', 'defaults', 'package'), targetFolder);
@@ -919,23 +1093,37 @@ export const createPackage = async (name, uriBase?, basePath = process.cwd()) =>
     let newParts = [...parts];
     let [name, ...extensions] = newParts.pop().split('.');
     let newName = hyphenName + '.' + extensions.join('.');
-    console.log('rename ', path.join(targetFolder, f), path.join(targetFolder, ...newParts, newName));
-    fs.renameSync(path.join(targetFolder, f), path.join(targetFolder, ...newParts, newName));
+    console.log(
+      'rename ',
+      path.join(targetFolder, f),
+      path.join(targetFolder, ...newParts, newName),
+    );
+    fs.renameSync(
+      path.join(targetFolder, f),
+      path.join(targetFolder, ...newParts, newName),
+    );
   });
 
   let version = (await execPromise('yarn --version').catch((err) => {
     console.log('yarn probably not working');
     return '';
   })) as string;
-  let installCommand = version.toString().match(/[0-9]+/) ? 'yarn install' : 'npm install';
-  await execp(`cd ${targetFolder} && ${installCommand} && npm exec lincd build`, true).catch((err) => {
+  let installCommand = version.toString().match(/[0-9]+/)
+    ? 'yarn install'
+    : 'npm install';
+  await execp(
+    `cd ${targetFolder} && ${installCommand} && npm exec lincd build`,
+    true,
+  ).catch((err) => {
     console.warn('Could not install dependencies');
   });
 
   log(
     `Prepared a new LINCD package in ${chalk.magenta(targetFolder)}`,
     `Run ${chalk.blueBright('yarn build')} from this directory to build once`,
-    `Or ${chalk.blueBright('yarn dev')} to continuously rebuild on file changes`,
+    `Or ${chalk.blueBright(
+      'yarn dev',
+    )} to continuously rebuild on file changes`,
   );
 };
 
@@ -952,7 +1140,10 @@ var getNextMinorVersion = function (version) {
   return parts[0] + '.' + (parseInt(parts[1]) + 1).toString() + '.0';
 };
 var buildFailed = function (output: string) {
-  return output.indexOf('Aborted due to warnings') !== -1 && output.indexOf('Command failed') !== -1;
+  return (
+    output.indexOf('Aborted due to warnings') !== -1 &&
+    output.indexOf('Command failed') !== -1
+  );
 };
 /*program.command('shapes').action(async () => {
 	//we've imported require-extensions from npm so that we can use this
@@ -994,7 +1185,9 @@ var buildFailed = function (output: string) {
 
 export const register = function (registryURL) {
   if (fs.existsSync(process.cwd() + '/package.json')) {
-    var pack = JSON.parse(fs.readFileSync(process.cwd() + '/package.json', 'utf8'));
+    var pack = JSON.parse(
+      fs.readFileSync(process.cwd() + '/package.json', 'utf8'),
+    );
     let version = pack.version;
     let packageName = pack.name;
     // let author = pack.author;
@@ -1005,7 +1198,15 @@ export const register = function (registryURL) {
     //   authorName = pack.author.name;
     // }
 
-    console.log(chalk.cyan('registering package ' + packageName + ' ' + version + ' in the LINCD registry'));
+    console.log(
+      chalk.cyan(
+        'registering package ' +
+          packageName +
+          ' ' +
+          version +
+          ' in the LINCD registry',
+      ),
+    );
 
     return fetch(registryURL + '/register', {
       method: 'POST',
@@ -1028,10 +1229,14 @@ export const register = function (registryURL) {
         }
       })
       .catch((err) => {
-        console.warn(chalk.red('Warning: ') + 'Could not connect to LINCD registry');
+        console.warn(
+          chalk.red('Warning: ') + 'Could not connect to LINCD registry',
+        );
       });
   } else {
-    console.warn(chalk.red('Warning:') + ' not found: ' + process.cwd() + '/package.json');
+    console.warn(
+      chalk.red('Warning:') + ' not found: ' + process.cwd() + '/package.json',
+    );
   }
 };
 
@@ -1048,7 +1253,10 @@ export const buildMetadata = async (): Promise<string[]> => {
       filePath: '.env-cmdrc.json',
     },
   });
-  if (envVars[process.env.NODE_ENV] && envVars[process.env.NODE_ENV].SITE_ROOT) {
+  if (
+    envVars[process.env.NODE_ENV] &&
+    envVars[process.env.NODE_ENV].SITE_ROOT
+  ) {
     //get the site root of the current environment
     app = NamedNode.getOrCreate(envVars[process.env.NODE_ENV].SITE_ROOT);
   } else {
@@ -1066,48 +1274,70 @@ export const buildMetadata = async (): Promise<string[]> => {
   let metadataFolder = path.join(process.cwd(), 'data', 'metadata');
   await fs.ensureDir(metadataFolder); //{recursive:true} but not needed with fs-extra
 
-  for (const [packageCodeName, packagePath, lincdPackagePath, isAppPackage] of localPackagePaths) {
+  for (const [
+    packageCodeName,
+    packagePath,
+    lincdPackagePath,
+    isAppPackage,
+  ] of localPackagePaths) {
     let errors = false;
     //TODO: check if this resolves, if not, skip it (for initial setup)
-    import('lincd-modules/lib/scripts/package-metadata.js').then(async (script) => {
-      await script.getPackageMetadata(packagePath, lincdPackagePath).then(async (response) => {
-        if (response.errors.length > 0) {
-          // console.log(JSON.stringify(response));
-          warn('Error processing ' + packagePath + ':\n' + response.errors.join('\n'));
-          // throw response
-          errors = true;
-        } else {
-          if (!response.packageUri) {
-            console.warn('No package URI from meta data. Not building meta data for this package');
-            return;
-          }
-          let pkgNode = NamedNode.getOrCreate(response.packageUri);
-          //connect the packages to the app
-          let lincdApp = createNameSpace('http://lincd.org/ont/lincd-app/');
-          Prefix.add('lincdApp', 'http://lincd.org/ont/lincd-app/');
-          if (isAppPackage) {
-            //Note: this needs to match with LincdWebApp.ownPackage accessor;
-            app.overwrite(lincdApp('ownPackage'), pkgNode);
-          } else {
-            //Note: this needs to match with LincdWebApp.packages accessor;
-            app.set(lincdApp('maintainsPackage'), pkgNode);
-          }
+    import('lincd-modules/lib/scripts/package-metadata.js').then(
+      async (script) => {
+        await script
+          .getPackageMetadata(packagePath, lincdPackagePath)
+          .then(async (response) => {
+            if (response.errors.length > 0) {
+              // console.log(JSON.stringify(response));
+              warn(
+                'Error processing ' +
+                  packagePath +
+                  ':\n' +
+                  response.errors.join('\n'),
+              );
+              // throw response
+              errors = true;
+            } else {
+              if (!response.packageUri) {
+                console.warn(
+                  'No package URI from meta data. Not building meta data for this package',
+                );
+                return;
+              }
+              let pkgNode = NamedNode.getOrCreate(response.packageUri);
+              //connect the packages to the app
+              let lincdApp = createNameSpace('http://lincd.org/ont/lincd-app/');
+              Prefix.add('lincdApp', 'http://lincd.org/ont/lincd-app/');
+              if (isAppPackage) {
+                //Note: this needs to match with LincdWebApp.ownPackage accessor;
+                app.overwrite(lincdApp('ownPackage'), pkgNode);
+              } else {
+                //Note: this needs to match with LincdWebApp.packages accessor;
+                app.set(lincdApp('maintainsPackage'), pkgNode);
+              }
 
-          //write this graph to a jsonld file
-          let packageMetaData = JSON.stringify(response.result, null, 2);
-          let metadataFile = path.join(metadataFolder, packageCodeName + '.json');
-          await fs.writeFile(metadataFile, packageMetaData).then(() => {
-            updatedPaths.push(metadataFile);
+              //write this graph to a jsonld file
+              let packageMetaData = JSON.stringify(response.result, null, 2);
+              let metadataFile = path.join(
+                metadataFolder,
+                packageCodeName + '.json',
+              );
+              await fs.writeFile(metadataFile, packageMetaData).then(() => {
+                updatedPaths.push(metadataFile);
+              });
+            }
           });
-        }
-      });
-    });
+      },
+    );
 
     //enable this when testing if you don't want to continue with building other metadata when an errors occur
     // if (errors) break;
   }
 
-  let packageMetaData = await JSONLDWriter.stringify(app, process.env.NODE_ENV === 'development');
+  let packageMetaData = await JSONLDWriter.stringify(
+    app,
+    process.env.NODE_ENV === 'development',
+  );
   let metadataFile = path.join(metadataFolder, '_app.json');
   await fs.writeFile(metadataFile, packageMetaData).then(() => {
     updatedPaths.push(metadataFile);
@@ -1121,11 +1351,21 @@ function getLocalPackagePaths() {
 
   //add the APP package itself
   let appPackagePath = process.cwd();
-  let appLincdPackagePath = path.join(appPackagePath, 'frontend', 'src', 'package.ts');
+  let appLincdPackagePath = path.join(
+    appPackagePath,
+    'frontend',
+    'src',
+    'package.ts',
+  );
   if (fs.existsSync(appPackagePath)) {
     let packageJSON = getPackageJSON(appPackagePath);
 
-    packagePaths.push([packageJSON.name, appPackagePath, appLincdPackagePath, true]);
+    packagePaths.push([
+      packageJSON.name,
+      appPackagePath,
+      appLincdPackagePath,
+      true,
+    ]);
   } else {
     console.log('Not a LINCD app');
   }
@@ -1145,16 +1385,25 @@ function getLocalPackagePaths() {
   return packagePaths;
 }
 
-export const buildPackage = (target, target2, packagePath = process.cwd(), logResults: boolean = true) => {
+export const buildPackage = (
+  target,
+  target2,
+  packagePath = process.cwd(),
+  logResults: boolean = true,
+) => {
   if (target == 'production' || target == 'es5' || target == 'es6' || !target) {
     if (!fs.existsSync(path.join(packagePath, 'Gruntfile.js'))) {
-      console.warn(`No Gruntfile found at ${packagePath}\\Gruntfile.js. Cannot build.`);
+      console.warn(
+        `No Gruntfile found at ${packagePath}\\Gruntfile.js. Cannot build.`,
+      );
       return;
     }
 
     var nodeEnv = '';
     if (target == 'production') {
-      if (!(target2 == 'es5' || target2 == 'es6' || typeof target2 == 'undefined')) {
+      if (
+        !(target2 == 'es5' || target2 == 'es6' || typeof target2 == 'undefined')
+      ) {
         console.warn('unknown second build target. Use es5 or es6', target2);
         return;
       }
@@ -1180,7 +1429,11 @@ export const buildPackage = (target, target2, packagePath = process.cwd(), logRe
     let method = logResults ? execp : execPromise;
     //execute the command to build the method, and provide the current work directory as option
     return method(
-      nodeEnv + 'grunt build' + (target ? '-' + target : '') + (target2 ? '-' + target2 : '') + ' --color',
+      nodeEnv +
+        'grunt build' +
+        (target ? '-' + target : '') +
+        (target2 ? '-' + target2 : '') +
+        ' --color',
       false,
       false,
       {cwd: packagePath},
@@ -1200,7 +1453,9 @@ const getLastModifiedSourceTime = (packagePath) => {
     ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
   });
 };
-const getLastCommitTime = (packagePath): Promise<{date: Date; changes: string; commitId: string}> => {
+const getLastCommitTime = (
+  packagePath,
+): Promise<{date: Date; changes: string; commitId: string}> => {
   // console.log(`git log -1 --format=%ci -- ${packagePath}`);
   // process.exit();
   return execPromise(`git log -1 --format="%h %ci" -- ${packagePath}`)
@@ -1209,7 +1464,9 @@ const getLastCommitTime = (packagePath): Promise<{date: Date; changes: string; c
       let date = result.substring(commitId.length + 1);
       let lastCommitDate = new Date(date);
 
-      let changes = await execPromise(`git show --stat --oneline ${commitId} -- ${packagePath}`);
+      let changes = await execPromise(
+        `git show --stat --oneline ${commitId} -- ${packagePath}`,
+      );
       // log(packagePath,result,lastCommit);
       // log(changes);
       return {date: lastCommitDate, changes, commitId};
@@ -1249,7 +1506,9 @@ export var publishUpdated = function (test: boolean = false) {
   var p: Promise<any> = Promise.resolve('');
   let packagesLeft = packages.length;
   let results = [];
-  log('Checking which packages need to be published by comparing last published date with last git commit');
+  log(
+    'Checking which packages need to be published by comparing last published date with last git commit',
+  );
   // p = Promise.all(packages.map((pckg) => {
   packages.forEach((pckg) => {
     p = p
@@ -1278,7 +1537,9 @@ export var publishUpdated = function (test: boolean = false) {
             var info;
             try {
               if (output == '' || output.includes('E404')) {
-                debugInfo('Empty or 404 response from `npm info`. This package was probably not published before');
+                debugInfo(
+                  'Empty or 404 response from `npm info`. This package was probably not published before',
+                );
                 // throw new Error('Empty response from `yarn info`. This pkg was probably not published before');
                 // return;
                 shouldPublish = true;
@@ -1307,22 +1568,34 @@ export var publishUpdated = function (test: boolean = false) {
                   shouldPublish = false;
                   debugInfo('Could not determine last git commit');
                   // return previousResult + ' ' + chalk.red(pckg.packageName + ' - could not determine last commit\n');
-                  return chalk.red(pckg.packageName + ' - could not determine last commit');
+                  return chalk.red(
+                    pckg.packageName + ' - could not determine last commit',
+                  );
                 } else {
                   //NOTE: removed lastModified, because switching branches will say that the file was modified and cause everything to publish
                   //SO: now you NEED TO commit before it picks up that you should publish
-                  shouldPublish = lastPublishDate.getTime() < lastCommitInfo.date.getTime();
+                  shouldPublish =
+                    lastPublishDate.getTime() < lastCommitInfo.date.getTime();
 
                   //ignore changes to package.json if that's the only change, because when we publish the version number changes, which is then committed
                   //(note there is always 2 lines for commit info + number of files changed)
-                  let changedFiles = lastCommitInfo.changes.split('\n').filter((line) => line.includes('|'));
+                  let changedFiles = lastCommitInfo.changes
+                    .split('\n')
+                    .filter((line) => line.includes('|'));
                   let numberOfFilesChanges = changedFiles.length;
                   // console.log("CHECK "+lastCommitInfo.changes.includes("package.json")+" - "+numberOfFilesChanges)
-                  if (shouldPublish && lastCommitInfo.changes.includes('package.json') && numberOfFilesChanges === 1) {
+                  if (
+                    shouldPublish &&
+                    lastCommitInfo.changes.includes('package.json') &&
+                    numberOfFilesChanges === 1
+                  ) {
                     shouldPublish = false;
                   }
                   if (shouldPublish) {
-                    log(chalk.magenta(pckg.packageName) + ' should be published because:');
+                    log(
+                      chalk.magenta(pckg.packageName) +
+                        ' should be published because:',
+                    );
                     log(
                       lastPublishDate.toDateString() +
                         ' ' +
@@ -1343,7 +1616,9 @@ export var publishUpdated = function (test: boolean = false) {
             } catch (err) {
               // var stats = fs.statSync(path.join(packageDirectory));
               // var files = fs.readdirSync(path.join(packageDirectory,'src'));
-              console.log(chalk.red(pckg.packageName + ' failed: ' + err.message + '\n'));
+              console.log(
+                chalk.red(pckg.packageName + ' failed: ' + err.message + '\n'),
+              );
               console.warn('Returned JSON from npm: ' + output);
               // return previousResult + ' ' + chalk.red(pckg.packageName + ' failed: ' + err.message + '\n');
               return chalk.red(pckg.packageName + ' failed: ' + err.message);
@@ -1351,7 +1626,9 @@ export var publishUpdated = function (test: boolean = false) {
             if (shouldPublish) {
               return publishPackage(pckg, test, info, version);
             }
-            return chalk.blue(pckg.packageName) + ' latest version is up to date';
+            return (
+              chalk.blue(pckg.packageName) + ' latest version is up to date'
+            );
           })
           .catch(({error, stdout, stderr}) => {
             if (error) {
@@ -1373,8 +1650,12 @@ export var publishUpdated = function (test: boolean = false) {
         results.push(res);
       })
       .catch((err) => {
-        console.warn(chalk.red(pckg.packageName + ' failed: ' + err.toString()));
-        results.push(chalk.red(pckg.packageName + ' failed: ' + err.toString()));
+        console.warn(
+          chalk.red(pckg.packageName + ' failed: ' + err.toString()),
+        );
+        results.push(
+          chalk.red(pckg.packageName + ' failed: ' + err.toString()),
+        );
       });
   });
   return p.then(() => {
@@ -1384,7 +1665,9 @@ export var publishUpdated = function (test: boolean = false) {
     // }
     // else
     // {
-    console.log('Summary:                                \n' + results.join('\n'));
+    console.log(
+      'Summary:                                \n' + results.join('\n'),
+    );
     // }
   });
 };
@@ -1396,7 +1679,9 @@ async function getEnvJsonPath(relativeToPath = process.cwd()) {
   }
   // let path = './';
   for (let i = 0; i <= 10; i++) {
-    let envFile = await getEnvFile({filePath: relativeToPath + path + '.env.json'}).catch((err) => {
+    let envFile = await getEnvFile({
+      filePath: relativeToPath + path + '.env.json',
+    }).catch((err) => {
       return null;
     });
     if (envFile) {
@@ -1407,7 +1692,12 @@ async function getEnvJsonPath(relativeToPath = process.cwd()) {
   }
 }
 
-export var publishPackage = async function (pkg?, test?, info?, publishVersion?) {
+export var publishPackage = async function (
+  pkg?,
+  test?,
+  info?,
+  publishVersion?,
+) {
   if (!pkg) {
     let localPackageJson = getPackageJSON();
     pkg = {
@@ -1423,7 +1713,9 @@ export var publishPackage = async function (pkg?, test?, info?, publishVersion?)
     //when testing what needs to be published
     return chalk.blue(pkg.packageName + ' should publish');
   }
-  console.log(chalk.blue('publishing ' + pkg.packageName + ' ' + publishVersion));
+  console.log(
+    chalk.blue('publishing ' + pkg.packageName + ' ' + publishVersion),
+  );
 
   //looking for an .env.json file in our workspace, which may store our NPM AUTH key
   let envJsonPath = await getEnvJsonPath(pkg.path);
@@ -1431,7 +1723,9 @@ export var publishPackage = async function (pkg?, test?, info?, publishVersion?)
   return execPromise(
     `cd ${pkg.path} && ${
       envJsonPath ? `env-cmd -f ${envJsonPath} --use-shell "` : ''
-    }yarn version ${publishVersion} && yarn npm publish${envJsonPath ? `"` : ''}`,
+    }yarn version ${publishVersion} && yarn npm publish${
+      envJsonPath ? `"` : ''
+    }`,
     true,
     false,
     {},
@@ -1447,8 +1741,17 @@ export var publishPackage = async function (pkg?, test?, info?, publishVersion?)
         return chalk.red(pkg.packageName + ' failed\n');
       }
 
-      console.log('Successfully published ' + chalk.green(pkg.path) + ' ' + chalk.magenta(publishVersion));
-      return chalk.green(pkg.packageName) + ' published ' + chalk.magenta(publishVersion);
+      console.log(
+        'Successfully published ' +
+          chalk.green(pkg.path) +
+          ' ' +
+          chalk.magenta(publishVersion),
+      );
+      return (
+        chalk.green(pkg.packageName) +
+        ' published ' +
+        chalk.magenta(publishVersion)
+      );
     })
     .catch(({error, stdout, stderr}) => {
       console.log(chalk.red('Failed to publish: ' + error.message));
@@ -1456,12 +1759,21 @@ export var publishPackage = async function (pkg?, test?, info?, publishVersion?)
     });
 };
 
-export var buildUpdated = async function (back, target, target2, test: boolean = false) {
+export var buildUpdated = async function (
+  back,
+  target,
+  target2,
+  test: boolean = false,
+) {
   // back = back || 1;
   // return execPromise(`git log -${back} --format=%ci`).then((result) => {
   // let now = new Date();
   let previousResult = '';
-  log(test ? 'Checking which packages need to be rebuild' : 'Building updated packages');
+  log(
+    test
+      ? 'Checking which packages need to be rebuild'
+      : 'Building updated packages',
+  );
   // let packages = getLocalLincdModules();
   let packages = getLocalLincdPackageMap();
 
@@ -1484,7 +1796,9 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
   runOnPackagesGroupedByDependencies(
     packages,
     (packageGroup, dependencies) => {
-      debugInfo('Now checking: ' + chalk.blue(packageGroup.map((i) => i.packageName)));
+      debugInfo(
+        'Now checking: ' + chalk.blue(packageGroup.map((i) => i.packageName)),
+      );
       debugInfo(packagesLeft + ' packages left.');
 
       packagesLeft = packagesLeft - packageGroup.length;
@@ -1508,7 +1822,11 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
           }
           log('Building ' + pkg.packageName);
           return execPromise(
-            'cd ' + pkg.path + ' && yarn build' + (target ? ' ' + target : '') + (target2 ? ' ' + target2 : ''),
+            'cd ' +
+              pkg.path +
+              ' && yarn build' +
+              (target ? ' ' + target : '') +
+              (target2 ? ' ' + target2 : ''),
           )
             .then((res) => {
               debugInfo(chalk.green(pkg.packageName + ' successfully built'));
@@ -1556,7 +1874,10 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
         // console.log(pkg.path,lastModifiedSource.lastModifiedTime,lastModifiedBundle.lastModifiedTime);
         // console.log(pkg.path,new Date(lastModifiedSource.lastModified).toString(),new Date(lastModifiedBundle.lastModified).toString());
         debugInfo('# Checking package ' + packageName);
-        if (lastModifiedSource.lastModifiedTime > lastModifiedBundle.lastModifiedTime) {
+        if (
+          lastModifiedSource.lastModifiedTime >
+          lastModifiedBundle.lastModifiedTime
+        ) {
           //TODO: when building a pkg, also rebuild all packages that depend on this package.. and iteratively build packages that depend on those packages..
 
           // log(packageName+' modified since last commit on '+now.toString());
@@ -1571,7 +1892,8 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
           debugInfo(
             chalk.cyan(
               'Last build: ' +
-                (lastModifiedBundle && typeof lastModifiedBundle.lastModified !== 'undefined'
+                (lastModifiedBundle &&
+                typeof lastModifiedBundle.lastModified !== 'undefined'
                   ? lastModifiedBundle.lastModified.toString()
                   : 'never'),
             ),
@@ -1583,17 +1905,32 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
           }
           if (!test) {
             return execPromise(
-              'cd ' + pkg.path + ' && yarn build' + (target ? ' ' + target : '') + (target2 ? ' ' + target2 : ''),
+              'cd ' +
+                pkg.path +
+                ' && yarn build' +
+                (target ? ' ' + target : '') +
+                (target2 ? ' ' + target2 : ''),
             ).then((res) => {
-              if (res.indexOf('Aborted due to warnings') !== -1 || res.indexOf('Fatal error') !== -1) {
+              if (
+                res.indexOf('Aborted due to warnings') !== -1 ||
+                res.indexOf('Fatal error') !== -1
+              ) {
                 console.log(res);
-                return previousResult + ' ' + chalk.red(packageName + ' failed\n');
+                return (
+                  previousResult + ' ' + chalk.red(packageName + ' failed\n')
+                );
               }
               console.log(chalk.green(packageName + ' successfully built'));
-              return previousResult + ' ' + chalk.green(packageName + ' built\n');
+              return (
+                previousResult + ' ' + chalk.green(packageName + ' built\n')
+              );
             });
           }
-          return previousResult + ' ' + chalk.blue(packageName + ' should be build\n');
+          return (
+            previousResult +
+            ' ' +
+            chalk.blue(packageName + ' should be build\n')
+          );
         }
         return previousResult;
       })
@@ -1616,7 +1953,8 @@ export var buildUpdated = async function (back, target, target2, test: boolean =
 const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
   let lastModifiedSource = getLastModifiedSourceTime(pkg.path);
   let lastModifiedBundle = getLastBuildTime(pkg.path);
-  let result = lastModifiedSource.lastModifiedTime > lastModifiedBundle.lastModifiedTime;
+  let result =
+    lastModifiedSource.lastModifiedTime > lastModifiedBundle.lastModifiedTime;
   if (log) {
     debugInfo(
       chalk.cyan(
@@ -1629,7 +1967,8 @@ const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
     debugInfo(
       chalk.cyan(
         'Last build: ' +
-          (lastModifiedBundle && typeof lastModifiedBundle.lastModified !== 'undefined'
+          (lastModifiedBundle &&
+          typeof lastModifiedBundle.lastModified !== 'undefined'
             ? lastModifiedBundle.lastModified.toString()
             : 'never'),
       ),
@@ -1638,19 +1977,30 @@ const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
   return result;
 };
 const printBuildResults = function (failed, done) {
-  log('Successfully built: ' + chalk.green([...done].map((m) => m.packageName).join(', ')) + '\n');
+  log(
+    'Successfully built: ' +
+      chalk.green([...done].map((m) => m.packageName).join(', ')) +
+      '\n',
+  );
   if (failed.length > 0) {
     warn('Failed to build: ' + chalk.red(failed.join(', ')) + '\n');
   }
 };
 
-export var executeCommandForEachPackage = function (packages, command, filterMethod, filterValue) {
+export var executeCommandForEachPackage = function (
+  packages,
+  command,
+  filterMethod,
+  filterValue,
+) {
   //if a specific set of packages is given
   if (filterMethod == 'exclude') {
     //filter packages, so that we only execute on the packages as provided in the command
     log('Excluding ' + filterValue);
     filterValue = filterValue.split(',');
-    packages = packages.filter((pkg) => filterValue.indexOf(pkg.packageName) === -1);
+    packages = packages.filter(
+      (pkg) => filterValue.indexOf(pkg.packageName) === -1,
+    );
   }
   let startFrom: string;
   //by default start executing, unless 'from' is given
@@ -1663,7 +2013,10 @@ export var executeCommandForEachPackage = function (packages, command, filterMet
     }
     let seen = false;
     packages = packages.filter((pkg) => {
-      if (!seen && (pkg.packageName == startFrom || pkg.packageName == startFrom)) {
+      if (
+        !seen &&
+        (pkg.packageName == startFrom || pkg.packageName == startFrom)
+      ) {
         seen = true;
       }
       return seen;
@@ -1703,46 +2056,62 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   let targetFolder = ensureFolderExists(basePath);
 
   log('Adding capacitor');
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'app-static'), targetFolder);
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'capacitor', 'scripts'), path.join(targetFolder, 'scripts'));
+  fs.copySync(
+    path.join(__dirname, '..', 'defaults', 'app-static'),
+    targetFolder,
+  );
+  fs.copySync(
+    path.join(__dirname, '..', 'defaults', 'capacitor', 'scripts'),
+    path.join(targetFolder, 'scripts'),
+  );
 
   //update .env-cmdrc.json file
   let envCmdPath = path.resolve(basePath, '.env-cmdrc.json');
-  let envCmd = JSON.parse(fs.readFileSync(envCmdPath,{encoding:'utf8'}));
+  let envCmd = JSON.parse(fs.readFileSync(envCmdPath, {encoding: 'utf8'}));
 
   envCmd['app-main'] = {
-    "APP_ENV": true,
-    "OUTPUT_PATH": "./web/assets",
-    "ASSET_PATH": "./assets/",
-    "ENTRY_PATH": "./src/index-static.tsx"
-  }
+    APP_ENV: true,
+    OUTPUT_PATH: './web/assets',
+    ASSET_PATH: './assets/',
+    ENTRY_PATH: './src/index-static.tsx',
+  };
   envCmd['app-local-android'] = {
-    "NODE_ENV": "app",
-    "SITE_ROOT": "http://10.0.2.2:4000"
-  }
+    NODE_ENV: 'app',
+    SITE_ROOT: 'http://10.0.2.2:4000',
+  };
   envCmd['app-local-ios'] = {
-    "NODE_ENV": "app",
-    "SITE_ROOT": "http://localhost:4000"
-  }
+    NODE_ENV: 'app',
+    SITE_ROOT: 'http://localhost:4000',
+  };
 
-  fs.writeFile(envCmdPath, JSON.stringify(envCmd,null,2));
+  fs.writeFile(envCmdPath, JSON.stringify(envCmd, null, 2));
   log('Edited .env-cmdrc.json');
 
-  gitIgnore('android/app/build','android/**/capacitor.build.gradle','ios/App/App/public');
+  gitIgnore(
+    'android/app/build',
+    'android/**/capacitor.build.gradle',
+    'ios/App/App/public',
+  );
 
   //update package.json scripts
   let pack = getPackageJSON(basePath);
-  pack.scripts['build-staging'] = 'env-cmd -e _main, staging node scripts/build.js';
+  pack.scripts['build-staging'] =
+    'env-cmd -e _main, staging node scripts/build.js';
   pack.scripts['fix-app'] = 'node scripts/fix-namespace.js';
-  pack.scripts['app'] = 'env-cmd -e _main,production,app-main node scripts/build.js && npx cap sync && yarn run fix-app';
-  pack.scripts['app-local-ios'] = 'env-cmd -e _main,development,app-main,app-local-ios node scripts/build.js && npx cap sync && yarn run fix-app';
-  pack.scripts['app-local-android'] = 'env-cmd -e _main,development,app-main,app-local-android node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app'] =
+    'env-cmd -e _main,production,app-main node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app-local-ios'] =
+    'env-cmd -e _main,development,app-main,app-local-ios node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app-local-android'] =
+    'env-cmd -e _main,development,app-main,app-local-android node scripts/build.js && npx cap sync && yarn run fix-app';
   pack.scripts['cap:android'] = 'yarn cap open android';
   pack.scripts['cap:ios'] = 'yarn cap open ios';
   pack.scripts['cap:sync'] = 'yarn cap sync';
 
-
-  fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack,null,2));
+  fs.writeFile(
+    path.resolve(basePath, 'package.json'),
+    JSON.stringify(pack, null, 2),
+  );
   log('Added new run script to package.json');
 
   await execPromise(`yarn add -D @capacitor/cli`, true, false, null, true);
@@ -1762,21 +2131,48 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   // [error] Non-interactive shell detected.
   // Run the command with --help to see a list of arguments that must be provided.
 
-  log(`Done! Now update your Capacitor configuration by providing an app name, app ID, and web directory at ${chalk.blue('capacitor.config.ts')}`);
-  log(`And then run ${chalk.magenta('yarn cap add android')} and/or ${chalk.magenta('yarn cap add ios')}')`);
-  log(`Last, run ${chalk.magenta('yarn app')} or ${chalk.magenta('yarn app-local-ios')} or ${chalk.magenta('yarn app-local-android')}`);
+  log(
+    `Done! Now update your Capacitor configuration by providing an app name, app ID, and web directory at ${chalk.blue(
+      'capacitor.config.ts',
+    )}`,
+  );
+  log(
+    `And then run ${chalk.magenta(
+      'yarn cap add android',
+    )} and/or ${chalk.magenta('yarn cap add ios')}')`,
+  );
+  log(
+    `Last, run ${chalk.magenta('yarn app')} or ${chalk.magenta(
+      'yarn app-local-ios',
+    )} or ${chalk.magenta('yarn app-local-android')}`,
+  );
 };
 
 export var executeCommandForPackage = function (packageName, command) {
   let packageDetails = getLincdPackages().find(
     (modDetails: PackageDetails) =>
-      modDetails.packageName.indexOf(packageName) !== -1 || modDetails.packageName.indexOf(packageName) !== -1,
+      modDetails.packageName.indexOf(packageName) !== -1 ||
+      modDetails.packageName.indexOf(packageName) !== -1,
   );
   if (packageDetails) {
-    log("Executing 'cd " + packageDetails.path + ' && yarn exec lincd' + (command ? ' ' + command : '') + "'");
+    log(
+      "Executing 'cd " +
+        packageDetails.path +
+        ' && yarn exec lincd' +
+        (command ? ' ' + command : '') +
+        "'",
+    );
 
-    return execp('cd ' + packageDetails.path + ' && yarn exec lincd' + (command ? ' ' + command : ''));
+    return execp(
+      'cd ' +
+        packageDetails.path +
+        ' && yarn exec lincd' +
+        (command ? ' ' + command : ''),
+    );
   } else {
-    warn("Could not find a pkg who's name (partially) matched " + chalk.cyan(packageName));
+    warn(
+      "Could not find a pkg who's name (partially) matched " +
+        chalk.cyan(packageName),
+    );
   }
 };

@@ -1,7 +1,12 @@
 import DeclarationPlugin from './plugins/declaration-plugin';
 import externaliseModules from './plugins/externalise-modules';
 import WatchRunPlugin from './plugins/watch-run';
-import {generateScopedName,getLinkedTailwindColors,getPackageJSON,warn} from './utils';
+import {
+  generateScopedName,
+  getLinkedTailwindColors,
+  getPackageJSON,
+  warn,
+} from './utils';
 import {AdjustedModuleConfig} from './interfaces';
 import colors = require('colors');
 // console.log('Webpack '+require('webpack/package.json').version);
@@ -14,7 +19,8 @@ const webpack = require('webpack');
 const path = require('path');
 // const WebpackLicencePlugin = require('webpack-license-plugin');
 // const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
-const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+const BundleAnalyzerPlugin =
+  require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const TerserPlugin = require('terser-webpack-plugin');
 const exec = require('child_process').exec;
 const CopyPlugin = require('copy-webpack-plugin');
@@ -50,7 +56,11 @@ function getLincdPackagePaths(packages?) {
   return lincdPackagePaths;
 }
 
-export function generateWebpackConfig(buildName, moduleName, config: AdjustedModuleConfig = {}) {
+export function generateWebpackConfig(
+  buildName,
+  moduleName,
+  config: AdjustedModuleConfig = {},
+) {
   if (!config.externals) config.externals = {};
   if (!config.internals) config.internals = [];
 
@@ -86,7 +96,9 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
     // new ExtractTextPlugin(config.cssFileName ? config.cssFileName : cleanModuleName + '.css'),
     new MiniCssExtractPlugin({
       // linkType: false,
-      filename: config.cssFileName ? config.cssFileName : cleanModuleName + '.css',
+      filename: config.cssFileName
+        ? config.cssFileName
+        : cleanModuleName + '.css',
     }),
     //currently not compatible with webpack 5
     // new WebpackLicencePlugin({
@@ -104,7 +116,9 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
           to({context, absoluteFilename}) {
             // console.log(chalk.magenta(context),chalk.magenta(absoluteFilename),process.cwd());
             //turn absolute path into the right lib path (lib is NOT in webpack output path, so need to use '../')
-            let outputPath = absoluteFilename.replace(process.cwd(), '').replace('/src/', '../lib/');
+            let outputPath = absoluteFilename
+              .replace(process.cwd(), '')
+              .replace('/src/', '../lib/');
             // console.log(chalk.blueBright(outputPath));
             return Promise.resolve(outputPath);
           },
@@ -168,8 +182,15 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
   if (!config.cssMode) {
     config.cssMode = 'mixed';
   }
-  if (config.cssMode === 'scss-modules' || config.cssMode === 'scss' || config.cssMode === 'mixed') {
-    postcssPlugins = postcssPlugins.concat(['postcss-preset-env', productionMode && 'cssnano']);
+  if (
+    config.cssMode === 'scss-modules' ||
+    config.cssMode === 'scss' ||
+    config.cssMode === 'mixed'
+  ) {
+    postcssPlugins = postcssPlugins.concat([
+      'postcss-preset-env',
+      productionMode && 'cssnano',
+    ]);
     //we once had:
     // 'postcss-import': {},
     // // 'postcss-cssnext': {},
@@ -181,7 +202,11 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
         'postcss-modules',
         {
           generateScopedName: generateScopedName.bind(null, moduleName),
-          globalModulePaths: [/tailwind/, /tailwindcss/, config.cssGlobalModulePaths].filter(Boolean),
+          globalModulePaths: [
+            /tailwind/,
+            /tailwindcss/,
+            config.cssGlobalModulePaths,
+          ].filter(Boolean),
         },
       ]);
     }
@@ -192,7 +217,9 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
     if (config.internals) {
       //THEN make sure that we also look for tailwind classes in those packages
       //pass the list of internal packages, or if all, pass null because it will look up all the package.json:dependencies
-      lincdPackagePaths = getLincdPackagePaths(config.internals !== '*' ? config.internals : null).map((path) => {
+      lincdPackagePaths = getLincdPackagePaths(
+        config.internals !== '*' ? config.internals : null,
+      ).map((path) => {
         return path + '/lib/**/*.{js,mjs}';
       });
     }
@@ -223,7 +250,6 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
             // })
           }),
         ],
-
       },
     ]);
   }
@@ -317,30 +343,43 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
     //however this means that for internalised modules THE SOURCE CODE NEEDS TO BE AVAILABLE. This is currently NOT the case with how we publish modules to yarn
     //so that means internalised modules need to be LOCALLY AVAILABLE with yarn workspaces
     plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/lincd\/lib\//, (resource, match) => {
-        let moduleName = resource.request.match(/lincd\/lib\//)[1];
-        if (config.internalsources.indexOf(moduleName) !== -1) {
-          console.log(
-            colors.magenta(
-              'internal sources + ES5: Replacing /lib/ with /src/  for source-internalised module ' + moduleName,
-            ),
-          );
-          resource.request = resource.request.replace('/lib/', '/src/');
-          console.log(colors.magenta('internal sources + ES5: ' + resource.request));
-          console.log(
-            colors.red(
-              "WARNING: Make sure you have the TYPESCRIPT SOURCE FILES of the modules listed as 'internal' AVAILABLE ON YOUR LOCAL MACHINE. So if you check in node_modules/your-internalised-module - that should be a symbolic link and you will find a 'src' folder with typescript files there.",
-            ),
-          );
-        }
-      }),
+      new webpack.NormalModuleReplacementPlugin(
+        /lincd\/lib\//,
+        (resource, match) => {
+          let moduleName = resource.request.match(/lincd\/lib\//)[1];
+          if (config.internalsources.indexOf(moduleName) !== -1) {
+            console.log(
+              colors.magenta(
+                'internal sources + ES5: Replacing /lib/ with /src/  for source-internalised module ' +
+                  moduleName,
+              ),
+            );
+            resource.request = resource.request.replace('/lib/', '/src/');
+            console.log(
+              colors.magenta('internal sources + ES5: ' + resource.request),
+            );
+            console.log(
+              colors.red(
+                "WARNING: Make sure you have the TYPESCRIPT SOURCE FILES of the modules listed as 'internal' AVAILABLE ON YOUR LOCAL MACHINE. So if you check in node_modules/your-internalised-module - that should be a symbolic link and you will find a 'src' folder with typescript files there.",
+              ),
+            );
+          }
+        },
+      ),
     );
   }
 
   return {
-    entry: config.entry ? config.entry : tsConfig.files ? tsConfig.files : './src/index.ts',
+    entry: config.entry
+      ? config.entry
+      : tsConfig.files
+      ? tsConfig.files
+      : './src/index.ts',
     output: {
-      filename: (config.filename ? config.filename : cleanModuleName) + (es5 ? '.es5' : '') + '.js',
+      filename:
+        (config.filename ? config.filename : cleanModuleName) +
+        (es5 ? '.es5' : '') +
+        '.js',
       path: path.resolve(process.cwd(), config.bundlePath || 'dist'),
       devtoolModuleFilenameTemplate: moduleName + '/[resource-path]',
     },

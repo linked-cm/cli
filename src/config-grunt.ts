@@ -9,18 +9,29 @@ const path = require('path');
 declare var __dirname: string;
 declare var require: any;
 
-export default function generateGruntConfig(moduleName, config: ModuleConfig = {}) {
+export default function generateGruntConfig(
+  moduleName,
+  config: ModuleConfig = {},
+) {
   return function (grunt) {
     setupGrunt(grunt, moduleName, config);
   };
 }
 
 function setupGrunt(grunt, moduleName, config: ModuleConfig) {
-  var buildServer = !config.environment || config.environment == 'nodejs' || config.environment == 'polymorphic';
-  var buildFrontend = !config.environment || config.environment == 'browser' || config.environment == 'polymorphic';
+  var buildServer =
+    !config.environment ||
+    config.environment == 'nodejs' ||
+    config.environment == 'polymorphic';
+  var buildFrontend =
+    !config.environment ||
+    config.environment == 'browser' ||
+    config.environment == 'polymorphic';
 
   //when not specified and we ARe building frontend OR we are compiling the server for es5.. or if simply specified, then es5 is targeted
-  var targetES5 = (!config.target && (buildFrontend || config.es5Server)) || config.target == 'es5';
+  var targetES5 =
+    (!config.target && (buildFrontend || config.es5Server)) ||
+    config.target == 'es5';
   var targetES6 = !config.target || config.target == 'es6';
   var targets = [];
   if (targetES5) targets.push('es5');
@@ -44,13 +55,19 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
 
   //defaults
   grunt.registerTask('default', ['prepare-build', 'concurrent:dev']);
-  grunt.registerTask('dev', targetES6 ? ['prepare-build', 'dev-es6'] : ['prepare-build', 'dev-es5']);
+  grunt.registerTask(
+    'dev',
+    targetES6 ? ['prepare-build', 'dev-es6'] : ['prepare-build', 'dev-es5'],
+  );
   grunt.registerTask(
     'build',
     targets.map((target) => 'build-' + target),
   );
   if (buildFrontend) {
-    grunt.registerTask('build-frontend', ['prepare-build', ...targets.map((target) => 'webpack:build-' + target)]);
+    grunt.registerTask('build-frontend', [
+      'prepare-build',
+      ...targets.map((target) => 'webpack:build-' + target),
+    ]);
   }
 
   grunt.registerTask(
@@ -70,7 +87,10 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
 
   //specific tasks
   grunt.registerTask('prepare-build', prepareBuild);
-  grunt.registerTask('dev-es6-production', ['prepare-build', 'concurrent:dev-prod']);
+  grunt.registerTask('dev-es6-production', [
+    'prepare-build',
+    'concurrent:dev-prod',
+  ]);
   grunt.registerTask('dev-es6', ['prepare-build', 'concurrent:dev']);
   grunt.registerTask('dev-es5', ['prepare-build', 'concurrent:dev-es5']);
 
@@ -92,12 +112,18 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     flatten([
       'prepare-build',
       buildFrontend ? 'webpack:build-es6' : null,
-      buildServer ? ['clean:lib', 'exec:build-lib', 'copy:lib','exec:depcheck'] : null,
+      buildServer
+        ? ['clean:lib', 'exec:build-lib', 'copy:lib', 'exec:depcheck']
+        : null,
       // 'exec:shapes',
     ]),
   );
 
-  grunt.registerTask('build-lib', ['prepare-build', 'exec:build-lib', 'copy:lib']);
+  grunt.registerTask('build-lib', [
+    'prepare-build',
+    'exec:build-lib',
+    'copy:lib',
+  ]);
   grunt.registerTask('build-production-es5', [
     'prepare-build',
     'webpack:prod-es5',
@@ -293,10 +319,40 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     '@lodder/grunt-postcss',
   ].forEach((taskName) => {
     debug(config, 'loading grunt task ' + taskName);
-    let localPath = path.resolve(__dirname, '..', 'node_modules', taskName, 'tasks');
-    let localPath2 = path.resolve(__dirname, '..', '..', 'node_modules', taskName, 'tasks');
-    let workspacePath = path.resolve(__dirname, '..', '..', '..', 'node_modules', taskName, 'tasks');
-    let nestedWorkspacePath = path.resolve(__dirname, '..', '..', '..', '..', 'node_modules', taskName, 'tasks');
+    let localPath = path.resolve(
+      __dirname,
+      '..',
+      'node_modules',
+      taskName,
+      'tasks',
+    );
+    let localPath2 = path.resolve(
+      __dirname,
+      '..',
+      '..',
+      'node_modules',
+      taskName,
+      'tasks',
+    );
+    let workspacePath = path.resolve(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      'node_modules',
+      taskName,
+      'tasks',
+    );
+    let nestedWorkspacePath = path.resolve(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      '..',
+      'node_modules',
+      taskName,
+      'tasks',
+    );
     if (fs.existsSync(localPath)) {
       // grunt.loadNpmTasks(taskName);
       debug('Loading from ' + localPath);
