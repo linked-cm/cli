@@ -14,6 +14,7 @@ interface RouteObj {
   excludeFromMenu?: boolean;
   label?: string;
 }
+
 export const ROUTES: {[key: string]: RouteObj} = {
   index: {
     path: '/',

@@ -10,6 +10,7 @@ import {createNameSpace} from 'lincd/lib/utils/NameSpace';
 import {Prefix} from 'lincd/lib/utils/Prefix';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import depcheck from 'depcheck';
+
 var glob = require('glob');
 var variables = {};
 var open = require('open');
@@ -306,6 +307,7 @@ function runOnPackagesGroupedByDependencies(
   //starts the process
   runStack(startStack);
 }
+
 function hasDependency(pkg, childPkg, dependencies, depth = 1) {
   console.log('Does ' + pkg.packageName + ' have dep ' + childPkg.packageName + ' ?');
   let deps = dependencies.get(pkg);
@@ -1708,41 +1710,43 @@ export var addCapacitor = async function (basePath = process.cwd()) {
 
   //update .env-cmdrc.json file
   let envCmdPath = path.resolve(basePath, '.env-cmdrc.json');
-  let envCmd = JSON.parse(fs.readFileSync(envCmdPath,{encoding:'utf8'}));
+  let envCmd = JSON.parse(fs.readFileSync(envCmdPath, {encoding: 'utf8'}));
 
   envCmd['app-main'] = {
-    "APP_ENV": true,
-    "OUTPUT_PATH": "./web/assets",
-    "ASSET_PATH": "./assets/",
-    "ENTRY_PATH": "./src/index-static.tsx"
-  }
+    APP_ENV: true,
+    OUTPUT_PATH: './web/assets',
+    ASSET_PATH: './assets/',
+    ENTRY_PATH: './src/index-static.tsx',
+  };
   envCmd['app-local-android'] = {
-    "NODE_ENV": "app",
-    "SITE_ROOT": "http://10.0.2.2:4000"
-  }
+    NODE_ENV: 'app',
+    SITE_ROOT: 'http://10.0.2.2:4000',
+  };
   envCmd['app-local-ios'] = {
-    "NODE_ENV": "app",
-    "SITE_ROOT": "http://localhost:4000"
-  }
+    NODE_ENV: 'app',
+    SITE_ROOT: 'http://localhost:4000',
+  };
 
-  fs.writeFile(envCmdPath, JSON.stringify(envCmd,null,2));
+  fs.writeFile(envCmdPath, JSON.stringify(envCmd, null, 2));
   log('Edited .env-cmdrc.json');
 
-  gitIgnore('android/app/build','android/**/capacitor.build.gradle','ios/App/App/public');
+  gitIgnore('android/app/build', 'android/**/capacitor.build.gradle', 'ios/App/App/public');
 
   //update package.json scripts
   let pack = getPackageJSON(basePath);
   pack.scripts['build-staging'] = 'env-cmd -e _main, staging node scripts/build.js';
   pack.scripts['fix-app'] = 'node scripts/fix-namespace.js';
-  pack.scripts['app'] = 'env-cmd -e _main,production,app-main node scripts/build.js && npx cap sync && yarn run fix-app';
-  pack.scripts['app-local-ios'] = 'env-cmd -e _main,development,app-main,app-local-ios node scripts/build.js && npx cap sync && yarn run fix-app';
-  pack.scripts['app-local-android'] = 'env-cmd -e _main,development,app-main,app-local-android node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app'] =
+    'env-cmd -e _main,production,app-main node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app-local-ios'] =
+    'env-cmd -e _main,development,app-main,app-local-ios node scripts/build.js && npx cap sync && yarn run fix-app';
+  pack.scripts['app-local-android'] =
+    'env-cmd -e _main,development,app-main,app-local-android node scripts/build.js && npx cap sync && yarn run fix-app';
   pack.scripts['cap:android'] = 'yarn cap open android';
   pack.scripts['cap:ios'] = 'yarn cap open ios';
   pack.scripts['cap:sync'] = 'yarn cap sync';
 
-
-  fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack,null,2));
+  fs.writeFile(path.resolve(basePath, 'package.json'), JSON.stringify(pack, null, 2));
   log('Added new run script to package.json');
 
   await execPromise(`yarn add -D @capacitor/cli`, true, false, null, true);
@@ -1762,9 +1766,17 @@ export var addCapacitor = async function (basePath = process.cwd()) {
   // [error] Non-interactive shell detected.
   // Run the command with --help to see a list of arguments that must be provided.
 
-  log(`Done! Now update your Capacitor configuration by providing an app name, app ID, and web directory at ${chalk.blue('capacitor.config.ts')}`);
+  log(
+    `Done! Now update your Capacitor configuration by providing an app name, app ID, and web directory at ${chalk.blue(
+      'capacitor.config.ts',
+    )}`,
+  );
   log(`And then run ${chalk.magenta('yarn cap add android')} and/or ${chalk.magenta('yarn cap add ios')}')`);
-  log(`Last, run ${chalk.magenta('yarn app')} or ${chalk.magenta('yarn app-local-ios')} or ${chalk.magenta('yarn app-local-android')}`);
+  log(
+    `Last, run ${chalk.magenta('yarn app')} or ${chalk.magenta('yarn app-local-ios')} or ${chalk.magenta(
+      'yarn app-local-android',
+    )}`,
+  );
 };
 
 export var executeCommandForPackage = function (packageName, command) {

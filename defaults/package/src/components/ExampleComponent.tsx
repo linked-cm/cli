@@ -1,5 +1,5 @@
-import React from "react";
-import {ExampleShapeClass} from "../shapes/ExampleShapeClass";
+import React from 'react';
+import {ExampleShapeClass} from '../shapes/ExampleShapeClass';
 import {linkedComponent} from '../package';
 
 export const ExampleComponent = linkedComponent<ExampleShapeClass>(ExampleShapeClass, ({source}) => {

@@ -1,7 +1,7 @@
 import DeclarationPlugin from './plugins/declaration-plugin';
 import externaliseModules from './plugins/externalise-modules';
 import WatchRunPlugin from './plugins/watch-run';
-import {generateScopedName,getLinkedTailwindColors,getPackageJSON,warn} from './utils';
+import {generateScopedName, getLinkedTailwindColors, getPackageJSON, warn} from './utils';
 import {AdjustedModuleConfig} from './interfaces';
 import colors = require('colors');
 // console.log('Webpack '+require('webpack/package.json').version);
@@ -223,7 +223,6 @@ export function generateWebpackConfig(buildName, moduleName, config: AdjustedMod
             // })
           }),
         ],
-
       },
     ]);
   }

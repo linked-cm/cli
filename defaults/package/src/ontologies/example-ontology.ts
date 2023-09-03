@@ -27,10 +27,12 @@ export var ExampleClass: NamedNode = ns('ExampleClass');
 export var exampleProperty: NamedNode = ns('exampleProperty');
 
 //An extra grouping object so all the entities can be accessed from the prefix/name
-export const ${camel_name} = {
+export const ${camel_name} =;
+{
   ExampleClass,
-  exampleProperty,
-};
+    exampleProperty,
+}
+
 
 //Registers this ontology to LINCD.JS, so that data loading can be automated amongst other things
-linkedOntology(_this, ns, '${hyphen_name}', loadData, '../data/${hyphen_name}.json');
+linkedOntology(_this,ns,'${hyphen_name}',loadData,'../data/${hyphen_name}.json');

@@ -10,5 +10,3 @@ export function Error({error}) {
     </div>
   );
 }
-
-

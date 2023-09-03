@@ -1,1 +1,3 @@
-{"Home":"${underscore_name}_Home_Home"}
+{
+  "Home": "${underscore_name}_Home_Home"
+}

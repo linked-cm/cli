@@ -18,7 +18,6 @@ webpack(config, async (err, stats) => {
     console.log('Finished running webpack with errors.');
     info.errors.forEach((e) => console.error(e));
   } else {
-
     console.log(
       stats.toString({
         chunks: false,

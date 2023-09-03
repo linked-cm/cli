@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import {execp, execPromise, getPackageJSON} from './utils';
 import {
   addCapacitor,
   buildAll,
@@ -11,11 +10,13 @@ import {
   createOntology,
   createPackage,
   createSetComponent,
-  createShape,depCheck,
+  createShape,
+  depCheck,
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
-  getLincdPackages,publishPackage,
+  getLincdPackages,
+  publishPackage,
   publishUpdated,
   register,
 } from './cli-methods';
@@ -25,7 +26,6 @@ require('require-extensions');
 var program = require('commander');
 var fs = require('fs-extra');
 var path = require('path');
-
 
 program
   .command('create-app')
@@ -124,7 +124,7 @@ program.command('publish-updated').action(() => {
   return publishUpdated();
 });
 program.command('publish [version]').action((version) => {
-  return publishPackage(null,false,null,version);
+  return publishPackage(null, false, null, version);
 });
 
 program.command('status').action(() => {

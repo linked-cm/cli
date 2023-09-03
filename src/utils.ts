@@ -26,27 +26,33 @@ export var getPackageJSON = function (root = process.cwd(), error = true) {
  * Returns an array of lincd packages, with each entry containing an array with the package name and the local path to the package
  * @param packageJson
  */
-export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<string> = new Set()):[string,string,string[]][] {
-  if(!packageJson) {
+export var getLINCDDependencies = function (
+  packageJson?,
+  checkedPackages: Set<string> = new Set(),
+): [string, string, string[]][] {
+  if (!packageJson) {
     packageJson = getPackageJSON();
   }
   let dependencies = {...packageJson.dependencies, ...packageJson.devDependencies};
-  let lincdPackagePaths:[string,string,string[]][] = [];
+  let lincdPackagePaths: [string, string, string[]][] = [];
   let firstTime = checkedPackages.size === 0;
 
   for (var dependency of Object.keys(dependencies)) {
     try {
-      if(!checkedPackages.has(dependency))
-      {
-        let [modulePackageJson,modulePath] = getModulePackageJSON(dependency);
+      if (!checkedPackages.has(dependency)) {
+        let [modulePackageJson, modulePath] = getModulePackageJSON(dependency);
         checkedPackages.add(dependency);
 
         if (modulePackageJson?.lincd) {
-          lincdPackagePaths.push([modulePackageJson.name,modulePath,[...Object.keys({...modulePackageJson.dependencies, ...modulePackageJson.devDependencies})]]);
+          lincdPackagePaths.push([
+            modulePackageJson.name,
+            modulePath,
+            [...Object.keys({...modulePackageJson.dependencies, ...modulePackageJson.devDependencies})],
+          ]);
           //also check if this package has any dependencies that are lincd packages
-          lincdPackagePaths = lincdPackagePaths.concat(getLINCDDependencies(modulePackageJson,checkedPackages));
+          lincdPackagePaths = lincdPackagePaths.concat(getLINCDDependencies(modulePackageJson, checkedPackages));
         }
-        if(!modulePackageJson){
+        if (!modulePackageJson) {
           //this seems to only happen with yarn workspaces for some grunt related dependencies of lincd-cli
           // console.log(`could not find package.json of ${dependency}`);
         }
@@ -56,23 +62,21 @@ export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<stri
     }
   }
 
-  if(firstTime) {
-
+  if (firstTime) {
     // let dependencyMap:Map<string,Set<string>> = new Map();
     let lincdPackageNames = new Set(lincdPackagePaths.map(([packageName, modulePath, pkgDependencies]) => packageName));
     //remove lincd-cli from the list of lincd packages
     lincdPackageNames.delete('lincd-cli');
 
-    lincdPackagePaths.forEach(([packageName,modulePath,pkgDependencies],key) => {
-      let lincdDependencies = pkgDependencies.filter(dependency => lincdPackageNames.has(dependency))
-      if(packageName === 'lincd-cli') {
+    lincdPackagePaths.forEach(([packageName, modulePath, pkgDependencies], key) => {
+      let lincdDependencies = pkgDependencies.filter((dependency) => lincdPackageNames.has(dependency));
+      if (packageName === 'lincd-cli') {
         //remove lincd-modules from the dependencies of lincd-cli (it's not a hard dependency, and it messes things up)
-        lincdDependencies.splice(lincdDependencies.indexOf('lincd-modules'),1);
+        lincdDependencies.splice(lincdDependencies.indexOf('lincd-modules'), 1);
       }
       // dependencyMap.set(packageName, new Set(lincdDependencies));
       //update dependencies to be the actual lincd package objects
-      lincdPackagePaths[key][2] = lincdDependencies
-
+      lincdPackagePaths[key][2] = lincdDependencies;
     });
 
     // //add the nested dependencies for each lincd package
@@ -100,19 +104,21 @@ export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<stri
     // a simple sort with dependencyMap doesn't seem to work,so we start with LINCD (least dependencies) and from there add packages that have all their dependencies already added
     let sortedPackagePaths = [];
     let addedPackages = new Set(['lincd']);
-    sortedPackagePaths.push(lincdPackagePaths.find(([packageName]) => {
-      return packageName === 'lincd';
-    }));
+    sortedPackagePaths.push(
+      lincdPackagePaths.find(([packageName]) => {
+        return packageName === 'lincd';
+      }),
+    );
 
-    while(addedPackages.size !== lincdPackagePaths.length) {
+    while (addedPackages.size !== lincdPackagePaths.length) {
       let startSize = addedPackages.size;
-      lincdPackagePaths.forEach(([packageName,modulePath,pkgDependencies]) => {
-        if(!addedPackages.has(packageName) && pkgDependencies.every(dependency => addedPackages.has(dependency))) {
-          sortedPackagePaths.push([packageName,modulePath,pkgDependencies]);
+      lincdPackagePaths.forEach(([packageName, modulePath, pkgDependencies]) => {
+        if (!addedPackages.has(packageName) && pkgDependencies.every((dependency) => addedPackages.has(dependency))) {
+          sortedPackagePaths.push([packageName, modulePath, pkgDependencies]);
           addedPackages.add(packageName);
         }
       });
-      if(startSize === addedPackages.size) {
+      if (startSize === addedPackages.size) {
         console.warn('Could not sort lincd packages, circular dependencies?');
         break;
       }
@@ -132,34 +138,32 @@ export var getLINCDDependencies = function(packageJson?,checkedPackages:Set<stri
   }
 
   return lincdPackagePaths;
-}
-
+};
 
 //from https://github.com/haalcala/node-packagejson/blob/master/index.js
-export var getModulePackageJSON = function(module_name, work_dir?) {
+export var getModulePackageJSON = function (module_name, work_dir?) {
   if (!work_dir) {
     work_dir = process.cwd();
-  }
-  else {
+  } else {
     work_dir = path.resolve(work_dir);
   }
 
   var package_json;
 
-  if (fs.existsSync(path.resolve(work_dir, "./node_modules"))) {
-    var module_dir = path.resolve(work_dir, "./node_modules/" + module_name);
+  if (fs.existsSync(path.resolve(work_dir, './node_modules'))) {
+    var module_dir = path.resolve(work_dir, './node_modules/' + module_name);
 
-    if (fs.existsSync(module_dir) && fs.existsSync(module_dir + "/package.json")) {
-      package_json = JSON.parse(fs.readFileSync((module_dir + "/package.json"),'utf-8'));
+    if (fs.existsSync(module_dir) && fs.existsSync(module_dir + '/package.json')) {
+      package_json = JSON.parse(fs.readFileSync(module_dir + '/package.json', 'utf-8'));
     }
   }
 
-  if (!package_json && work_dir != "/") {
-    return getModulePackageJSON(module_name, path.resolve(work_dir, ".."));
+  if (!package_json && work_dir != '/') {
+    return getModulePackageJSON(module_name, path.resolve(work_dir, '..'));
   }
 
-  return [package_json,module_dir];
-}
+  return [package_json, module_dir];
+};
 export var getGruntConfig = function (root = process.cwd(), error = true) {
   let gruntFile = path.join(root, 'Gruntfile.js');
   if (fs.existsSync(gruntFile)) {
@@ -326,5 +330,5 @@ export function getLinkedTailwindColors() {
   return {
     'primary-color': 'var(--primary-color)',
     'font-color': 'var(--font-color)',
-  }
+  };
 }
