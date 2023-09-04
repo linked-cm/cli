@@ -193,6 +193,7 @@ function runOnPackagesGroupedByDependencies(
     dependencies,
   ) => (pkg: PackageDetails) => Promise<any>,
   onStackEnd,
+  sync = false,
 ) {
   let dependencies: Map<PackageDetails, PackageDetails[]> = new Map();
 
@@ -229,30 +230,44 @@ function runOnPackagesGroupedByDependencies(
 
   let startStack: PackageDetails[] = [leastDependentPackage];
 
+  const runPackage = (runFunction, pck) => {
+    return runFunction(pck)
+      .catch(({error, stdout, stderr}) => {
+        warn(
+          'Uncaught exception whilst running parallel function on ' +
+            pck.packageName,
+          error.message,
+        );
+        // warn(chalk.red(pck.packageName+' failed:'));
+        // console.log(stdout);
+      })
+      .then((res) => {
+        done.add(pck);
+        return res;
+      });
+  };
+
   let done: Set<PackageDetails> = new Set();
   let results = [];
   let runStack = async (stack) => {
     let runFunction = onBuildStack(stack, dependencies);
-    //build the stack in parallel
-    let stackPromise = Promise.all(
-      stack.map((pck) => {
-        // p = p.then(() => {
-        return runFunction(pck)
-          .catch(({error, stdout, stderr}) => {
-            warn(
-              'Uncaught exception whilst running parallel function on ' +
-                pck.packageName,
-              error.message,
-            );
-            // warn(chalk.red(pck.packageName+' failed:'));
-            // console.log(stdout);
-          })
-          .then((res) => {
-            done.add(pck);
-            return res;
-          });
-      }),
-    );
+    let stackPromise: Promise<any>;
+    if (sync) {
+      //build the stack in parallel
+      stackPromise = Promise.resolve(true);
+      stack.forEach((pck) => {
+        stackPromise = stackPromise.then(() => {
+          return runPackage(runFunction, pck);
+        });
+      });
+    } else {
+      //build the stack in parallel
+      stackPromise = Promise.all(
+        stack.map((pck) => {
+          return runPackage(runFunction, pck);
+        }),
+      );
+    }
 
     //wait till stack is completed
     let stackResults = await stackPromise;
@@ -389,7 +404,7 @@ function hasDependency(pkg, childPkg, dependencies, depth = 1) {
   return false;
 }
 
-export function buildAll(target, target2, target3) {
+export function buildAll(options) {
   console.log(
     'Building all LINCD packages of this repository in order of dependencies',
   );
@@ -398,31 +413,39 @@ export function buildAll(target, target2, target3) {
   let startFrom: string;
   //by default start building
   let building: boolean = true;
+
+  let from = options?.from;
+  let sync = options?.sync || false;
+
+  // console.log('from', from);
+  // console.log('sync', sync);
+  // process.exit();
+
   //option to start from a specific package in the stack
-  if (target == 'from') {
-    startFrom = target2;
+  if (from) {
+    startFrom = from;
     //if we have a startFrom, then we havnt started the build process yet
     building = startFrom ? false : true;
 
     //clear targets
-    target = '';
-    target2 = '';
+    // target = '';
+    // target2 = '';
     console.log(chalk.blue('Will skip builds until ' + startFrom));
 
     // return async (pkg) => {};
   }
-  if (target2 == 'from') {
-    startFrom = target3;
-    //if we have a startFrom, then we havnt started the build process yet
-    building = startFrom ? false : true;
-
-    //clear targets
-    target2 = '';
-    target3 = '';
-    console.log(chalk.blue('Will skip builds until ' + startFrom));
-
-    // return async (pkg) => {};
-  }
+  // if (target2 == 'from') {
+  //   startFrom = target3;
+  //   //if we have a startFrom, then we havnt started the build process yet
+  //   building = startFrom ? false : true;
+  //
+  //   //clear targets
+  //   target2 = '';
+  //   target3 = '';
+  //   console.log(chalk.blue('Will skip builds until ' + startFrom));
+  //
+  //   // return async (pkg) => {};
+  // }
 
   let done: Set<PackageDetails> = new Set();
   let failedModules = [];
@@ -464,11 +487,9 @@ export function buildAll(target, target2, target3) {
         //unless told otherwise, build the package
         if (!command) {
           command = execPromise(
-            'cd ' +
-              pkg.path +
-              ' && yarn exec lincd build' +
-              (target ? ' ' + target : '') +
-              (target2 ? ' ' + target2 : ''),
+            'cd ' + pkg.path + ' && yarn exec lincd build',
+            // (target ? ' ' + target : '') +
+            // (target2 ? ' ' + target2 : ''),
             false,
             false,
             {},
@@ -498,7 +519,7 @@ export function buildAll(target, target2, target3) {
               console.log(
                 chalk.cyanBright('tip ') +
                   'Run ' +
-                  chalk.green(`lincd build-all from ${pkg.packageName}`) +
+                  chalk.green(`lincd build-all --from=${pkg.packageName}`) +
                   ' to build only the remaining packages',
               ); //"+dependentModules.map(d => d.packageName).join(", ")));
               process.exit(1);
@@ -578,6 +599,7 @@ export function buildAll(target, target2, target3) {
         });
       }
     },
+    sync,
   );
 }
 

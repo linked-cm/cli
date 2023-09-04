@@ -6,6 +6,7 @@ import {AppRoot} from 'lincd-server-utils/lib/components/AppRoot';
 import {Head} from 'lincd-server-utils/lib/components/Head';
 import {Body} from 'lincd-server-utils/lib/components/Body';
 import AppRoutes, {ROUTES} from './routes';
+import {ProvideAuth} from 'lincd-auth/lib/hooks/useAuth';
 
 //Note that by default LINCD apps are set up with support for SCSS (sass) and CSS Modules
 //So any .scss file needs to be imported by itself
@@ -22,7 +23,9 @@ export default function App() {
       <Body routes={ROUTES} pageStyles={style} className={style.App}>
         <Suspense fallback={<Spinner />}>
           <ErrorBoundary FallbackComponent={Error}>
-            <AppRoutes />
+            <ProvideAuth>
+              <AppRoutes />
+            </ProvideAuth>
           </ErrorBoundary>
         </Suspense>
       </Body>

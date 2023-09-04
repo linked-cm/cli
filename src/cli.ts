@@ -178,10 +178,15 @@ program
     return buildUpdated(back, target, target2);
   });
 program
-  .command('build-all [target] [target2] [target3]')
-  .action((target, target2, target3) => {
-    buildAll(target, target2, target3);
-  });
+  .command('build-all')
+  .action((options) => {
+    buildAll(options);
+  })
+  .option(
+    '--sync',
+    'build each package 1 by 1 - use this if you have build issues due to low available RAM memory',
+  )
+  .option('--from <char>', 'start from a specific package');
 
 program
   .command('all [action] [filter] [filter-value]')
