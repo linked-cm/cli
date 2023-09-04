@@ -1,12 +1,14 @@
 {
   "name": "lincd-cli",
-  "version": "0.2.43",
+  "version": "0.2.45",
   "description": "Command line tools for the lincd.js library",
   "main": "lib/index.js",
   "scripts": {
     "prepublishOnly": "npm exec tsc",
     "build": "npm exec tsc",
     "postinstall": "husky install",
+    "prepack": "pinst --disable",
+    "postpack": "pinst --enable",
     "dev": "npm exec tsc -w",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
@@ -99,6 +101,7 @@
   "devDependencies": {
     "husky": "^8.0.0",
     "optimize-css-assets-webpack-plugin": "^6.0.1",
+    "pinst": "^3.0.0",
     "prettier": "^3.0.3"
   },
   "peerDepencencies": {}
