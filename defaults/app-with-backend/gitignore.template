@@ -1,6 +1,6 @@
 node_modules
-frontend/build
-frontend/web/assets
+build
+web/assets
 data/uploads
 data/metadata
 data/sessions
