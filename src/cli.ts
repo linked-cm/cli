@@ -154,7 +154,7 @@ program
   .command('build-bundle [target] [target2]')
   .alias('bb')
   .action((target, target2) => {
-    buildBundle(target, target2);
+    buildPackage(target, target2, process.cwd(), true, true);
   });
 
 program.command('build-metadata').action(() => {
