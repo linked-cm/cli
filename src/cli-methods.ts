@@ -1407,11 +1407,30 @@ function getLocalPackagePaths() {
   return packagePaths;
 }
 
+// export const buildBundle = (target, target2) => {
+//   let packages = getLocalLincdModules();
+//   let packagesLeft = packages.length;
+//   let results = [];
+//   log('Building packages: ' + packages.join(', '));
+//   packages.forEach((packagePath) => {
+//     results.push(
+//       buildPackage('production', 'es5', packagePath.path, false).then(() => {
+//         packagesLeft--;
+//         if (packagesLeft == 0) {
+//           log('Finished building packages');
+//         }
+//       }),
+//     );
+//   });
+//   return Promise.all(results);
+// };
+
 export const buildPackage = (
   target,
   target2,
   packagePath = process.cwd(),
   logResults: boolean = true,
+  buildBundle: boolean = false,
 ) => {
   if (target == 'production' || target == 'es5' || target == 'es6' || !target) {
     if (!fs.existsSync(path.join(packagePath, 'Gruntfile.js'))) {
@@ -1440,26 +1459,21 @@ export const buildPackage = (
       target = 'es6';
     }
 
-    log(
-      'building once: ' +
-        nodeEnv +
-        'grunt build' +
-        (target ? '-' + target : '') +
-        (target2 ? '-' + target2 : '') +
-        ' --color',
-    );
+    let gruntCmd = buildBundle ? 'build-bundle' : 'build';
+
+    const command =
+      nodeEnv +
+      'grunt ' +
+      gruntCmd +
+      (target ? '-' + target : '') +
+      (target2 ? '-' + target2 : '') +
+      ' --color';
+
+    log('building once: ' + command);
+
     let method = logResults ? execp : execPromise;
     //execute the command to build the method, and provide the current work directory as option
-    return method(
-      nodeEnv +
-        'grunt build' +
-        (target ? '-' + target : '') +
-        (target2 ? '-' + target2 : '') +
-        ' --color',
-      false,
-      false,
-      {cwd: packagePath},
-    ).catch((err) => {
+    return method(command, false, false, {cwd: packagePath}).catch((err) => {
       process.exit(1);
     });
   } else {

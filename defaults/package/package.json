@@ -18,6 +18,7 @@
   "scripts": {
     "start": "npm exec lincd dev",
     "build": "npm exec lincd build",
+    "prepack": "npm exec lincd build-bundle",
     "prepublishOnly": "npm exec lincd build production",
     "postpublish": "npm exec lincd register"
   },

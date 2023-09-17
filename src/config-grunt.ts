@@ -63,6 +63,10 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     'build',
     targets.map((target) => 'build-' + target),
   );
+  // grunt.registerTask(
+  //   'build-bundle',
+  //   targets.map((target) => 'build-bundle-' + target),
+  // );
   if (buildFrontend) {
     grunt.registerTask('build-frontend', [
       'prepare-build',
@@ -104,6 +108,14 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'postcss',
       buildFrontend ? 'webpack:build-es5' : null,
       config.es5Server ? ['exec:build-lib-es5', 'copy:lib'] : null,
+    ]),
+  );
+
+  grunt.registerTask(
+    'build-bundle-es6',
+    flatten([
+      'prepare-build',
+      ['clean:lib', 'exec:build-lib', 'copy:lib', 'exec:depcheck'],
     ]),
   );
 

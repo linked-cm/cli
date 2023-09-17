@@ -150,6 +150,13 @@ program
     buildPackage(target, target2);
   });
 
+program
+  .command('build-bundle [target] [target2]')
+  .alias('bb')
+  .action((target, target2) => {
+    buildBundle(target, target2);
+  });
+
 program.command('build-metadata').action(() => {
   buildMetadata();
 });
