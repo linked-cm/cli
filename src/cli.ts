@@ -2,7 +2,6 @@
 import {
   addCapacitor,
   buildAll,
-  buildMetadata,
   buildPackage,
   buildUpdated,
   createApp,
@@ -20,7 +19,7 @@ import {
   publishUpdated,
   register,
 } from './cli-methods';
-
+import {buildMetadata} from './metadata';
 require('require-extensions');
 
 var program = require('commander');

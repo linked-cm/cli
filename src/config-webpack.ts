@@ -325,6 +325,15 @@ export function generateWebpackConfig(
         },
       ],
     },
+    {
+      test: /[\w]+/,
+      use: [
+        {
+          loader: path.resolve(__dirname, 'plugins', 'check-imports.js'),
+          options: {},
+        },
+      ],
+    },
     // {
     //   enforce: 'pre',
     //   test: /\.js$/,
@@ -399,8 +408,8 @@ export function generateWebpackConfig(
     },
     resolveLoader: {
       modules: [
-        path.join(__dirname, 'plugins'), //load webpack our own custom made loaders from the plugin folder
-        path.join(__dirname, 'node_modules'), //load webpack loaders from this lincd-cli library instead of the library that's using it to build its project
+        path.join(__dirname, 'plugins'), //load webpack our own custom-made loaders from the plugin folder
+        path.join(__dirname, '..', 'node_modules'), //load webpack loaders from this lincd-cli library instead of the library that's using it to build its project
         'node_modules',
       ],
     },

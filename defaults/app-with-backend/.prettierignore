@@ -1,5 +1,4 @@
 node_modules
 *.scss.json
-# Ignore artifacts:
 build
 package.json
