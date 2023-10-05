@@ -18,7 +18,7 @@
   "scripts": {
     "start": "npm run server:dev",
     "build": "env-cmd -e _main,production node scripts/build.js",
-    "postinstall": "husky install && echo 'Please run this command manually: node scripts/prepare.js'",
+    "postinstall": "husky install",
     "prepack": "pinst --disable",
     "postpack": "pinst --enable",
     "server:dev": "env-cmd -e _main,development nodemon --quiet --watch ./src/index.tsx ./scripts/start-server.js",
@@ -33,7 +33,7 @@
     "*.{js,ts,tsx}": [
       "prettier --write"
     ],
-    "*.{scss,css}": [
+    "*.{scss,css,json}": [
       "prettier --write"
     ]
   },

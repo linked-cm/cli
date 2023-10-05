@@ -8,6 +8,7 @@
   "jsxSingleQuote": false,
   "trailingComma": "all",
   "bracketSpacing": true,
+  "arrowParens": "always",
   "endOfLine": "auto",
   "overrides": [
     {
