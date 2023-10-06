@@ -490,7 +490,8 @@ export function buildAll(options) {
             {},
             false,
           );
-          debugInfo(chalk.cyan('Building ' + pkg.packageName));
+          log(chalk.cyan('Building ' + pkg.packageName));
+          process.stdout.write(packagesLeft + ' packages left\r');
         }
 
         return command

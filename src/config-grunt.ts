@@ -111,7 +111,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     'build-es6',
     flatten([
       'prepare-build',
-      buildFrontend ? 'webpack:build-es6' : null,
+      // buildFrontend ? 'webpack:build-es6' : null,
       buildServer
         ? ['clean:lib', 'exec:build-lib', 'copy:lib', 'exec:depcheck']
         : null,
