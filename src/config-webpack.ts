@@ -201,7 +201,7 @@ export function generateWebpackConfig(
       postcssPlugins.push([
         'postcss-modules',
         {
-          generateScopedName: generateScopedName.bind(null, moduleName),
+          generateScopedName: generateScopedName.bind(null, config.prod, true),
           globalModulePaths: [
             /tailwind/,
             /tailwindcss/,

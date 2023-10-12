@@ -1,10 +1,12 @@
 import path from 'path';
 import fs from 'fs-extra';
-import {execp, execPromise, getPackageJSON} from './utils';
+import {execp, execPromise, generateScopedName, getPackageJSON} from './utils';
 import chalk from 'chalk';
 import {exec} from 'child_process';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import depcheck from 'depcheck';
+import postcss from 'postcss';
+import postcssModules from 'postcss-modules';
 
 var glob = require('glob');
 var variables = {};
@@ -1016,13 +1018,39 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   }
 };
 
+export const checkImports = async () => {
+  //read the source of all ts/tsx files in the src folder
+  //if there is an import that imports a lincd package with /src/ in it, then warn
+  //if there is an import that imports outside of the src folder, then warn
+  //TODO: use dependency-cruiser for this
+  //https://github.com/sverweij/dependency-cruiser/blob/HEAD/doc/api.md
+};
 export const depCheck = async () => {
   depcheck(process.cwd(), {}, (results) => {
     if (results.missing) {
+      let lincdPackages = getLocalLincdModules();
       let missing = Object.keys(results.missing);
+      //filter out missing types, if it builds we're not too concerned about that at the moment?
+      //especially things like @types/react, @types/react-dom, @types/node (they are added elsewhere?)
+      // missing = missing.filter(m => m.indexOf('@types/') === 0);
       //currently react is not an explicit dependency, but we should add it as a peer dependency
-      missing.splice(missing.indexOf('react'));
-      if (missing.length > 0) {
+      missing.splice(missing.indexOf('react'), 1);
+
+      let missingLincdPackages = missing.filter((missingDep) => {
+        return lincdPackages.some((lincdPackage) => {
+          return lincdPackage.packageName === missingDep;
+        });
+      });
+      //currently just missing LINCD packages cause a hard failure exit code
+      if (missingLincdPackages.length > 0) {
+        console.warn(
+          chalk.red(
+            '\nThese LINCD packages are imported but they are not listed in package.json:\n- ' +
+              missingLincdPackages.join(',\n- '),
+          ),
+        );
+        process.exit(1);
+      } else if (missing.length > 0) {
         console.warn(
           chalk.red('Missing dependencies:\n\t' + missing.join(',\n\t')),
         );
@@ -1300,6 +1328,16 @@ export const buildPackage = (
         ' --color',
     );
     let method = logResults ? execp : execPromise;
+
+    //NOTE: we moved SCSS:JSON out of webpack and grunt, into this file
+    //this is the beginning of a transition away from grunt
+    //but for the time being it's perhaps a bit strange that we
+    // let x = postcss([
+    //   postcssModules({
+    //     generateScopedName,
+    //   }),
+    // ]);
+
     //execute the command to build the method, and provide the current work directory as option
     return method(
       nodeEnv +
@@ -1682,8 +1720,6 @@ export var buildUpdated = async function (
         if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated) {
           needRebuild = true;
         }
-        // console.log(pkg.path,lastModifiedSource.lastModifiedTime,lastModifiedBundle.lastModifiedTime);
-        // console.log(pkg.path,new Date(lastModifiedSource.lastModified).toString(),new Date(lastModifiedBundle.lastModified).toString());
         if (needRebuild || rebuildAllModules) {
           //TODO: when building a pkg, also rebuild all packages that depend on this package.. and iteratively build packages that depend on those packages..
 
@@ -1735,92 +1771,6 @@ export var buildUpdated = async function (
   );
 
   return;
-
-  var p: Promise<any> = Promise.resolve('');
-  packages.forEach((pkg) => {
-    let packageName = pkg.packageName;
-    p = p
-      .then((previousResult) => {
-        let lastModifiedSource = getLastModifiedSourceTime(pkg.path);
-        let lastModifiedBundle = getLastBuildTime(pkg.path);
-
-        // console.log(pkg.path,lastModifiedSource.lastModifiedTime,lastModifiedBundle.lastModifiedTime);
-        // console.log(pkg.path,new Date(lastModifiedSource.lastModified).toString(),new Date(lastModifiedBundle.lastModified).toString());
-        debugInfo('# Checking package ' + packageName);
-        if (
-          lastModifiedSource.lastModifiedTime >
-          lastModifiedBundle.lastModifiedTime
-        ) {
-          //TODO: when building a pkg, also rebuild all packages that depend on this package.. and iteratively build packages that depend on those packages..
-
-          // log(packageName+' modified since last commit on '+now.toString());
-          debugInfo(
-            chalk.cyan(
-              'Last modified source: ' +
-                lastModifiedSource.lastModifiedName +
-                ' on ' +
-                lastModifiedSource.lastModified.toString(),
-            ),
-          );
-          debugInfo(
-            chalk.cyan(
-              'Last build: ' +
-                (lastModifiedBundle &&
-                typeof lastModifiedBundle.lastModified !== 'undefined'
-                  ? lastModifiedBundle.lastModified.toString()
-                  : 'never'),
-            ),
-          );
-          if (test) {
-            debugInfo('need to build ' + packageName);
-          } else {
-            log('building ' + packageName);
-          }
-          if (!test) {
-            return execPromise(
-              'cd ' +
-                pkg.path +
-                ' && yarn build' +
-                (target ? ' ' + target : '') +
-                (target2 ? ' ' + target2 : ''),
-            ).then((res) => {
-              if (
-                res.indexOf('Aborted due to warnings') !== -1 ||
-                res.indexOf('Fatal error') !== -1
-              ) {
-                console.log(res);
-                return (
-                  previousResult + ' ' + chalk.red(packageName + ' failed\n')
-                );
-              }
-              console.log(chalk.green(packageName + ' successfully built'));
-              return (
-                previousResult + ' ' + chalk.green(packageName + ' built\n')
-              );
-            });
-          }
-          return (
-            previousResult +
-            ' ' +
-            chalk.blue(packageName + ' should be build\n')
-          );
-        }
-        return previousResult;
-      })
-      .catch(({error, stdout, stderr}) => {
-        console.log(stdout);
-        return previousResult + ' ' + chalk.red(packageName + ' failed\n');
-      });
-  });
-
-  return p.then((messages) => {
-    if (messages == '') {
-      console.log(chalk.green('Nothing to rebuild.'));
-    } else {
-      console.log('Summary: \n' + messages);
-    }
-  });
-  // });
 };
 
 const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
@@ -1829,7 +1779,7 @@ const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
   let result =
     lastModifiedSource.lastModifiedTime > lastModifiedBundle.lastModifiedTime;
   if (log) {
-    debugInfo(
+    console.log(
       chalk.cyan(
         'Last modified source: ' +
           lastModifiedSource.lastModifiedName +
@@ -1837,7 +1787,7 @@ const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
           lastModifiedSource.lastModified.toString(),
       ),
     );
-    debugInfo(
+    console.log(
       chalk.cyan(
         'Last build: ' +
           (lastModifiedBundle &&

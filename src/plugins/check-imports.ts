@@ -35,7 +35,7 @@ export default function handler(source) {
   let resource = this._module.resource;
   let relativePath = this._module.resourceResolveData.relativePath;
 
-  // console.log('-----');
+  console.log('-----');
   // for (let key in this) {
   //   console.log(key, this[key]);
   // }
@@ -43,9 +43,9 @@ export default function handler(source) {
   let isRelativeReq =
     request.indexOf('./') === 0 || request.indexOf('../') === 0;
   // if (isRelativeReq) {
-  // console.log('rootContext', rootContext);
-  // console.log('context', context);
-  // console.log('request', request);
+  console.log('rootContext', rootContext);
+  console.log('context', context);
+  console.log('request', request);
   // // console.log('userRequest', userRequest);
   // // console.log('resource', resource);
   // console.log('relativePath', relativePath);

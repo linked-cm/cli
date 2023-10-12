@@ -308,41 +308,36 @@ export function execPromise(
 }
 
 // export function generateScopedName(moduleName,name, filename, css) {
-export function generateScopedName(moduleName, name, filename, css) {
-  // console.log(moduleName,name,filename,css);
-  var file = path.basename(filename, '.scss');
+export function generateScopedName(
+  isProduction,
+  isWebpack,
+  cssClassName,
+  filepath,
+  css,
+) {
+  //for app development we can use short unique hashes
+  //but for webpack bundles of lincd modules, we need to ensure unique class names across bundles of many packages
+  if (isProduction && !isWebpack) {
+    //generate a short unique hash based on cssClassName and filepath
+    let hash = require('crypto')
+      .createHash('md5')
+      .update(cssClassName + filepath)
+      .digest('hex')
+      .substring(0, 6);
+    return hash;
+  }
+  var filename = path.basename(filepath, '.scss');
   let nearestPackageJson = findNearestPackageJsonSync(filename);
   let packageName = nearestPackageJson
     ? nearestPackageJson.data.name
-    : moduleName;
-  return packageName.replace(/[^a-zA-Z0-9_]+/g, '_') + '_' + file + '_' + name;
-
-  // process.exit();
-  // var path = require('path');
-  var file = path.basename(filename, '.scss');
-
-  var module = filename.match(/[\\\/]modules[\\\/]([\w\-_]+)/);
-  var moduleName;
-  if (module) {
-    moduleName = module[1];
-  } else {
-    //if we cant find module name from path, we'll use a hash
-    //https://stackoverflow.com/questions/6122571/simple-non-secure-hash-function-for-javascript
-    var hash = 0;
-    if (filename.length == 0) {
-      moduleName = '_unknown';
-    } else {
-      for (var i = 0; i < filename.length; i++) {
-        var char = filename.charCodeAt(i);
-        hash = (hash << 5) - hash + char;
-        hash = hash & hash; // Convert to 32bit integer
-      }
-      moduleName = hash;
-    }
-  }
-  // console.log("Module name: "+moduleName);
-  // console.log("Returning: " + moduleName + "_" + file + "_" + name);
-  return moduleName + '_' + file + '_' + name;
+    : 'unknown';
+  return (
+    packageName.replace(/[^a-zA-Z0-9_]+/g, '_') +
+    '_' +
+    filename +
+    '_' +
+    cssClassName
+  );
 }
 
 export function log(...messages) {

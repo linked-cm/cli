@@ -4,6 +4,7 @@ import {
   buildAll,
   buildPackage,
   buildUpdated,
+  checkImports,
   createApp,
   createComponent,
   createOntology,
@@ -207,6 +208,9 @@ program.command('dev [target] [mode]').action((target, mode) => {
 
 program.command('depcheck').action((target, mode) => {
   depCheck();
+});
+program.command('check-imports').action((target, mode) => {
+  checkImports();
 });
 
 program

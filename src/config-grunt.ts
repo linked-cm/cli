@@ -113,7 +113,13 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'prepare-build',
       // buildFrontend ? 'webpack:build-es6' : null,
       buildServer
-        ? ['clean:lib', 'exec:build-lib', 'copy:lib', 'exec:depcheck']
+        ? [
+            // 'clean:lib',
+            'exec:build-lib',
+            'copy:lib',
+            'exec:depcheck',
+            'exec:check-imports',
+          ]
         : null,
       // 'exec:shapes',
     ]),
@@ -143,6 +149,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       beforeBuildCommand: config.beforeBuildCommand,
       'server-dev': 'tsc -w',
       depcheck: 'yarn lincd depcheck',
+      'check-imports': 'yarn lincd check-imports',
       test: 'tsc -w',
       // shapes: 'lincd shapes',
       'css-declarations': 'tcm -p **/*.scss',
@@ -166,8 +173,24 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     postcss: {
       options: {
         map: true, // inline sourcemaps
-        processors: [require('postcss-modules')({generateScopedName})],
+        // parser: require('postcss-scss'), //require('postcss-comment'),
         syntax: require('postcss-scss'), //for accepting comments
+        processors: [
+          require('postcss-preset-env'),
+          require('postcss-strip-inline-comments'),
+          require('postcss-modules')({
+            generateScopedName: generateScopedName.bind(
+              this,
+              config.prod,
+              false,
+            ),
+            globalModulePaths: [
+              /tailwind/,
+              /tailwindcss/,
+              config.cssGlobalModulePaths,
+            ].filter(Boolean),
+          }),
+        ],
         writeDest: false,
       },
       cssjson: {
@@ -179,19 +202,19 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     },
     concurrent: {
       dev: flatten([
-        buildFrontend ? 'webpack:dev' : null,
+        // buildFrontend ? 'webpack:dev' : null,
         buildServer ? 'exec:server-dev' : null,
         // buildServer ? 'watch:css-module-transforms' : null,
         // 'exec:css-declarations-watch'
       ]),
       'dev-prod': flatten([
-        buildFrontend ? 'webpack:dev-prod' : null,
+        // buildFrontend ? 'webpack:dev-prod' : null,
         buildServer ? 'exec:server-dev' : null,
         // buildServer ? 'watch:css-module-transforms' : null,
         // 'exec:css-declarations-watch'
       ]),
       'dev-es5': flatten([
-        buildFrontend ? 'webpack:dev-es5' : null,
+        // buildFrontend ? 'webpack:dev-es5' : null,
         buildServer ? 'exec:server-dev' : null,
         // buildServer ? 'watch:css-module-transforms' : null,
         // 'exec:css-declarations-watch'
