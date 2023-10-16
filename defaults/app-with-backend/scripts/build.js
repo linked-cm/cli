@@ -2,7 +2,7 @@
 const webpack = require('webpack');
 const config = require('lincd-server/site.webpack.config');
 const chalk = require('chalk');
-const {buildMetadata} = require('lincd-cli/lib/cli-methods');
+const { buildMetadata } = require('lincd-cli/lib/cli-methods');
 
 webpack(config, async (err, stats) => {
   if (err) {
@@ -11,14 +11,13 @@ webpack(config, async (err, stats) => {
       console.error(err.details);
     }
     process.exit(1);
-    return;
   }
   const info = stats.toJson();
   if (stats.hasErrors()) {
     console.log('Finished running webpack with errors.');
     info.errors.forEach((e) => console.error(e));
+    process.exit(1);
   } else {
-
     console.log(
       stats.toString({
         chunks: false,
