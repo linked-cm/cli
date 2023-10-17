@@ -5,7 +5,6 @@ import chalk from 'chalk';
 import {exec} from 'child_process';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import depcheck from 'depcheck';
-import {cruise, ICruiseOptions, IReporterOutput} from 'dependency-cruiser';
 import postcss from 'postcss';
 import postcssModules from 'postcss-modules';
 
@@ -1025,15 +1024,6 @@ export const checkImports = async () => {
   //if there is an import that imports outside of the src folder, then warn
   //TODO: use dependency-cruiser for this
   //https://github.com/sverweij/dependency-cruiser/blob/HEAD/doc/api.md
-
-  const toCruise = ['src'];
-  const options: ICruiseOptions = {includeOnly: toCruise};
-  try {
-    const result: IReporterOutput = await cruise(toCruise, options);
-    console.dir(result.output, {depth: 10, colors: true});
-  } catch (error) {
-    console.error(error);
-  }
 };
 
 export const depCheck = async () => {

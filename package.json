@@ -101,7 +101,6 @@
     "webpack-license-plugin": "^4.2.2"
   },
   "devDependencies": {
-    "dependency-cruiser": "^14.1.1",
     "husky": "^8.0.0",
     "optimize-css-assets-webpack-plugin": "^6.0.1",
     "pinst": "^3.0.0",
