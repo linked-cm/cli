@@ -1,12 +1,23 @@
 import path from 'path';
 import fs from 'fs-extra';
-import {execp, execPromise, generateScopedName, getPackageJSON} from './utils';
+import {
+  execp,
+  execPromise,
+  generateScopedName,
+  getFileImports,
+  getPackageJSON,
+  isValidLINCDImport,
+} from './utils';
 import chalk from 'chalk';
 import {exec} from 'child_process';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import depcheck from 'depcheck';
 import postcss from 'postcss';
 import postcssModules from 'postcss-modules';
+
+import ts from 'typescript';
+import {builtinModules} from 'module';
+import {statSync} from 'fs';
 
 var glob = require('glob');
 var variables = {};
@@ -1018,12 +1029,51 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   }
 };
 
-export const checkImports = async () => {
-  //read the source of all ts/tsx files in the src folder
-  //if there is an import that imports a lincd package with /src/ in it, then warn
-  //if there is an import that imports outside of the src folder, then warn
-  //TODO: use dependency-cruiser for this
-  //https://github.com/sverweij/dependency-cruiser/blob/HEAD/doc/api.md
+//read the source of all ts/tsx files in the src folder
+//if there is an import that imports a lincd package with /src/ in it, then warn
+//if there is an import that imports outside of the src folder, then warn
+export const checkImports = async (
+  sourceFolder = getSourceFolder(),
+  depth = 0, // Used to check if the import is outside of the src folder
+) => {
+  // Start checking each file in the source folder
+  fs.readdirSync(sourceFolder).forEach((file) => {
+    const filename = path.join(sourceFolder, file);
+
+    // File is either a directory, or not a .ts(x)
+    // INFO: For future use - if this part fails, it could be due to user permissions
+    //  i.e. the program not having access to check the file metadata
+    if (!filename.match(/\.tsx?$/)) {
+      if (statSync(filename).isDirectory()) {
+        console.debug("Checking directory: '" + filename + "'");
+        checkImports(filename, depth + 1);
+      }
+
+      // Ignore all files that aren't one of the following:
+      // - .ts
+      // - .tsx
+      return;
+    }
+
+    getFileImports(filename).then((allImports) => {
+      const lincdImports = allImports.filter(
+        (i) => i.includes('lincd') || i.includes('..'),
+      );
+      if (lincdImports.length === 0) {
+        return;
+      }
+
+      const validImports = lincdImports.filter((i) =>
+        isValidLINCDImport(i, depth),
+      );
+      const invalidImports = lincdImports.filter(
+        (i) => !validImports.includes(i),
+      );
+      console.log('\n', chalk.blue(filename));
+      validImports.map((i) => console.log(chalk.green(' [ OK ] ' + i)));
+      invalidImports.map((i) => console.log(chalk.red(' [ BAD ] ' + i)));
+    });
+  });
 };
 
 export const depCheck = async () => {
