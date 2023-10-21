@@ -1033,11 +1033,14 @@ export const createComponent = async (name, basePath = process.cwd()) => {
 //if there is an import that imports a lincd package with /src/ in it, then warn
 //if there is an import that imports outside of the src folder, then warn
 export const checkImports = async (
-  sourceFolder = getSourceFolder(),
-  depth = 0, // Used to check if the import is outside of the src folder
+  sourceFolder: string = getSourceFolder(),
+  depth: number = 0, // Used to check if the import is outside of the src folder
+  invalidImports: Map<string, string[]> = new Map(),
 ) => {
+  const dir = fs.readdirSync(sourceFolder);
+
   // Start checking each file in the source folder
-  fs.readdirSync(sourceFolder).forEach((file) => {
+  for (const file of dir) {
     const filename = path.join(sourceFolder, file);
 
     // File is either a directory, or not a .ts(x)
@@ -1045,35 +1048,46 @@ export const checkImports = async (
     //  i.e. the program not having access to check the file metadata
     if (!filename.match(/\.tsx?$/)) {
       if (statSync(filename).isDirectory()) {
-        console.debug("Checking directory: '" + filename + "'");
-        checkImports(filename, depth + 1);
+        await checkImports(filename, depth + 1, invalidImports);
       }
 
       // Ignore all files that aren't one of the following:
       // - .ts
       // - .tsx
-      return;
+      continue;
     }
 
-    getFileImports(filename).then((allImports) => {
-      const lincdImports = allImports.filter(
-        (i) => i.includes('lincd') || i.includes('..'),
-      );
-      if (lincdImports.length === 0) {
-        return;
-      }
+    const allImports = await getFileImports(filename);
+    const lincdImports = allImports.filter(
+      (i) => i.includes('lincd') || i.includes('..'),
+    );
 
-      const validImports = lincdImports.filter((i) =>
-        isValidLINCDImport(i, depth),
-      );
-      const invalidImports = lincdImports.filter(
-        (i) => !validImports.includes(i),
-      );
-      console.log('\n', chalk.blue(filename));
-      validImports.map((i) => console.log(chalk.green(' [ OK ] ' + i)));
-      invalidImports.map((i) => console.log(chalk.red(' [ BAD ] ' + i)));
+    lincdImports.forEach((i) => {
+      if (!isValidLINCDImport(i, depth)) {
+        if (!invalidImports.has(filename)) {
+          invalidImports.set(filename, []);
+        }
+
+        invalidImports.get(filename).push(i);
+      }
     });
-  });
+  }
+
+  // All recursion must have finished, display any errors
+  if (depth === 0 && invalidImports.size > 0) {
+    console.warn(chalk.red('\n' + 'Invalid imports found'));
+
+    invalidImports.forEach((value, key) => {
+      console.info(
+        chalk.red('\nFound in file ') + chalk.blue(key) + chalk.red(':'),
+      );
+      value.forEach((i) => console.warn(chalk.red("'" + i + "'")));
+    });
+    process.exit(1);
+  } else if (depth === 0 && invalidImports.size === 0) {
+    console.info('All imports OK');
+    process.exit(0);
+  }
 };
 
 export const depCheck = async () => {
