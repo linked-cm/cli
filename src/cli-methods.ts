@@ -1674,6 +1674,7 @@ export var buildUpdated = async function (
   back,
   target,
   target2,
+  useGitForLastModified: boolean = false,
   test: boolean = false,
 ) {
   // back = back || 1;
@@ -1689,8 +1690,11 @@ export var buildUpdated = async function (
   let packages = getLocalLincdPackageMap();
 
   // console.log(packages);
-  let jsonldPkgUpdated = needsRebuilding(packages.get('lincd-jsonld'));
-  // let cliPkgUpdated = needsRebuilding(packages.get('lincd-cli'));
+  let jsonldPkgUpdated = await needsRebuilding(
+    packages.get('lincd-jsonld'),
+    useGitForLastModified,
+  );
+  // let cliPkgUpdated = await needsRebuilding(packages.get('lincd-cli'), useGitForLastModified);
 
   //if either cli or jsonldPkg needs to be rebuilt
   // if (jsonldPkgUpdated || cliPkgUpdated) {
@@ -1715,7 +1719,11 @@ export var buildUpdated = async function (
       packagesLeft = packagesLeft - packageGroup.length;
       return async (pkg: PackageDetails) => {
         // debugInfo('# Checking package ' + pkg.packageName);
-        let needRebuild = needsRebuilding(pkg, true);
+        let needRebuild = await needsRebuilding(
+          pkg,
+          useGitForLastModified,
+          true,
+        );
 
         if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated) {
           needRebuild = true;
@@ -1773,18 +1781,36 @@ export var buildUpdated = async function (
   return;
 };
 
-const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
-  let lastModifiedSource = getLastModifiedSourceTime(pkg.path);
+const needsRebuilding = async function (
+  pkg: PackageDetails,
+  useGitForLastModified: boolean,
+  log: boolean = false,
+) {
+  let lastModifiedSourceDate: Date;
+  let lastModifiedSourceName: string;
+
+  if (useGitForLastModified) {
+    const {changes, commitId, date} = await getLastCommitTime(pkg.path);
+
+    lastModifiedSourceDate = date;
+    lastModifiedSourceName = commitId;
+  } else {
+    const {lastModified, lastModifiedName, lastModifiedTime} =
+      getLastModifiedSourceTime(pkg.path);
+    lastModifiedSourceName = lastModifiedName;
+    lastModifiedSourceDate = lastModified;
+  }
+
   let lastModifiedBundle = getLastBuildTime(pkg.path);
   let result =
-    lastModifiedSource.lastModifiedTime > lastModifiedBundle.lastModifiedTime;
+    lastModifiedSourceDate.getTime() > lastModifiedBundle.lastModifiedTime;
   if (log) {
     console.log(
       chalk.cyan(
         'Last modified source: ' +
-          lastModifiedSource.lastModifiedName +
+          lastModifiedSourceName +
           ' on ' +
-          lastModifiedSource.lastModified.toString(),
+          lastModifiedSourceDate.toString(),
       ),
     );
     console.log(

@@ -169,9 +169,14 @@ program.command('status').action(() => {
 });
 program
   .command('build-updated [target] [target2]')
-  .action((target, target2) => {
-    return buildUpdated(1, target, target2);
-  });
+  .action((target, target2, options) => {
+    const {useGit}: {useGit?: boolean} = options;
+    return buildUpdated(1, target, target2, useGit || false);
+  })
+  .option(
+    '--use-git',
+    'Use git commit timestamps to check which packages have been updated since the last build',
+  );
 program
   .command('build-updated-since [num-commits-back] [target] [target2]')
   .action((back, target, target2) => {
