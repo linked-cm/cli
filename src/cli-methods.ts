@@ -1,22 +1,17 @@
-import path from 'path';
+import chalk from 'chalk';
+import {exec} from 'child_process';
+import depcheck from 'depcheck';
+import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import fs from 'fs-extra';
+import path from 'path';
 import {
   execp,
   execPromise,
-  generateScopedName,
   getFileImports,
   getPackageJSON,
   isValidLINCDImport,
 } from './utils';
-import chalk from 'chalk';
-import {exec} from 'child_process';
-import {getEnvFile} from 'env-cmd/dist/get-env-vars';
-import depcheck from 'depcheck';
-import postcss from 'postcss';
-import postcssModules from 'postcss-modules';
 
-import ts from 'typescript';
-import {builtinModules} from 'module';
 import {statSync} from 'fs';
 
 var glob = require('glob');
@@ -1075,13 +1070,23 @@ export const checkImports = async (
 
   // All recursion must have finished, display any errors
   if (depth === 0 && invalidImports.size > 0) {
-    console.warn(chalk.red('\n' + 'Invalid imports found'));
+    console.warn(chalk.red('\n' + 'Invalid imports found.  See fixes below:'));
+    console.warn(
+      chalk.red(
+        " - For relative imports, ensure you don't import outside of the /src/ folder",
+      ),
+    );
+    console.warn(
+      chalk.red(
+        ' - For lincd imports, access the /lib/ folder instead of /src/',
+      ),
+    );
 
     invalidImports.forEach((value, key) => {
       console.info(
         chalk.red('\nFound in file ') + chalk.blue(key) + chalk.red(':'),
       );
-      value.forEach((i) => console.warn(chalk.red("'" + i + "'")));
+      value.forEach((i) => console.warn(chalk.red("- '" + i + "'")));
     });
     process.exit(1);
   } else if (depth === 0 && invalidImports.size === 0) {
