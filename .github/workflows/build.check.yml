@@ -26,5 +26,6 @@ jobs:
           node-version: 18.x
           cache: 'yarn'
       - run: |
+          touch yarn.lock
           yarn install
           yarn build
