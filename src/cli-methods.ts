@@ -1,6 +1,15 @@
 import path from 'path';
 import fs from 'fs-extra';
-import {execp, execPromise, generateScopedName, getPackageJSON} from './utils';
+import {
+  debugInfo,
+  execp,
+  execPromise,
+  generateScopedName,
+  getLastBuildTime,
+  getLastCommitTime,
+  getLastModifiedSourceTime,
+  getPackageJSON,
+} from './utils';
 import chalk from 'chalk';
 import {exec} from 'child_process';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars';
@@ -11,7 +20,6 @@ import postcssModules from 'postcss-modules';
 var glob = require('glob');
 var variables = {};
 var open = require('open');
-var gruntConfig;
 
 interface PackageDetails {
   path: string;
@@ -87,25 +95,6 @@ function progressUpdate(message) {
     '                                                                    \r',
   );
   process.stdout.write(message + '\r');
-}
-
-function debugInfo(...messages) {
-  // messages.forEach((message) => {
-  //   console.log(chalk.cyan('Info: ') + message);
-  // });
-  //@TODO: let packages also use lincd.config.json? instead of gruntfile...
-  // that way we can read "analyse" here and see if we need to log debug info
-  // if(!gruntConfig)
-  // {
-  //   gruntConfig = getGruntConfig();
-  //   console.log(gruntConfig);
-  //   process.exit();
-  // }
-  if (gruntConfig && gruntConfig.analyse === true) {
-    messages.forEach((message) => {
-      console.log(chalk.cyan('Info: ') + message);
-    });
-  }
 }
 
 export function warn(...messages) {
