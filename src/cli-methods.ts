@@ -4,11 +4,9 @@ import {
   debugInfo,
   execp,
   execPromise,
-  generateScopedName,
-  getLastBuildTime,
   getLastCommitTime,
-  getLastModifiedSourceTime,
   getPackageJSON,
+  needsRebuilding,
 } from './utils';
 import chalk from 'chalk';
 import {exec} from 'child_process';
@@ -16,15 +14,11 @@ import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import depcheck from 'depcheck';
 import postcss from 'postcss';
 import postcssModules from 'postcss-modules';
+import {PackageDetails} from 'interfaces';
 
 var glob = require('glob');
 var variables = {};
 var open = require('open');
-
-interface PackageDetails {
-  path: string;
-  packageName: string;
-}
 
 export const createApp = async (name, basePath = process.cwd()) => {
   if (!name) {
@@ -1715,50 +1709,6 @@ export var buildUpdated = async function (
   return;
 };
 
-const needsRebuilding = async function (
-  pkg: PackageDetails,
-  useGitForLastModified: boolean,
-  log: boolean = false,
-) {
-  let lastModifiedSourceDate: Date;
-  let lastModifiedSourceName: string;
-
-  if (useGitForLastModified) {
-    const {changes, commitId, date} = await getLastCommitTime(pkg.path);
-
-    lastModifiedSourceDate = date;
-    lastModifiedSourceName = commitId;
-  } else {
-    const {lastModified, lastModifiedName, lastModifiedTime} =
-      getLastModifiedSourceTime(pkg.path);
-    lastModifiedSourceName = lastModifiedName;
-    lastModifiedSourceDate = lastModified;
-  }
-
-  let lastModifiedBundle = getLastBuildTime(pkg.path);
-  let result =
-    lastModifiedSourceDate.getTime() > lastModifiedBundle.lastModifiedTime;
-  if (log) {
-    console.log(
-      chalk.cyan(
-        'Last modified source: ' +
-          lastModifiedSourceName +
-          ' on ' +
-          lastModifiedSourceDate.toString(),
-      ),
-    );
-    console.log(
-      chalk.cyan(
-        'Last build: ' +
-          (lastModifiedBundle &&
-          typeof lastModifiedBundle.lastModified !== 'undefined'
-            ? lastModifiedBundle.lastModified.toString()
-            : 'never'),
-      ),
-    );
-  }
-  return result;
-};
 const printBuildResults = function (failed, done) {
   log(
     'Successfully built: ' +

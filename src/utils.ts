@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import {exec} from 'child_process';
+import {PackageDetails} from 'interfaces';
 
 const {
   findNearestPackageJson,
@@ -399,6 +400,51 @@ export function generateScopedName(
     cssClassName
   );
 }
+
+export const needsRebuilding = async function (
+  pkg: PackageDetails,
+  useGitForLastModified: boolean,
+  log: boolean = false,
+) {
+  let lastModifiedSourceDate: Date;
+  let lastModifiedSourceName: string;
+
+  if (useGitForLastModified) {
+    const {changes, commitId, date} = await getLastCommitTime(pkg.path);
+
+    lastModifiedSourceDate = date;
+    lastModifiedSourceName = commitId;
+  } else {
+    const {lastModified, lastModifiedName, lastModifiedTime} =
+      getLastModifiedSourceTime(pkg.path);
+    lastModifiedSourceName = lastModifiedName;
+    lastModifiedSourceDate = lastModified;
+  }
+
+  let lastModifiedBundle = getLastBuildTime(pkg.path);
+  let result =
+    lastModifiedSourceDate.getTime() > lastModifiedBundle.lastModifiedTime;
+  if (log) {
+    console.log(
+      chalk.cyan(
+        'Last modified source: ' +
+          lastModifiedSourceName +
+          ' on ' +
+          lastModifiedSourceDate.toString(),
+      ),
+    );
+    console.log(
+      chalk.cyan(
+        'Last build: ' +
+          (lastModifiedBundle &&
+          typeof lastModifiedBundle.lastModified !== 'undefined'
+            ? lastModifiedBundle.lastModified.toString()
+            : 'never'),
+      ),
+    );
+  }
+  return result;
+};
 
 export function log(...messages) {
   messages.forEach((message) => {
