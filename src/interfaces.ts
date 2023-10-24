@@ -34,3 +34,8 @@ export interface AdjustedModuleConfig extends ModuleConfig {
   watch?: boolean;
   productionMode?: boolean;
 }
+
+export interface PackageDetails {
+  path: string;
+  packageName: string;
+}
