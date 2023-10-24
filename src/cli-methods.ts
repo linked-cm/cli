@@ -1356,61 +1356,6 @@ export const buildPackage = (
   }
 };
 
-const getLastBuildTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(builds|lib|dist)/**/*.js');
-};
-const getLastModifiedSourceTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(src|data|scss)/**/*', {
-    ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
-  });
-};
-const getLastCommitTime = (
-  packagePath,
-): Promise<{date: Date; changes: string; commitId: string}> => {
-  // console.log(`git log -1 --format=%ci -- ${packagePath}`);
-  // process.exit();
-  return execPromise(`git log -1 --format="%h %ci" -- ${packagePath}`)
-    .then(async (result) => {
-      let commitId = result.substring(0, result.indexOf(' '));
-      let date = result.substring(commitId.length + 1);
-      let lastCommitDate = new Date(date);
-
-      let changes = await execPromise(
-        `git show --stat --oneline ${commitId} -- ${packagePath}`,
-      );
-      // log(packagePath,result,lastCommit);
-      // log(changes);
-      return {date: lastCommitDate, changes, commitId};
-    })
-    .catch(({error, stdout, stderr}) => {
-      debugInfo(chalk.red('Git error: ') + error.message.toString());
-      return null;
-    });
-};
-const getLastModifiedFile = (filePath, config = {}) => {
-  var files = glob.sync(filePath, config);
-
-  // console.log(files.join(" - "));
-  var lastModifiedName;
-  var lastModified: Date;
-  var lastModifiedTime = 0;
-  files.forEach((fileName) => {
-    if (fs.lstatSync(fileName).isDirectory()) {
-      // console.log("skipping directory "+fileName);
-      return;
-    }
-    let mtime = fs.statSync(path.join(fileName)).mtime;
-    let modifiedTime = mtime.getTime();
-    if (modifiedTime > lastModifiedTime) {
-      // console.log(fileName,mtime);
-      lastModifiedName = fileName;
-      lastModified = mtime;
-      lastModifiedTime = modifiedTime;
-    }
-  });
-  return {lastModified, lastModifiedName, lastModifiedTime};
-};
-
 export var publishUpdated = function (test: boolean = false) {
   let packages = getLocalLincdModules();
 

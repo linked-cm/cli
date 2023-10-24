@@ -7,6 +7,8 @@ const {
   findNearestPackageJson,
   findNearestPackageJsonSync,
 } = require('find-nearest-package-json');
+var glob = require('glob');
+var gruntConfig;
 
 export var getPackageJSON = function (root = process.cwd(), error = true) {
   let packagePath = path.join(root, 'package.json');
@@ -169,6 +171,64 @@ export var getLINCDDependencies = function (
   }
 
   return lincdPackagePaths;
+};
+
+export const getLastBuildTime = (packagePath) => {
+  return getLastModifiedFile(packagePath + '/@(builds|lib|dist)/**/*.js');
+};
+
+export const getLastModifiedSourceTime = (packagePath) => {
+  return getLastModifiedFile(packagePath + '/@(src|data|scss)/**/*', {
+    ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
+  });
+};
+
+export const getLastCommitTime = (
+  packagePath,
+): Promise<{date: Date; changes: string; commitId: string}> => {
+  // console.log(`git log -1 --format=%ci -- ${packagePath}`);
+  // process.exit();
+  return execPromise(`git log -1 --format="%h %ci" -- ${packagePath}`)
+    .then(async (result) => {
+      let commitId = result.substring(0, result.indexOf(' '));
+      let date = result.substring(commitId.length + 1);
+      let lastCommitDate = new Date(date);
+
+      let changes = await execPromise(
+        `git show --stat --oneline ${commitId} -- ${packagePath}`,
+      );
+      // log(packagePath,result,lastCommit);
+      // log(changes);
+      return {date: lastCommitDate, changes, commitId};
+    })
+    .catch(({error, stdout, stderr}) => {
+      debugInfo(chalk.red('Git error: ') + error.message.toString());
+      return null;
+    });
+};
+
+export const getLastModifiedFile = (filePath, config = {}) => {
+  var files = glob.sync(filePath, config);
+
+  // console.log(files.join(" - "));
+  var lastModifiedName;
+  var lastModified: Date;
+  var lastModifiedTime = 0;
+  files.forEach((fileName) => {
+    if (fs.lstatSync(fileName).isDirectory()) {
+      // console.log("skipping directory "+fileName);
+      return;
+    }
+    let mtime = fs.statSync(path.join(fileName)).mtime;
+    let modifiedTime = mtime.getTime();
+    if (modifiedTime > lastModifiedTime) {
+      // console.log(fileName,mtime);
+      lastModifiedName = fileName;
+      lastModified = mtime;
+      lastModifiedTime = modifiedTime;
+    }
+  });
+  return {lastModified, lastModifiedName, lastModifiedTime};
 };
 
 //from https://github.com/haalcala/node-packagejson/blob/master/index.js
@@ -349,6 +409,25 @@ export function log(...messages) {
 export function debug(config, ...messages) {
   if (config.debug) {
     log(...messages);
+  }
+}
+
+export function debugInfo(...messages) {
+  // messages.forEach((message) => {
+  //   console.log(chalk.cyan('Info: ') + message);
+  // });
+  //@TODO: let packages also use lincd.config.json? instead of gruntfile...
+  // that way we can read "analyse" here and see if we need to log debug info
+  // if(!gruntConfig)
+  // {
+  //   gruntConfig = getGruntConfig();
+  //   console.log(gruntConfig);
+  //   process.exit();
+  // }
+  if (gruntConfig && gruntConfig.analyse === true) {
+    messages.forEach((message) => {
+      console.log(chalk.cyan('Info: ') + message);
+    });
   }
 }
 
