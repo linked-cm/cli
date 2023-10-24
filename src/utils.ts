@@ -189,14 +189,14 @@ export const getLastCommitTime = (
 ): Promise<{date: Date; changes: string; commitId: string}> => {
   // console.log(`git log -1 --format=%ci -- ${packagePath}`);
   // process.exit();
-  return execPromise(`git log -1 --format="%h %ci" -- ${packagePath}`)
+  return execPromise(`cd ${packagePath} && git log -1 --format="%h %ci"`)
     .then(async (result) => {
       let commitId = result.substring(0, result.indexOf(' '));
       let date = result.substring(commitId.length + 1);
       let lastCommitDate = new Date(date);
 
       let changes = await execPromise(
-        `git show --stat --oneline ${commitId} -- ${packagePath}`,
+        `cd ${packagePath} && git show --stat --oneline ${commitId}`,
       );
       // log(packagePath,result,lastCommit);
       // log(changes);
