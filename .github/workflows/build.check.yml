@@ -1,0 +1,32 @@
+name: Check - Build on PR
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    # BY DEFAULT:
+    # - opened: when a pull request is opened
+    # - synchronize: when a commit is pushed to the branch that the pull request is tracking
+    # - reopened: when a pull request is reopened after being closed
+    # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request
+    # types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      YARN_ENABLE_IMMUTABLE_INSTALLS: false
+    steps:
+      - uses: actions/checkout@v3
+      - run: touch yarn.lock
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: 'yarn'
+      - name: Install deps and build
+        run: |
+          yarn install
+          yarn build
