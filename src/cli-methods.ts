@@ -1,17 +1,22 @@
-import path from 'path';
-import fs from 'fs-extra';
-import {
-  debugInfo,
-  execp,
-  execPromise,
-  getLastCommitTime,
-  getPackageJSON,
-  needsRebuilding,
-} from './utils';
 import chalk from 'chalk';
 import {exec} from 'child_process';
-import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import depcheck from 'depcheck';
+import {getEnvFile} from 'env-cmd/dist/get-env-vars';
+import fs from 'fs-extra';
+import path from 'path';
+import {
+  debugInfo,
+  execPromise,
+  execp,
+  getFileImports,
+  getLastCommitTime,
+  getPackageJSON,
+  isValidLINCDImport,
+  needsRebuilding,
+} from './utils';
+
+import {statSync} from 'fs';
+
 import postcss from 'postcss';
 import postcssModules from 'postcss-modules';
 import {PackageDetails} from 'interfaces';
@@ -1001,13 +1006,77 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   }
 };
 
-export const checkImports = async () => {
-  //read the source of all ts/tsx files in the src folder
-  //if there is an import that imports a lincd package with /src/ in it, then warn
-  //if there is an import that imports outside of the src folder, then warn
-  //TODO: use dependency-cruiser for this
-  //https://github.com/sverweij/dependency-cruiser/blob/HEAD/doc/api.md
+//read the source of all ts/tsx files in the src folder
+//if there is an import that imports a lincd package with /src/ in it, then warn
+//if there is an import that imports outside of the src folder, then warn
+export const checkImports = async (
+  sourceFolder: string = getSourceFolder(),
+  depth: number = 0, // Used to check if the import is outside of the src folder
+  invalidImports: Map<string, string[]> = new Map(),
+) => {
+  const dir = fs.readdirSync(sourceFolder);
+
+  // Start checking each file in the source folder
+  for (const file of dir) {
+    const filename = path.join(sourceFolder, file);
+
+    // File is either a directory, or not a .ts(x)
+    // INFO: For future use - if this part fails, it could be due to user permissions
+    //  i.e. the program not having access to check the file metadata
+    if (!filename.match(/\.tsx?$/)) {
+      if (statSync(filename).isDirectory()) {
+        await checkImports(filename, depth + 1, invalidImports);
+      }
+
+      // Ignore all files that aren't one of the following:
+      // - .ts
+      // - .tsx
+      continue;
+    }
+
+    const allImports = await getFileImports(filename);
+    const lincdImports = allImports.filter(
+      (i) => i.includes('lincd') || i.includes('..'),
+    );
+
+    lincdImports.forEach((i) => {
+      if (!isValidLINCDImport(i, depth)) {
+        if (!invalidImports.has(filename)) {
+          invalidImports.set(filename, []);
+        }
+
+        invalidImports.get(filename).push(i);
+      }
+    });
+  }
+
+  // All recursion must have finished, display any errors
+  if (depth === 0 && invalidImports.size > 0) {
+    console.warn(chalk.red('\n' + 'Invalid imports found.  See fixes below:'));
+    console.warn(
+      chalk.red(
+        " - For relative imports, ensure you don't import outside of the /src/ folder",
+      ),
+    );
+    console.warn(
+      chalk.red(
+        ' - For lincd imports, access the /lib/ folder instead of /src/',
+      ),
+    );
+
+    invalidImports.forEach((value, key) => {
+      console.info(
+        chalk.red('\nFound in file ') + chalk.blue(key) + chalk.red(':'),
+      );
+      value.forEach((i) => console.warn(chalk.red("- '" + i + "'")));
+    });
+    process.exit(1);
+  } else if (depth === 0 && invalidImports.size === 0) {
+    console.info('All imports OK');
+    process.exit(0);
+  }
 };
+
 export const depCheck = async () => {
   depcheck(process.cwd(), {}, (results) => {
     if (results.missing) {

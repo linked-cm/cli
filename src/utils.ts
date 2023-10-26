@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import {exec} from 'child_process';
+import ts from 'typescript';
+import {builtinModules} from 'module';
 import {PackageDetails} from 'interfaces';
 
 const {
@@ -10,6 +12,70 @@ const {
 } = require('find-nearest-package-json');
 var glob = require('glob');
 var gruntConfig;
+
+// Credit: https://gist.github.com/tinovyatkin/727ddbf7e7e10831a1eca9e4ff2fc32e
+const tsHost = ts.createCompilerHost(
+  {
+    allowJs: true,
+    noEmit: true,
+    isolatedModules: true,
+    resolveJsonModule: false,
+    moduleResolution: ts.ModuleResolutionKind.Classic, // we don't want node_modules
+    incremental: true,
+    noLib: true,
+    noResolve: true,
+  },
+  true,
+);
+
+export var getFileImports = async function (filePath) {
+  const sourceFile = tsHost.getSourceFile(
+    filePath,
+    ts.ScriptTarget.Latest,
+    (msg) => {
+      throw new Error(`Failed to parse ${filePath}: ${msg}`);
+    },
+  );
+  if (!sourceFile) throw ReferenceError(`Failed to find file ${filePath}`);
+  const importing: string[] = [];
+  delintNode(sourceFile);
+  return importing;
+
+  function delintNode(node: ts.Node) {
+    if (ts.isImportDeclaration(node)) {
+      const moduleName = node.moduleSpecifier.getText().replace(/['"]/g, '');
+      if (
+        !moduleName.startsWith('node:') &&
+        !builtinModules.includes(moduleName)
+      )
+        importing.push(moduleName);
+    } else ts.forEachChild(node, delintNode);
+  }
+};
+
+/**
+ *
+ * @param importPath The import path to check
+ * @param curFileDepth How many folders deep the current file is (0 = src, 1 = src/foo, etc.)
+ * @returns
+ */
+export var isValidLINCDImport = function (
+  importPath: string,
+  curFileDepth: number,
+) {
+  const validLincdPath =
+    importPath.includes('lincd') && !importPath.includes('/src/');
+  let validRelativePath = false;
+  if (importPath.includes('..')) {
+    // '../bad/path' from 'src/file.ts' should be invalid:
+    //    ^ should get split into ['', '/bad/path'], and the file depth is 0
+    //    meaning that it'll be invalid.
+    // And this should be true for all relative imports containing '..'
+    validRelativePath = importPath.split('..').length - 1 <= curFileDepth;
+  }
+
+  return validLincdPath || validRelativePath;
+};
 
 export var getPackageJSON = function (root = process.cwd(), error = true) {
   let packagePath = path.join(root, 'package.json');
