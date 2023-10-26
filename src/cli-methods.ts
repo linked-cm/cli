@@ -1627,7 +1627,16 @@ export var buildUpdated = async function (
   //if either cli or jsonldPkg needs to be rebuilt
   // if (jsonldPkgUpdated || cliPkgUpdated) {
   if (jsonldPkgUpdated) {
-    await execPromise('yarn build-core', false, false, {}, true);
+    await execPromise(
+      'yarn exec tsc && echo "compiled lincd-jsonld"',
+      false,
+      false,
+      {
+        cwd: packages.get('lincd-jsonld').path,
+      },
+      true,
+    );
+    // await execPromise('yarn build-core', false, false, {}, true);
   }
   let rebuildAllModules = false;
   // if (cliPkgUpdated) {
