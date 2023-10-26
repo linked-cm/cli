@@ -179,7 +179,7 @@ export const getLastBuildTime = (packagePath) => {
 };
 
 export const getLastModifiedSourceTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(src|data|scss)/**/*', {
+  return getLastModifiedFile(packagePath + '/@(src|data|scss|modules)/**/*', {
     ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
   });
 };
