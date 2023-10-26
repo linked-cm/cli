@@ -4,11 +4,14 @@ import chalk from 'chalk';
 import {exec} from 'child_process';
 import ts from 'typescript';
 import {builtinModules} from 'module';
+import {PackageDetails} from 'interfaces';
 
 const {
   findNearestPackageJson,
   findNearestPackageJsonSync,
 } = require('find-nearest-package-json');
+var glob = require('glob');
+var gruntConfig;
 
 // Credit: https://gist.github.com/tinovyatkin/727ddbf7e7e10831a1eca9e4ff2fc32e
 const tsHost = ts.createCompilerHost(
@@ -237,6 +240,64 @@ export var getLINCDDependencies = function (
   return lincdPackagePaths;
 };
 
+export const getLastBuildTime = (packagePath) => {
+  return getLastModifiedFile(packagePath + '/@(builds|lib|dist)/**/*.js');
+};
+
+export const getLastModifiedSourceTime = (packagePath) => {
+  return getLastModifiedFile(packagePath + '/@(src|data|scss)/**/*', {
+    ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
+  });
+};
+
+export const getLastCommitTime = (
+  packagePath,
+): Promise<{date: Date; changes: string; commitId: string}> => {
+  // console.log(`git log -1 --format=%ci -- ${packagePath}`);
+  // process.exit();
+  return execPromise(`cd ${packagePath} && git log -1 --format="%h %ci" -- .`)
+    .then(async (result) => {
+      let commitId = result.substring(0, result.indexOf(' '));
+      let date = result.substring(commitId.length + 1);
+      let lastCommitDate = new Date(date);
+
+      let changes = await execPromise(
+        `cd ${packagePath} && git show --stat --oneline ${commitId} -- .`,
+      );
+      // log(packagePath, result, lastCommitDate);
+      // log(changes);
+      return {date: lastCommitDate, changes, commitId};
+    })
+    .catch(({error, stdout, stderr}) => {
+      debugInfo(chalk.red('Git error: ') + error.message.toString());
+      return null;
+    });
+};
+
+export const getLastModifiedFile = (filePath, config = {}) => {
+  var files = glob.sync(filePath, config);
+
+  // console.log(files.join(" - "));
+  var lastModifiedName;
+  var lastModified: Date;
+  var lastModifiedTime = 0;
+  files.forEach((fileName) => {
+    if (fs.lstatSync(fileName).isDirectory()) {
+      // console.log("skipping directory "+fileName);
+      return;
+    }
+    let mtime = fs.statSync(path.join(fileName)).mtime;
+    let modifiedTime = mtime.getTime();
+    if (modifiedTime > lastModifiedTime) {
+      // console.log(fileName,mtime);
+      lastModifiedName = fileName;
+      lastModified = mtime;
+      lastModifiedTime = modifiedTime;
+    }
+  });
+  return {lastModified, lastModifiedName, lastModifiedTime};
+};
+
 //from https://github.com/haalcala/node-packagejson/blob/master/index.js
 export var getModulePackageJSON = function (module_name, work_dir?) {
   if (!work_dir) {
@@ -406,6 +467,51 @@ export function generateScopedName(
   );
 }
 
+export const needsRebuilding = async function (
+  pkg: PackageDetails,
+  useGitForLastModified: boolean,
+  log: boolean = false,
+) {
+  let lastModifiedSourceDate: Date;
+  let lastModifiedSourceName: string;
+
+  if (useGitForLastModified) {
+    const {changes, commitId, date} = await getLastCommitTime(pkg.path);
+
+    lastModifiedSourceDate = date;
+    lastModifiedSourceName = commitId;
+  } else {
+    const {lastModified, lastModifiedName, lastModifiedTime} =
+      getLastModifiedSourceTime(pkg.path);
+    lastModifiedSourceName = lastModifiedName;
+    lastModifiedSourceDate = lastModified;
+  }
+
+  let lastModifiedBundle = getLastBuildTime(pkg.path);
+  let result =
+    lastModifiedSourceDate.getTime() > lastModifiedBundle.lastModifiedTime;
+  if (log) {
+    console.log(
+      chalk.cyan(
+        'Last modified source: ' +
+          lastModifiedSourceName +
+          ' on ' +
+          lastModifiedSourceDate.toString(),
+      ),
+    );
+    console.log(
+      chalk.cyan(
+        'Last build: ' +
+          (lastModifiedBundle &&
+          typeof lastModifiedBundle.lastModified !== 'undefined'
+            ? lastModifiedBundle.lastModified.toString()
+            : 'never'),
+      ),
+    );
+  }
+  return result;
+};
+
 export function log(...messages) {
   messages.forEach((message) => {
     console.log(chalk.cyan(message));
@@ -415,6 +521,25 @@ export function log(...messages) {
 export function debug(config, ...messages) {
   if (config.debug) {
     log(...messages);
+  }
+}
+
+export function debugInfo(...messages) {
+  // messages.forEach((message) => {
+  //   console.log(chalk.cyan('Info: ') + message);
+  // });
+  //@TODO: let packages also use lincd.config.json? instead of gruntfile...
+  // that way we can read "analyse" here and see if we need to log debug info
+  // if(!gruntConfig)
+  // {
+  //   gruntConfig = getGruntConfig();
+  //   console.log(gruntConfig);
+  //   process.exit();
+  // }
+  if (gruntConfig && gruntConfig.analyse === true) {
+    messages.forEach((message) => {
+      console.log(chalk.cyan('Info: ') + message);
+    });
   }
 }
 

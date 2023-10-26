@@ -5,24 +5,25 @@ import {getEnvFile} from 'env-cmd/dist/get-env-vars';
 import fs from 'fs-extra';
 import path from 'path';
 import {
-  execp,
+  debugInfo,
   execPromise,
+  execp,
   getFileImports,
+  getLastCommitTime,
   getPackageJSON,
   isValidLINCDImport,
+  needsRebuilding,
 } from './utils';
 
 import {statSync} from 'fs';
 
+import postcss from 'postcss';
+import postcssModules from 'postcss-modules';
+import {PackageDetails} from 'interfaces';
+
 var glob = require('glob');
 var variables = {};
 var open = require('open');
-var gruntConfig;
-
-interface PackageDetails {
-  path: string;
-  packageName: string;
-}
 
 export const createApp = async (name, basePath = process.cwd()) => {
   if (!name) {
@@ -93,25 +94,6 @@ function progressUpdate(message) {
     '                                                                    \r',
   );
   process.stdout.write(message + '\r');
-}
-
-function debugInfo(...messages) {
-  // messages.forEach((message) => {
-  //   console.log(chalk.cyan('Info: ') + message);
-  // });
-  //@TODO: let packages also use lincd.config.json? instead of gruntfile...
-  // that way we can read "analyse" here and see if we need to log debug info
-  // if(!gruntConfig)
-  // {
-  //   gruntConfig = getGruntConfig();
-  //   console.log(gruntConfig);
-  //   process.exit();
-  // }
-  if (gruntConfig && gruntConfig.analyse === true) {
-    messages.forEach((message) => {
-      console.log(chalk.cyan('Info: ') + message);
-    });
-  }
 }
 
 export function warn(...messages) {
@@ -1426,61 +1408,6 @@ export const buildPackage = (
   }
 };
 
-const getLastBuildTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(builds|lib|dist)/**/*.js');
-};
-const getLastModifiedSourceTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(src|data|scss)/**/*', {
-    ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
-  });
-};
-const getLastCommitTime = (
-  packagePath,
-): Promise<{date: Date; changes: string; commitId: string}> => {
-  // console.log(`git log -1 --format=%ci -- ${packagePath}`);
-  // process.exit();
-  return execPromise(`git log -1 --format="%h %ci" -- ${packagePath}`)
-    .then(async (result) => {
-      let commitId = result.substring(0, result.indexOf(' '));
-      let date = result.substring(commitId.length + 1);
-      let lastCommitDate = new Date(date);
-
-      let changes = await execPromise(
-        `git show --stat --oneline ${commitId} -- ${packagePath}`,
-      );
-      // log(packagePath,result,lastCommit);
-      // log(changes);
-      return {date: lastCommitDate, changes, commitId};
-    })
-    .catch(({error, stdout, stderr}) => {
-      debugInfo(chalk.red('Git error: ') + error.message.toString());
-      return null;
-    });
-};
-const getLastModifiedFile = (filePath, config = {}) => {
-  var files = glob.sync(filePath, config);
-
-  // console.log(files.join(" - "));
-  var lastModifiedName;
-  var lastModified: Date;
-  var lastModifiedTime = 0;
-  files.forEach((fileName) => {
-    if (fs.lstatSync(fileName).isDirectory()) {
-      // console.log("skipping directory "+fileName);
-      return;
-    }
-    let mtime = fs.statSync(path.join(fileName)).mtime;
-    let modifiedTime = mtime.getTime();
-    if (modifiedTime > lastModifiedTime) {
-      // console.log(fileName,mtime);
-      lastModifiedName = fileName;
-      lastModified = mtime;
-      lastModifiedTime = modifiedTime;
-    }
-  });
-  return {lastModified, lastModifiedName, lastModifiedTime};
-};
-
 export var publishUpdated = function (test: boolean = false) {
   let packages = getLocalLincdModules();
 
@@ -1744,6 +1671,7 @@ export var buildUpdated = async function (
   back,
   target,
   target2,
+  useGitForLastModified: boolean = false,
   test: boolean = false,
 ) {
   // back = back || 1;
@@ -1759,13 +1687,25 @@ export var buildUpdated = async function (
   let packages = getLocalLincdPackageMap();
 
   // console.log(packages);
-  let jsonldPkgUpdated = needsRebuilding(packages.get('lincd-jsonld'));
-  // let cliPkgUpdated = needsRebuilding(packages.get('lincd-cli'));
+  let jsonldPkgUpdated = await needsRebuilding(
+    packages.get('lincd-jsonld'),
+    useGitForLastModified,
+  );
+  // let cliPkgUpdated = await needsRebuilding(packages.get('lincd-cli'), useGitForLastModified);
 
   //if either cli or jsonldPkg needs to be rebuilt
   // if (jsonldPkgUpdated || cliPkgUpdated) {
   if (jsonldPkgUpdated) {
-    await execPromise('yarn build-core', false, false, {}, true);
+    await execPromise(
+      'yarn exec tsc && echo "compiled lincd-jsonld"',
+      false,
+      false,
+      {
+        cwd: packages.get('lincd-jsonld').path,
+      },
+      true,
+    );
+    // await execPromise('yarn build-core', false, false, {}, true);
   }
   let rebuildAllModules = false;
   // if (cliPkgUpdated) {
@@ -1785,7 +1725,11 @@ export var buildUpdated = async function (
       packagesLeft = packagesLeft - packageGroup.length;
       return async (pkg: PackageDetails) => {
         // debugInfo('# Checking package ' + pkg.packageName);
-        let needRebuild = needsRebuilding(pkg, true);
+        let needRebuild = await needsRebuilding(
+          pkg,
+          useGitForLastModified,
+          true,
+        );
 
         if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated) {
           needRebuild = true;
@@ -1843,32 +1787,6 @@ export var buildUpdated = async function (
   return;
 };
 
-const needsRebuilding = function (pkg: PackageDetails, log: boolean = false) {
-  let lastModifiedSource = getLastModifiedSourceTime(pkg.path);
-  let lastModifiedBundle = getLastBuildTime(pkg.path);
-  let result =
-    lastModifiedSource.lastModifiedTime > lastModifiedBundle.lastModifiedTime;
-  if (log) {
-    console.log(
-      chalk.cyan(
-        'Last modified source: ' +
-          lastModifiedSource.lastModifiedName +
-          ' on ' +
-          lastModifiedSource.lastModified.toString(),
-      ),
-    );
-    console.log(
-      chalk.cyan(
-        'Last build: ' +
-          (lastModifiedBundle &&
-          typeof lastModifiedBundle.lastModified !== 'undefined'
-            ? lastModifiedBundle.lastModified.toString()
-            : 'never'),
-      ),
-    );
-  }
-  return result;
-};
 const printBuildResults = function (failed, done) {
   log(
     'Successfully built: ' +
