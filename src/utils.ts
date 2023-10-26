@@ -245,8 +245,14 @@ export const getLastBuildTime = (packagePath) => {
 };
 
 export const getLastModifiedSourceTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(src|data|scss)/**/*', {
-    ignore: [packagePath + '/**/*.scss.json', packagePath + '/**/*.d.ts'],
+  return getLastModifiedFile(packagePath + '/@(src|data|scss|modules)/**/*', {
+    ignore: [
+      packagePath + '/**/*.scss.json',
+      packagePath + '/**/*.d.ts',
+      packagePath + '/**/node_modules/**/*',
+      packagePath + '/**/lib/**/*',
+      packagePath + '/**/dist/**/*',
+    ],
   });
 };
 
