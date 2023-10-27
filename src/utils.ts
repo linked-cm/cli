@@ -495,6 +495,7 @@ export const needsRebuilding = async function (
 
   let lastModifiedBundle = getLastBuildTime(pkg.path);
   let result =
+    lastModifiedSourceDate &&
     lastModifiedSourceDate.getTime() > lastModifiedBundle.lastModifiedTime;
   if (log) {
     console.log(
