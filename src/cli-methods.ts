@@ -522,6 +522,9 @@ export function buildAll(options) {
             process.stdout.write(packagesLeft + ' packages left\r');
             if (packagesLeft == 0) {
               printBuildResults(failedModules, done);
+              if (failedModules.length > 0) {
+                process.exit(1);
+              }
             }
 
             return res;
@@ -1756,20 +1759,19 @@ export var buildUpdated = async function (
               return chalk.green(pkg.packageName + ' built');
             })
             .catch(({error, stdout, stderr}) => {
-              warn('Failed to build ' + pkg.packageName);
+              warn(chalk.red('Failed to build ' + pkg.packageName));
               console.log(stdout);
-
-              let dependentModules = getDependentPackages(dependencies, pkg);
-              if (dependentModules.length > 0) {
-                // printBuildResults(failedModules, done);
-                warn(chalk.red(pkg.packageName + ' build failed'));
-                warn(
-                  'Stopping build-updated process because ' +
-                    dependentModules.length +
-                    ' other packages depend on this package.\n',
-                ); //"+dependentModules.map(d => d.packageName).join(", ")));
-                process.exit(1);
-              }
+              process.exit(1);
+              // let dependentModules = getDependentPackages(dependencies, pkg);
+              // if (dependentModules.length > 0) {
+              //   // printBuildResults(failedModules, done);
+              //   warn(chalk.red(pkg.packageName + ' build failed'));
+              //   warn(
+              //     'Stopping build-updated process because ' +
+              //       dependentModules.length +
+              //       ' other packages depend on this package.\n',
+              //   ); //"+dependentModules.map(d => d.packageName).join(", ")));
+              // }
             });
         }
       };
