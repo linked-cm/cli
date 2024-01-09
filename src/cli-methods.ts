@@ -1763,7 +1763,7 @@ export var buildUpdated = async function (
         let needRebuild = await needsRebuilding(
           pkg,
           useGitForLastModified,
-          true,
+          // true,
         );
 
         if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated) {

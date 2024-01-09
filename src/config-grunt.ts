@@ -115,9 +115,9 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       buildServer
         ? [
             // 'clean:lib',
-            'exec:depcheck',
             'exec:build-lib',
             'copy:lib',
+            'exec:depcheck',
             'exec:check-imports',
           ]
         : null,
