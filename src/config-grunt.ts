@@ -115,9 +115,9 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       buildServer
         ? [
             // 'clean:lib',
+            'exec:depcheck',
             'exec:build-lib',
             'copy:lib',
-            'exec:depcheck',
             'exec:check-imports',
           ]
         : null,
@@ -148,7 +148,23 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'build-lib-es5': 'yarn exec tsc --pretty -p tsconfig-es5.json',
       beforeBuildCommand: config.beforeBuildCommand,
       'server-dev': 'tsc -w',
-      depcheck: 'yarn lincd depcheck',
+      depcheck: {
+        command: 'yarn lincd depcheck',
+        // stdout: false,
+        // stderr: true,
+        // callback: function (error, stdout, stderr) {
+        //   if (error) {
+        //     // console.log(chalk.red('XX Error: ') + error.message);
+        //     process.exit(1);
+        //     return;
+        //   }
+        //   if (stderr) {
+        //     process.exit(1);
+        //     return;
+        //   }
+        //   // console.log(stdout);
+        // },
+      },
       'check-imports': 'yarn lincd check-imports',
       test: 'tsc -w',
       // shapes: 'lincd shapes',

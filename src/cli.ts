@@ -12,6 +12,7 @@ import {
   createSetComponent,
   createShape,
   depCheck,
+  depCheckStaged,
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
@@ -213,6 +214,9 @@ program.command('dev [target] [mode]').action((target, mode) => {
 
 program.command('depcheck').action((target, mode) => {
   depCheck();
+});
+program.command('depcheck-staged').action((target, mode) => {
+  depCheckStaged();
 });
 program.command('check-imports').action((target, mode) => {
   checkImports();

@@ -24,6 +24,11 @@ import {PackageDetails} from 'interfaces';
 var glob = require('glob');
 var variables = {};
 var open = require('open');
+var stagedGitFiles = require('staged-git-files');
+import {
+  findNearestPackageJson,
+  findNearestPackageJsonSync,
+} from 'find-nearest-package-json';
 
 export const createApp = async (name, basePath = process.cwd()) => {
   if (!name) {
@@ -1080,8 +1085,32 @@ export const checkImports = async (
   }
 };
 
-export const depCheck = async () => {
-  depcheck(process.cwd(), {}, (results) => {
+export const depCheckStaged = async () => {
+  console.log('Checking dependencies of staged files');
+  stagedGitFiles(async function (err, results) {
+    const packages = new Set<string>();
+    await Promise.all(
+      results.map(async (file) => {
+        // console.log('STAGED: ', file.filename);
+        let root = await findNearestPackageJson(file.filename);
+        packages.add(root.path);
+      }),
+    );
+
+    [...packages].forEach((packageRoot) => {
+      const pack = JSON.parse(fs.readFileSync(packageRoot, 'utf8'));
+      const srcPath = packageRoot.replace('package.json', '');
+      console.log('Checking dependencies of ' + chalk.blue(pack.name) + ':');
+      return depCheck(process.cwd() + '/' + srcPath);
+      // console.log('check dependencies of ' + pack.name);
+      //
+      // console.log('ROOT of ' + file.filename + ': ' + root.path);
+      // console.log('ROOT of ' + file.filename + ': ' + root.data);
+    });
+  });
+};
+export const depCheck = async (path: string = process.cwd()) => {
+  depcheck(path, {}, (results) => {
     if (results.missing) {
       let lincdPackages = getLocalLincdModules();
       let missing = Object.keys(results.missing);
@@ -1100,14 +1129,17 @@ export const depCheck = async () => {
       if (missingLincdPackages.length > 0) {
         console.warn(
           chalk.red(
-            '\nThese LINCD packages are imported but they are not listed in package.json:\n- ' +
+            '[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
               missingLincdPackages.join(',\n- '),
           ),
         );
         process.exit(1);
       } else if (missing.length > 0) {
         console.warn(
-          chalk.red('Missing dependencies:\n\t' + missing.join(',\n\t')),
+          chalk.magenta(
+            'Missing dependencies (for now a warning, soon an error):\n\t' +
+              missing.join(',\n\t'),
+          ),
         );
       }
     }
