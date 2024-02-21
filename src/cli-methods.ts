@@ -29,6 +29,7 @@ import {
   findNearestPackageJson,
   findNearestPackageJsonSync,
 } from 'find-nearest-package-json';
+import {GetEnvVars} from 'env-cmd';
 
 export const createApp = async (name, basePath = process.cwd()) => {
   if (!name) {
@@ -1155,6 +1156,70 @@ export const depCheck = async (path: string = process.cwd()) => {
     //   console.warn("Unused dependencies: "+results.missing.join(", "));
     // }
   });
+};
+const ensureEnvironmentLoaded = async () => {
+  if (!process.env.NODE_ENV) {
+    //load env-cmd for development environment
+    let {GetEnvVars} = require('env-cmd');
+    let envCmdrcPath = path.join(process.cwd(), '.env-cmdrc.json');
+    if (!fs.existsSync(envCmdrcPath)) {
+      console.warn(
+        'No .env-cmdrc.json found in this folder. Are you running this command from the root of a LINCD app?',
+      );
+      process.exit();
+    }
+    let vars = await GetEnvVars({
+      envFile: {
+        filePath: envCmdrcPath,
+      },
+    });
+    let environments = Object.keys(vars);
+
+    //if _main is present, load it first
+    if (environments.includes('_main')) {
+      process.env = {...process.env, ...vars._main};
+    }
+    //if --env is passed, load that environment
+    let args = process.argv.splice(2);
+    if (args.includes('--env')) {
+      let envIndex = args.indexOf('--env');
+      let env = args[envIndex + 1];
+      if (environments.includes(env)) {
+        process.env = {...process.env, ...vars[env]};
+      } else {
+        console.warn(
+          'Environment ' +
+            env +
+            ' not found in .env-cmdrc.json. Available environments: ' +
+            environments.join(', '),
+        );
+      }
+    } else {
+      //chose development by default
+      process.env = {...process.env, ...vars.development};
+      console.log('No environment specified, using development');
+    }
+  }
+};
+export const startServer = async (initOnly: boolean = false) => {
+  await ensureEnvironmentLoaded();
+
+  const LincdServer = require('lincd-server/lib/shapes/LincdServer');
+  let lincdConfig = require(path.join(process.cwd(), 'lincd.config'));
+  require(path.join(process.cwd(), 'scripts', 'storage-config'));
+
+  let server = new LincdServer.LincdServer({
+    loadAppComponent: () =>
+      require(path.join(process.cwd(), 'src', 'App')).default,
+    ...lincdConfig,
+  });
+  let args = process.argv.splice(2);
+  //if --initOnly is passed, only initialize the server and don't start it
+  if (args.includes('--initOnly') || initOnly) {
+    return server.initOnly();
+  } else {
+    return server.start();
+  }
 };
 export const createPackage = async (
   name,

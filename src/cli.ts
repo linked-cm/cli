@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import babelRegister from '@babel/register';
+babelRegister({extensions: ['.ts', '.tsx']});
 import {
   addCapacitor,
   buildAll,
@@ -20,6 +22,7 @@ import {
   publishPackage,
   publishUpdated,
   register,
+  startServer,
 } from './cli-methods';
 import {buildMetadata} from './metadata';
 require('require-extensions');
@@ -39,6 +42,16 @@ program
   .argument(
     '<name>',
     'the name of your LINCD app. To use spaces, wrap the name in double quotes.',
+  );
+
+program
+  .command('start')
+  .action(() => {
+    return startServer();
+  })
+  .option('--env', 'The node environment to use. Default is "development"')
+  .description(
+    'Start the LINCD node.js server. Use --initOnly to start the backend without http server',
   );
 
 program
