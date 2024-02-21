@@ -1129,7 +1129,8 @@ export const depCheck = async (path: string = process.cwd()) => {
       if (missingLincdPackages.length > 0) {
         console.warn(
           chalk.red(
-            '[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
+            path +
+              '\n[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
               missingLincdPackages.join(',\n- '),
           ),
         );
@@ -1137,7 +1138,8 @@ export const depCheck = async (path: string = process.cwd()) => {
       } else if (missing.length > 0) {
         console.warn(
           chalk.magenta(
-            'Missing dependencies (for now a warning, soon an error):\n\t' +
+            path +
+              '\nMissing dependencies (for now a warning, soon an error):\n\t' +
               missing.join(',\n\t'),
           ),
         );

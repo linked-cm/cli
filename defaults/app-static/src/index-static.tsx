@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
 import App from './App';
 import {BackendAPIStore} from 'lincd-server/lib/shapes/BackendAPIStore';
-import {Storage} from 'lincd/lib/utils/Storage';
+import {LinkedStorage} from 'lincd/lib/utils/LinkedStorage';
 import {AppContextProvider} from 'lincd-server-utils/lib/components/AppContext';
 
 const root = ReactDOM.createRoot(
@@ -14,7 +14,7 @@ const root = ReactDOM.createRoot(
 //store all quads in a file on the backend named 'main'
 // export const store = new BackendFileStore('main');
 export const store = new BackendAPIStore();
-Storage.setDefaultStore(store);
+LinkedStorage.setDefaultStore(store);
 
 
 root.render(

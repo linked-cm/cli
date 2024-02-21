@@ -142,7 +142,7 @@ export const buildMetadata = async (): Promise<string[]> => {
   }
 
   let packageMetaData = await JSONLDWriter.stringify(
-    app,
+    app as any,
     process.env.NODE_ENV === 'development',
   );
   let metadataFile = path.join(metadataFolder, '_app.json');
