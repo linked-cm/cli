@@ -1185,6 +1185,7 @@ const ensureEnvironmentLoaded = async () => {
       let envIndex = args.indexOf('--env');
       let env = args[envIndex + 1];
       if (environments.includes(env)) {
+        console.log('Environment: ' + env);
         process.env = {...process.env, ...vars[env]};
       } else {
         console.warn(
