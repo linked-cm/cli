@@ -4,6 +4,7 @@ babelRegister({extensions: ['.ts', '.tsx']});
 import {
   addCapacitor,
   buildAll,
+  buildApp,
   buildPackage,
   buildUpdated,
   checkImports,
@@ -167,6 +168,16 @@ program
 program.command('build-metadata').action(() => {
   buildMetadata();
 });
+program
+  .command('build-app')
+  .action(() => {
+    buildApp();
+  })
+  .option('--env', 'The node environment to use. Default is "development"')
+  .description(
+    'Start the LINCD node.js server. Use --initOnly to start the backend without http server',
+  );
+
 program.command('publish-updated').action(() => {
   return publishUpdated();
 });

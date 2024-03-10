@@ -62,7 +62,7 @@
     "@babel/preset-react": "^7.22.5",
     "@babel/preset-typescript": "^7.22.5",
     "@babel/register": "^7.22.5",
-    "chalk": "4.1.2",
+    "chalk": "^4.1.2",
     "lincd": "^0.5.22",
     "lincd-auth": "^0.1.19",
     "lincd-jsonld": "^0.1.21",

@@ -6,8 +6,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import {
   debugInfo,
-  execPromise,
   execp,
+  execPromise,
   getFileImports,
   getLastCommitTime,
   getPackageJSON,
@@ -16,20 +16,17 @@ import {
 } from './utils';
 
 import {statSync} from 'fs';
-
-import postcss from 'postcss';
-import postcssModules from 'postcss-modules';
 import {PackageDetails} from 'interfaces';
+import {findNearestPackageJson} from 'find-nearest-package-json';
+import {GetEnvVars} from 'env-cmd';
+// const config = require('lincd-server/site.webpack.config');
 
 var glob = require('glob');
 var variables = {};
 var open = require('open');
 var stagedGitFiles = require('staged-git-files');
-import {
-  findNearestPackageJson,
-  findNearestPackageJsonSync,
-} from 'find-nearest-package-json';
-import {GetEnvVars} from 'env-cmd';
+
+const webpack = require('webpack');
 
 export const createApp = async (name, basePath = process.cwd()) => {
   if (!name) {
@@ -1157,7 +1154,7 @@ export const depCheck = async (path: string = process.cwd()) => {
     // }
   });
 };
-const ensureEnvironmentLoaded = async () => {
+export const ensureEnvironmentLoaded = async () => {
   if (!process.env.NODE_ENV) {
     //load env-cmd for development environment
     let {GetEnvVars} = require('env-cmd');
@@ -1221,6 +1218,52 @@ export const startServer = async (initOnly: boolean = false) => {
   } else {
     return server.start();
   }
+};
+export const buildApp = async () => {
+  await ensureEnvironmentLoaded();
+  const webpackAppConfig = require('./config-webpack-app').webpackAppConfig;
+
+  console.log(chalk.magenta(`Building ${process.env.NODE_ENV} app bundles`));
+  return new Promise((resolve, reject) => {
+    webpack(webpackAppConfig, async (err, stats) => {
+      if (err) {
+        console.error(err.stack || err);
+        if (err.details) {
+          console.error(err.details);
+        }
+        process.exit(1);
+      }
+      const info = stats.toJson();
+      if (stats.hasErrors()) {
+        console.log('Finished running webpack with errors.');
+        info.errors.forEach((e) => console.error(e));
+        // process.exit(1);
+        reject();
+      } else {
+        console.log(
+          stats.toString({
+            chunks: false,
+            assets: true,
+            entryPoints: false,
+            modules: false,
+            moduleAssets: false,
+            moduleChunks: false,
+            colors: true,
+          }),
+        );
+        console.log('App build process finished');
+        resolve(true);
+        // console.log(
+        // 	chalk.green('\t'+Object.keys(stats.compilation.assets).join('\n\t')),
+        // );
+
+        //build metadata (JSON-LD files containing metadata about the lincd components, shapes & ontologies in this app or its packages)
+        // let updatedPaths = await buildMetadata();
+        // console.log(chalk.green("Updated metadata:\n")+" - "+updatedPaths.map(p => chalk.magenta(p.replace(process.cwd(),''))).join("\n - "));
+      }
+      // process.exit();
+    });
+  });
 };
 export const createPackage = async (
   name,
