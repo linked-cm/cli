@@ -23,13 +23,13 @@ export var ns = createNameSpace('${uri_base}');
 export var _self: NamedNode = ns('');
 
 //A list of all the entities (Classes & Properties) of this ontology, each exported as a NamedNode
-export var ExampleClass: NamedNode = ns('ExampleClass');
-export var exampleProperty: NamedNode = ns('exampleProperty');
+// export var ExampleClass: NamedNode = ns('ExampleClass');
+// export var exampleProperty: NamedNode = ns('exampleProperty');
 
 //An extra grouping object so all the entities can be accessed from the prefix/name
 export const ${camel_name} = {
-  ExampleClass,
-  exampleProperty,
+  // ExampleClass,
+  // exampleProperty,
 };
 
 //Registers this ontology to LINCD.JS, so that data loading can be automated amongst other things

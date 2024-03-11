@@ -1270,14 +1270,19 @@ export const createPackage = async (
   uriBase?,
   basePath = process.cwd(),
 ) => {
+  if (!name) {
+    console.warn('Please provide a name as the first argument');
+    return;
+  }
+
   //if ran with npx, basePath will be the root directory of the repository, even if we're executing from a sub folder (the root directory is where node_modules lives and package.json with workspaces)
   //so we manually find a packages folder, if it exists we go into that.
   if (fs.existsSync(path.join(basePath, 'packages'))) {
     basePath = path.join(basePath, 'packages');
   }
-  if (!name) {
-    console.warn('Please provide a name as the first argument');
-    return;
+  //for lincd.org currently packages are stored in the modules folder
+  else if (fs.existsSync(path.join(basePath, 'modules'))) {
+    basePath = path.join(basePath, 'modules');
   }
 
   //let's remove scope for variable names
@@ -1317,7 +1322,6 @@ export const createPackage = async (
       'package.json',
       'Gruntfile.js',
       'src/package.ts',
-      'src/shapes/ExampleShapeClass.ts',
       'src/ontologies/example-ontology.ts',
       'src/data/example-ontology.json',
     ]
