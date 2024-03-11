@@ -358,63 +358,26 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
     '@lodder/grunt-postcss',
   ].forEach((taskName) => {
     debug(config, 'loading grunt task ' + taskName);
-    let localPath = path.resolve(
-      __dirname,
-      '..',
-      'node_modules',
-      taskName,
-      'tasks',
-    );
-    let localPath2 = path.resolve(
-      __dirname,
-      '..',
-      '..',
-      'node_modules',
-      taskName,
-      'tasks',
-    );
-    let workspacePath = path.resolve(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      'node_modules',
-      taskName,
-      'tasks',
-    );
-    let nestedWorkspacePath = path.resolve(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      '..',
-      'node_modules',
-      taskName,
-      'tasks',
-    );
-    if (fs.existsSync(localPath)) {
-      // grunt.loadNpmTasks(taskName);
-      debug('Loading from ' + localPath);
-      grunt.task.loadTasks(localPath);
-    } else if (fs.existsSync(localPath2)) {
-      // grunt.loadNpmTasks(taskName);
-      debug('Loading from ' + localPath2);
-      grunt.task.loadTasks(localPath2);
-    } else if (fs.existsSync(workspacePath)) {
-      //windows, so it seems
-      debug('Loading from ' + workspacePath);
-      grunt.task.loadTasks(workspacePath);
-    } else if (fs.existsSync(nestedWorkspacePath)) {
-      //mac / linux
-      debug('Loading from ' + nestedWorkspacePath);
-      grunt.task.loadTasks(nestedWorkspacePath);
-    } else {
-      warn(`Could not load grunt task module ${taskName}
-Could not find task at any of these paths:
-${localPath}
-${localPath2}
-${workspacePath}
-${nestedWorkspacePath}`);
+    let loaded = false;
+    for (let i = 1; i <= 6; i++) {
+      let subDirs = Array(i).fill('..');
+      let localPath = path.resolve(
+        __dirname,
+        ...subDirs,
+        'node_modules',
+        taskName,
+        'tasks',
+      );
+      if (fs.existsSync(localPath)) {
+        debug('Loading from ' + localPath);
+        grunt.task.loadTasks(localPath);
+        loaded = true;
+      }
+    }
+    if (!loaded) {
+      warn(
+        `Could not load grunt task module ${taskName}. Tip: Make sure there is only one lincd-cli version used across the workspace.`,
+      );
     }
   });
 }

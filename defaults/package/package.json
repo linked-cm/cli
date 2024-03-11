@@ -33,6 +33,6 @@
     "lincd-jsonld": "^0.1"
   },
   "devDependencies": {
-    "lincd-cli": "^0.2"
+    "lincd-cli": "^1.0"
   }
 }
