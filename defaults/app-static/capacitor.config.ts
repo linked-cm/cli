@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'FILL_IN_YOUR_OWN',
   webDir: 'web',
   server: {
-    allowNavigation: ['yourdomain.com', 'sub.yourdomain.com'],
+    allowNavigation: ['yourdomain.com','sub.yourdomain.com'],
   },
   bundledWebRuntime: false,
   //Add or remove plugins that you need. Here is a starter list
@@ -13,34 +13,26 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    // FirebaseAuthentication: {
+    //   skipNativeAuth: false,
+    //   providers: ['apple.com'],
+    // },
     // FirebaseMessaging: {
     //   presentationOptions: ['badge', 'sound', 'alert'],
     // },
     // GoogleAuth: {
-    //   scopes: ['profile', 'email'],
-    //   //self created production web client
-    //   clientId: '...',
-    //   //For these lines use the auto generated web client "Web client  (auto created by Google Service)"
-    //   serverClientId: '....',
-    //   androidClientId: '...',
-    //   iosClientId: '...',
+    //   scopes: ['profile','email'],
+    //   clientId: '',
+    //   androidClientId:'',
+    //   iosClientId: '',
     //   forceCodeForRefreshToken: true,
     // },
-    // SplashScreen: {
-    //   launchShowDuration: 400,
-    //   launchAutoHide: true,
-    //   backgroundColor: '#F7E5FF',
-    //   androidSplashResourceName: 'splash',
-    //   showSpinner: false,
-    //   splashFullScreen: true,
-    //   splashImmersive: true,
-    //   // launchFadeOutDuration: 500,
-    //   // androidScaleType: 'CENTER',
-    //   // androidSpinnerStyle: 'large',
-    //   // iosSpinnerStyle: 'small',
-    //   // spinnerColor: '#999999',
-    //   // layoutName: 'launch_screen',
-    //   // useDialog: true,
+    // CapacitorUpdater: {
+    //   autoUpdate: true,
+    ////Make sure this version matches with the version in package.json when you do a new release to app store/play store
+    //   version: '0.1.0',
+    //   resetWhenUpdate: false,
+    //   privateKey:'',
     // },
   },
 };

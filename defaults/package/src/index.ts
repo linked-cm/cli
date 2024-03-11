@@ -1,7 +1,7 @@
 import './ontologies/${hyphen_name}';
 
 //SHAPES FIRST
-import './shapes/ExampleShapeClass';
+// import './shapes/YourShape';
 
 //THEN COMPONENTS
-import './components/ExampleComponent';
+// import './components/YourComponent';

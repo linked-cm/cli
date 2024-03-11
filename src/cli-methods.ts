@@ -6,8 +6,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import {
   debugInfo,
-  execPromise,
   execp,
+  execPromise,
   getFileImports,
   getLastCommitTime,
   getPackageJSON,
@@ -16,20 +16,17 @@ import {
 } from './utils';
 
 import {statSync} from 'fs';
-
-import postcss from 'postcss';
-import postcssModules from 'postcss-modules';
 import {PackageDetails} from 'interfaces';
+import {findNearestPackageJson} from 'find-nearest-package-json';
+import {GetEnvVars} from 'env-cmd';
+// const config = require('lincd-server/site.webpack.config');
 
 var glob = require('glob');
 var variables = {};
 var open = require('open');
 var stagedGitFiles = require('staged-git-files');
-import {
-  findNearestPackageJson,
-  findNearestPackageJsonSync,
-} from 'find-nearest-package-json';
-import {GetEnvVars} from 'env-cmd';
+
+const webpack = require('webpack');
 
 export const createApp = async (name, basePath = process.cwd()) => {
   if (!name) {
@@ -1157,7 +1154,7 @@ export const depCheck = async (path: string = process.cwd()) => {
     // }
   });
 };
-const ensureEnvironmentLoaded = async () => {
+export const ensureEnvironmentLoaded = async () => {
   if (!process.env.NODE_ENV) {
     //load env-cmd for development environment
     let {GetEnvVars} = require('env-cmd');
@@ -1222,19 +1219,70 @@ export const startServer = async (initOnly: boolean = false) => {
     return server.start();
   }
 };
+export const buildApp = async () => {
+  await ensureEnvironmentLoaded();
+  const webpackAppConfig = require('./config-webpack-app').webpackAppConfig;
+
+  console.log(chalk.magenta(`Building ${process.env.NODE_ENV} app bundles`));
+  return new Promise((resolve, reject) => {
+    webpack(webpackAppConfig, async (err, stats) => {
+      if (err) {
+        console.error(err.stack || err);
+        if (err.details) {
+          console.error(err.details);
+        }
+        process.exit(1);
+      }
+      const info = stats.toJson();
+      if (stats.hasErrors()) {
+        console.log('Finished running webpack with errors.');
+        info.errors.forEach((e) => console.error(e));
+        // process.exit(1);
+        reject();
+      } else {
+        console.log(
+          stats.toString({
+            chunks: false,
+            assets: true,
+            entryPoints: false,
+            modules: false,
+            moduleAssets: false,
+            moduleChunks: false,
+            colors: true,
+          }),
+        );
+        console.log('App build process finished');
+        resolve(true);
+        // console.log(
+        // 	chalk.green('\t'+Object.keys(stats.compilation.assets).join('\n\t')),
+        // );
+
+        //build metadata (JSON-LD files containing metadata about the lincd components, shapes & ontologies in this app or its packages)
+        // let updatedPaths = await buildMetadata();
+        // console.log(chalk.green("Updated metadata:\n")+" - "+updatedPaths.map(p => chalk.magenta(p.replace(process.cwd(),''))).join("\n - "));
+      }
+      // process.exit();
+    });
+  });
+};
 export const createPackage = async (
   name,
   uriBase?,
   basePath = process.cwd(),
 ) => {
+  if (!name) {
+    console.warn('Please provide a name as the first argument');
+    return;
+  }
+
   //if ran with npx, basePath will be the root directory of the repository, even if we're executing from a sub folder (the root directory is where node_modules lives and package.json with workspaces)
   //so we manually find a packages folder, if it exists we go into that.
   if (fs.existsSync(path.join(basePath, 'packages'))) {
     basePath = path.join(basePath, 'packages');
   }
-  if (!name) {
-    console.warn('Please provide a name as the first argument');
-    return;
+  //for lincd.org currently packages are stored in the modules folder
+  else if (fs.existsSync(path.join(basePath, 'modules'))) {
+    basePath = path.join(basePath, 'modules');
   }
 
   //let's remove scope for variable names
@@ -1274,7 +1322,6 @@ export const createPackage = async (
       'package.json',
       'Gruntfile.js',
       'src/package.ts',
-      'src/shapes/ExampleShapeClass.ts',
       'src/ontologies/example-ontology.ts',
       'src/data/example-ontology.json',
     ]

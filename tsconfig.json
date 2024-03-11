@@ -3,8 +3,9 @@
     "module": "commonjs",
     "newLine": "lf",
     "esModuleInterop": true,
-    "target": "es6",
+    "target": "es2018",
     "baseUrl": "./src",
+    "sourceMap": true,
     "downlevelIteration": true,
     "outDir": "./lib",
     "paths": {

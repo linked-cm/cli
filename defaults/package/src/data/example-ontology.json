@@ -6,15 +6,5 @@
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     "${hyphen_name}": "${uri_base}"
   },
-  "@graph": [
-    {
-      "@id": "${hyphen_name}:ExampleClass",
-      "@type": "rdfs:Class",
-      "rdfs:comment": "This is an example class. You can remove or rename it",
-      "rdfs:isDefinedBy": {
-        "@id": "${hyphen_name}:"
-      },
-      "rdfs:label": "Example Class"
-    }
-  ]
+  "@graph": []
 }

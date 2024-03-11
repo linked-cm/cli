@@ -7,15 +7,12 @@ import {LinkedStorage} from 'lincd/lib/utils/LinkedStorage';
 import {AppContextProvider} from 'lincd-server-utils/lib/components/AppContext';
 
 const root = ReactDOM.createRoot(
-  // document
-  // document.body
   document.getElementById('root') as HTMLElement
 );
-//store all quads in a file on the backend named 'main'
-// export const store = new BackendFileStore('main');
+//a BackendAPIStore is the default setup
+//it forwards all storage requests to a backend server
 export const store = new BackendAPIStore();
 LinkedStorage.setDefaultStore(store);
-
 
 root.render(
   <React.StrictMode>
