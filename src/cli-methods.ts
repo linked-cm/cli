@@ -21,7 +21,7 @@ import {findNearestPackageJson} from 'find-nearest-package-json';
 import {GetEnvVars} from 'env-cmd';
 // const config = require('lincd-server/site.webpack.config');
 
-var glob = require('glob');
+var {glob} = require('glob');
 var variables = {};
 var open = require('open');
 var stagedGitFiles = require('staged-git-files');

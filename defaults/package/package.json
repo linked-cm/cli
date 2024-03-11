@@ -29,7 +29,7 @@
     "web3"
   ],
   "dependencies": {
-    "lincd": "^0.5",
+    "lincd": "^1.0",
     "lincd-jsonld": "^0.1"
   },
   "devDependencies": {

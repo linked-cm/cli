@@ -75,7 +75,7 @@
     "grunt-ts": "^6.0.0-beta.22",
     "grunt-webpack": "^6.0.0",
     "license-info-webpack-plugin": "^3.0.0",
-    "lincd": "^0.6",
+    "lincd": "^1.0",
     "lincd-jsonld": "^0.1.22",
     "lincd-modules": "^0.1",
     "load-grunt-tasks": "^5.1.0",
