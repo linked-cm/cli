@@ -37,20 +37,20 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
   if (targetES5) targets.push('es5');
   if (targetES6) targets.push('es6');
 
-  var targetLog = 'building ' + targets.join(', ');
-  if (buildServer && !buildFrontend) {
-    log(targetLog + ' lib only');
-  } else if (!buildServer && buildFrontend) {
-    log(targetLog + ' dist bundles only');
-  } else if (buildServer && buildFrontend) {
-    if (config.es5Server) {
-      log(targetLog + ' lib files & dist bundles');
-    } else {
-      log(targetLog + ' dist bundles and es6 lib files');
-    }
-  } else {
-    log('invalid configuration combination');
-  }
+  // var targetLog = 'building ' + targets.join(', ');
+  // if (buildServer && !buildFrontend) {
+  //   log(targetLog + ' lib only');
+  // } else if (!buildServer && buildFrontend) {
+  //   log(targetLog + ' dist bundles only');
+  // } else if (buildServer && buildFrontend) {
+  //   if (config.es5Server) {
+  //     log(targetLog + ' lib files & dist bundles');
+  //   } else {
+  //     log(targetLog + ' dist bundles and es6 lib files');
+  //   }
+  // } else {
+  //   log('invalid configuration combination');
+  // }
   require('load-grunt-tasks')(grunt);
 
   //defaults
@@ -179,7 +179,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
           {
             expand: true,
             src: ['**/*.json', '**/*.d.ts', '**/*.scss', '**/*.css'],
-            dest: 'lib/',
+            dest: config.outputPath || 'lib/',
             cwd: 'src/',
             filter: 'isFile',
           },

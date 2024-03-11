@@ -9,7 +9,7 @@
     "postinstall": "husky install",
     "prepack": "npm exec tsc && pinst --disable && yarn version patch",
     "postpack": "pinst --enable",
-    "dev": "npm exec tsc -w",
+    "dev": "npm exec tsc -- -w",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
     "format": "yarn prettier:fix && yarn lint:fix"
