@@ -1199,19 +1199,26 @@ export const ensureEnvironmentLoaded = async () => {
     }
   }
 };
-export const startServer = async (initOnly: boolean = false) => {
+export const startServer = async (
+  initOnly: boolean = false,
+  ServerClass = null,
+) => {
   await ensureEnvironmentLoaded();
 
-  const LincdServer = require('lincd-server/lib/shapes/LincdServer');
   let lincdConfig = require(path.join(process.cwd(), 'lincd.config'));
+
+  if (!ServerClass) {
+    ServerClass = require('lincd-server/lib/shapes/LincdServer').LincdServer;
+  }
   require(path.join(process.cwd(), 'scripts', 'storage-config'));
 
-  let server = new LincdServer.LincdServer({
+  let server = new ServerClass({
     loadAppComponent: () =>
       require(path.join(process.cwd(), 'src', 'App')).default,
     ...lincdConfig,
   });
-  let args = process.argv.splice(2);
+  //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
+  let args = process.argv.slice(2);
   //if --initOnly is passed, only initialize the server and don't start it
   if (args.includes('--initOnly') || initOnly) {
     return server.initOnly();
@@ -1263,6 +1270,10 @@ export const buildApp = async () => {
       }
       // process.exit();
     });
+  }).then(() => {
+    //load the storage config.
+    //check if LincdFileStorage has a default FileStore
+    //if yes: copy all the files in the build folder over with LincdFileStorage
   });
 };
 export const createPackage = async (
