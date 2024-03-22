@@ -9,6 +9,7 @@ import {
   execp,
   execPromise,
   getFileImports,
+  getFiles,
   getLastCommitTime,
   getPackageJSON,
   isValidLINCDImport,
@@ -19,6 +20,7 @@ import {statSync} from 'fs';
 import {PackageDetails} from 'interfaces';
 import {findNearestPackageJson} from 'find-nearest-package-json';
 import {GetEnvVars} from 'env-cmd';
+import {LinkedFileStorage} from 'lincd/lib/utils/LinkedFileStorage';
 // const config = require('lincd-server/site.webpack.config');
 
 var glob = require('glob');
@@ -1270,12 +1272,50 @@ export const buildApp = async () => {
       }
       // process.exit();
     });
-  }).then(() => {
-    //load the storage config.
-    //check if LincdFileStorage has a default FileStore
-    //if yes: copy all the files in the build folder over with LincdFileStorage
+  }).then(async () => {
+    // make sure environment is not development for storage config
+    if (process.env.NODE_ENV === 'development') {
+      return;
+    }
+
+    // load the storage config
+    const storageConfig = require(
+      path.join(process.cwd(), 'scripts', 'storage-config.js'),
+    );
+
+    // check if LincdFileStorage has a default FileStore
+    // if yes: copy all the files in the build folder over with LincdFileStorage
+    if (LinkedFileStorage.getDefaultStore()) {
+      // get web directory
+      const rootDirectory = 'web';
+      const webPath = path.join(process.cwd(), rootDirectory);
+      if (!fs.existsSync(webPath)) {
+        console.warn(
+          'No web directory found. Please create a web directory in the root of your project',
+        );
+        return;
+      }
+
+      // get all files in the web directory and then upload them to the storage
+      const files = await getFiles(webPath);
+      const uploads = files.map(async (filePath) => {
+        // read file content
+        const fileContent = await fs.promises.readFile(filePath);
+
+        // replace webPath with rootDirectory in filePath to get pathname
+        // example: /Users/username/project/www/index.html -> /project/www/index.html
+        const pathname = filePath.replace(webPath, `/${rootDirectory}`);
+
+        // upload file to storage
+        return await LinkedFileStorage.saveFile(pathname, fileContent);
+      });
+
+      const urls = await Promise.all(uploads);
+      console.log(`${urls.length} files uploaded to storage`);
+    }
   });
 };
+
 export const createPackage = async (
   name,
   uriBase?,

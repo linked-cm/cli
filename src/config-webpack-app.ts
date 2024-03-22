@@ -238,8 +238,8 @@ export const webpackAppConfig = {
       process.cwd(),
       process.env.OUTPUT_PATH ||
         (process.env.SOURCE_PATH
-          ? process.env.SOURCE_PATH + '/../build'
-          : './build'),
+          ? process.env.SOURCE_PATH + '/../web/assets'
+          : './web/assets'),
     ),
     filename: '[name].bundle.js',
     publicPath: ASSET_PATH,
