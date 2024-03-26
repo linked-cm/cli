@@ -1275,7 +1275,8 @@ export const buildApp = async () => {
   }).then(async () => {
     // make sure environment is not development for storage config
     if (process.env.NODE_ENV === 'development') {
-      return;
+      console.warn('Upload build to storage skip in development environment');
+      process.exit();
     }
 
     // load the storage config
@@ -1312,6 +1313,7 @@ export const buildApp = async () => {
 
       const urls = await Promise.all(uploads);
       console.log(`${urls.length} files uploaded to storage`);
+      process.exit();
     }
   });
 };
