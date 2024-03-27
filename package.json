@@ -105,9 +105,11 @@
     "webpack-license-plugin": "^4.4.2"
   },
   "devDependencies": {
+    "@types/postcss-url": "^10.0.4",
     "husky": "^9.0.11",
     "optimize-css-assets-webpack-plugin": "^6.0.1",
     "pinst": "^3.0.0",
+    "postcss-url": "^10.1.3",
     "prettier": "^3.2.5"
   },
   "peerDepencencies": {}

@@ -12,6 +12,7 @@ import {getLINCDDependencies, getLinkedTailwindColors} from './utils';
 
 import tailwindPlugin from 'tailwindcss/plugin';
 import {LinkedFileStorage} from 'lincd/lib/utils/LinkedFileStorage';
+import postcssUrl from 'postcss-url';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -25,7 +26,8 @@ const accessURL = LinkedFileStorage.accessURL;
 
 // TODO: Can be overwritten by environment variables process.env.ASSET_PATH?
 // TODO: Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
-const bundlesPath = '/public/bundles/';
+const publicPath = '/public';
+const bundlesPath = publicPath + '/bundles/';
 const ASSET_PATH = accessURL ? accessURL + bundlesPath : bundlesPath;
 
 const lincdConfigPath = path.resolve(process.cwd(), 'lincd.config.js');
@@ -130,7 +132,16 @@ function generateScopedName(name, filename, css) {
 //   return this.package.name.replace(/\-/g,"_") + '_' + file + '_' + name;
 // }
 
-let postcssPlugins = [];
+let postcssPlugins = [
+  postcssUrl({
+    url: (asset) => {
+      if (isDevelopment) {
+        return `${publicPath}${asset.url}`;
+      }
+      return `${accessURL}${publicPath}${asset.url}`;
+    },
+  }),
+];
 if (
   config.cssMode === 'scss-modules' ||
   config.cssMode === 'scss' ||
