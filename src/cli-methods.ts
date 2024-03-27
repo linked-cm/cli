@@ -1281,31 +1281,31 @@ export const buildApp = async () => {
 
     // load the storage config
     const storageConfig = require(
-      path.join(process.cwd(), 'scripts', 'storage-config.js'),
+      path.join(process.cwd(), 'scripts', 'storage-config'),
     );
 
     // check if LincdFileStorage has a default FileStore
     // if yes: copy all the files in the build folder over with LincdFileStorage
     if (LinkedFileStorage.getDefaultStore()) {
-      // get web directory
-      const rootDirectory = 'web';
-      const webPath = path.join(process.cwd(), rootDirectory);
-      if (!fs.existsSync(webPath)) {
+      // get public directory
+      const rootDirectory = 'public';
+      const pathDir = path.join(process.cwd(), rootDirectory);
+      if (!fs.existsSync(pathDir)) {
         console.warn(
-          'No web directory found. Please create a web directory in the root of your project',
+          'No public directory found. Please create a public directory in the root of your project',
         );
         return;
       }
 
       // get all files in the web directory and then upload them to the storage
-      const files = await getFiles(webPath);
+      const files = await getFiles(pathDir);
       const uploads = files.map(async (filePath) => {
         // read file content
         const fileContent = await fs.promises.readFile(filePath);
 
-        // replace webPath with rootDirectory in filePath to get pathname
+        // replace pathDir with rootDirectory in filePath to get pathname
         // example: /Users/username/project/www/index.html -> /project/www/index.html
-        const pathname = filePath.replace(webPath, `/${rootDirectory}`);
+        const pathname = filePath.replace(pathDir, `/${rootDirectory}`);
 
         // upload file to storage
         return await LinkedFileStorage.saveFile(pathname, fileContent);
@@ -2084,7 +2084,7 @@ export var addCapacitor = async function (basePath = process.cwd()) {
 
   envCmd['app-main'] = {
     APP_ENV: true,
-    OUTPUT_PATH: './web/assets',
+    OUTPUT_PATH: './public/assets',
     ASSET_PATH: './assets/',
     ENTRY_PATH: './src/index-static.tsx',
   };

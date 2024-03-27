@@ -11,6 +11,7 @@ import {findNearestPackageJsonSync} from 'find-nearest-package-json';
 import {getLINCDDependencies, getLinkedTailwindColors} from './utils';
 
 import tailwindPlugin from 'tailwindcss/plugin';
+import {LinkedFileStorage} from 'lincd/lib/utils/LinkedFileStorage';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -18,9 +19,15 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
 
-// Can be overwritten by environment variables
-// Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
-const ASSET_PATH = process.env.ASSET_PATH || '/js/';
+// get from the project's config-frontend file
+require(path.join(process.cwd(), 'src', 'config-frontend'));
+const accessURL = LinkedFileStorage.accessURL;
+
+// TODO: Can be overwritten by environment variables process.env.ASSET_PATH?
+// TODO: Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
+const bundlesPath = '/public/bundles/';
+const ASSET_PATH = accessURL ? accessURL + bundlesPath : bundlesPath;
+
 const lincdConfigPath = path.resolve(process.cwd(), 'lincd.config.js');
 const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
 
@@ -238,8 +245,8 @@ export const webpackAppConfig = {
       process.cwd(),
       process.env.OUTPUT_PATH ||
         (process.env.SOURCE_PATH
-          ? process.env.SOURCE_PATH + '/../web/assets'
-          : './web/assets'),
+          ? process.env.SOURCE_PATH + '/../public/bundles'
+          : './public/bundles'),
     ),
     filename: '[name].bundle.js',
     publicPath: ASSET_PATH,
