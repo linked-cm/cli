@@ -21,7 +21,7 @@ const packageJson = JSON.parse(
 );
 
 // get from the project's config-frontend file
-require(path.join(process.cwd(), 'src', 'config-frontend'));
+require(path.join(process.cwd(), 'scripts', 'storage-config'));
 const accessURL = LinkedFileStorage.accessURL;
 
 // TODO: Can be overwritten by environment variables process.env.ASSET_PATH?
