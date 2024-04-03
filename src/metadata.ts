@@ -1,12 +1,12 @@
-import {NamedNode} from 'lincd/lib/models';
+import {NamedNode} from 'lincd/models';
 import {GetEnvVars} from 'env-cmd';
 import path from 'path';
 import fs from 'fs-extra';
-import {createNameSpace} from 'lincd/lib/utils/NameSpace';
-import {Prefix} from 'lincd/lib/utils/Prefix';
-import {JSONLDWriter} from 'lincd-jsonld/lib/utils/JSONLDWriter';
+import {createNameSpace} from 'lincd/utils/NameSpace';
+import {Prefix} from 'lincd/utils/Prefix';
 import {getPackageJSON} from './utils';
 import {warn} from './cli-methods';
+import {JSONLDWriter} from 'lincd-jsonld/lib/utils/JSONLDWriter';
 
 function getLocalPackagePaths() {
   let packagePaths = [];

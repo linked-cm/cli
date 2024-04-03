@@ -1,6 +1,6 @@
-import {NamedNode} from 'lincd/lib/models';
+import {NamedNode} from 'lincd/models';
 import {JSONLD} from 'lincd-jsonld/lib/utils/JSONLD';
-import {createNameSpace} from 'lincd/lib/utils/NameSpace';
+import {createNameSpace} from 'lincd/utils/NameSpace';
 import {linkedOntology} from '../package';
 //import all the exports of this file as one variable called _this (we need this at the end)
 import * as _this from './${hyphen_name}';

@@ -135,7 +135,7 @@ var externaliseModules = function (config, es5) {
       return callback();
     }
 
-    //remove export root path (for example with lincd/lib/models: the module has lib/ as root, so to get to the exported path lincd.models we need to remove it)
+    //remove export root path (for example with lincd/models: the module has lib/ as root, so to get to the exported path lincd.models we need to remove it)
     let cleanRequest = request.replace(exportRoot, '');
 
     let targetVariable;

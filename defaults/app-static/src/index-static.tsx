@@ -3,11 +3,11 @@ import ReactDOM from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
 import App from './App';
 import {BackendAPIStore} from 'lincd-server/lib/shapes/BackendAPIStore';
-import {LinkedStorage} from 'lincd/lib/utils/LinkedStorage';
+import {LinkedStorage} from 'lincd/utils/LinkedStorage';
 import {AppContextProvider} from 'lincd-server-utils/lib/components/AppContext';
 
 const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
+  document.getElementById('root') as HTMLElement,
 );
 //a BackendAPIStore is the default setup
 //it forwards all storage requests to a backend server
@@ -21,5 +21,5 @@ root.render(
         <App />
       </AppContextProvider>
     </BrowserRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

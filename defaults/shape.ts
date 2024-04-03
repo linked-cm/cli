@@ -1,5 +1,5 @@
-import {Shape} from 'lincd/lib/shapes/Shape';
-import {NamedNode} from 'lincd/lib/models';
+import {Shape} from 'lincd/shapes/Shape';
+import {NamedNode} from 'lincd/models';
 import {linkedShape} from '../package';
 
 @linkedShape

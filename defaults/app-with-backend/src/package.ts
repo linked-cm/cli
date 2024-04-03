@@ -1,4 +1,4 @@
-import {linkedPackage} from 'lincd/lib/utils/Module';
+import { linkedPackage } from 'lincd/utils/Package';
 
 export const {
   linkedComponent,

@@ -25,7 +25,7 @@ import {
   register,
   startServer,
 } from './cli-methods';
-import {buildMetadata} from './metadata';
+// import {buildMetadata} from './metadata';
 require('require-extensions');
 
 var program = require('commander');
@@ -166,7 +166,8 @@ program
   });
 
 program.command('build-metadata').action(() => {
-  buildMetadata();
+  console.log('Needs to be reimplemented');
+  // buildMetadata();
 });
 program
   .command('build-app')
