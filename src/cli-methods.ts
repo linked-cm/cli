@@ -9,6 +9,7 @@ import {
   execp,
   execPromise,
   getFileImports,
+  getFiles,
   getLastCommitTime,
   getPackageJSON,
   isValidLINCDImport,
@@ -19,6 +20,7 @@ import {statSync} from 'fs';
 import {PackageDetails} from 'interfaces';
 import {findNearestPackageJson} from 'find-nearest-package-json';
 import {GetEnvVars} from 'env-cmd';
+import {LinkedFileStorage} from 'lincd/lib/utils/LinkedFileStorage';
 // const config = require('lincd-server/site.webpack.config');
 
 var glob = require('glob');
@@ -1199,19 +1201,26 @@ export const ensureEnvironmentLoaded = async () => {
     }
   }
 };
-export const startServer = async (initOnly: boolean = false) => {
+export const startServer = async (
+  initOnly: boolean = false,
+  ServerClass = null,
+) => {
   await ensureEnvironmentLoaded();
 
-  const LincdServer = require('lincd-server/lib/shapes/LincdServer');
   let lincdConfig = require(path.join(process.cwd(), 'lincd.config'));
+
+  if (!ServerClass) {
+    ServerClass = require('lincd-server/lib/shapes/LincdServer').LincdServer;
+  }
   require(path.join(process.cwd(), 'scripts', 'storage-config'));
 
-  let server = new LincdServer.LincdServer({
+  let server = new ServerClass({
     loadAppComponent: () =>
       require(path.join(process.cwd(), 'src', 'App')).default,
     ...lincdConfig,
   });
-  let args = process.argv.splice(2);
+  //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
+  let args = process.argv.slice(2);
   //if --initOnly is passed, only initialize the server and don't start it
   if (args.includes('--initOnly') || initOnly) {
     return server.initOnly();
@@ -1263,8 +1272,52 @@ export const buildApp = async () => {
       }
       // process.exit();
     });
+  }).then(async () => {
+    // make sure environment is not development for storage config
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Upload build to storage skip in development environment');
+      process.exit();
+    }
+
+    // load the storage config
+    const storageConfig = require(
+      path.join(process.cwd(), 'scripts', 'storage-config'),
+    );
+
+    // check if LincdFileStorage has a default FileStore
+    // if yes: copy all the files in the build folder over with LincdFileStorage
+    if (LinkedFileStorage.getDefaultStore()) {
+      // get public directory
+      const rootDirectory = 'public';
+      const pathDir = path.join(process.cwd(), rootDirectory);
+      if (!fs.existsSync(pathDir)) {
+        console.warn(
+          'No public directory found. Please create a public directory in the root of your project',
+        );
+        return;
+      }
+
+      // get all files in the web directory and then upload them to the storage
+      const files = await getFiles(pathDir);
+      const uploads = files.map(async (filePath) => {
+        // read file content
+        const fileContent = await fs.promises.readFile(filePath);
+
+        // replace pathDir with rootDirectory in filePath to get pathname
+        // example: /Users/username/project/www/index.html -> /project/www/index.html
+        const pathname = filePath.replace(pathDir, `/${rootDirectory}`);
+
+        // upload file to storage
+        return await LinkedFileStorage.saveFile(pathname, fileContent);
+      });
+
+      const urls = await Promise.all(uploads);
+      console.log(`${urls.length} files uploaded to storage`);
+      process.exit();
+    }
   });
 };
+
 export const createPackage = async (
   name,
   uriBase?,
@@ -2031,7 +2084,7 @@ export var addCapacitor = async function (basePath = process.cwd()) {
 
   envCmd['app-main'] = {
     APP_ENV: true,
-    OUTPUT_PATH: './web/assets',
+    OUTPUT_PATH: './public/assets',
     ASSET_PATH: './assets/',
     ENTRY_PATH: './src/index-static.tsx',
   };

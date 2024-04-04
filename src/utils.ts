@@ -568,3 +568,20 @@ export function getLinkedTailwindColors() {
     'font-color': 'var(--font-color)',
   };
 }
+
+/**
+ * Recursively get all files in a directory
+ * https://stackoverflow.com/a/45130990/831465
+ * @param dir The directory to get files from
+ * @returns A promise that resolves to an array of file paths
+ */
+export async function getFiles(dir: string): Promise<string[]> {
+  const entries = await fs.promises.readdir(dir, {withFileTypes: true});
+  const files = await Promise.all(
+    entries.map((entry) => {
+      const res = path.resolve(dir, entry.name);
+      return entry.isDirectory() ? getFiles(res) : res;
+    }),
+  );
+  return Array.prototype.concat(...files);
+}
