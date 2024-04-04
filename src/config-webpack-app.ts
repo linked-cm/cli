@@ -11,6 +11,8 @@ import {findNearestPackageJsonSync} from 'find-nearest-package-json';
 import {getLINCDDependencies, getLinkedTailwindColors} from './utils';
 
 import tailwindPlugin from 'tailwindcss/plugin';
+import {LinkedFileStorage} from 'lincd/lib/utils/LinkedFileStorage';
+import postcssUrl from 'postcss-url';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -18,9 +20,16 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
 
-// Can be overwritten by environment variables
-// Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
-const ASSET_PATH = process.env.ASSET_PATH || '/js/';
+// get from the project's config-frontend file
+require(path.join(process.cwd(), 'scripts', 'storage-config'));
+const accessURL = LinkedFileStorage.accessURL;
+
+// TODO: Can be overwritten by environment variables process.env.ASSET_PATH?
+// TODO: Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
+const publicPath = '/public';
+const bundlesPath = publicPath + '/bundles/';
+const ASSET_PATH = accessURL ? accessURL + bundlesPath : bundlesPath;
+
 const lincdConfigPath = path.resolve(process.cwd(), 'lincd.config.js');
 const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
 
@@ -123,7 +132,13 @@ function generateScopedName(name, filename, css) {
 //   return this.package.name.replace(/\-/g,"_") + '_' + file + '_' + name;
 // }
 
-let postcssPlugins = [];
+let postcssPlugins = [
+  postcssUrl({
+    url: (asset) => {
+      return `${accessURL}${publicPath}${asset.url}`;
+    },
+  }),
+];
 if (
   config.cssMode === 'scss-modules' ||
   config.cssMode === 'scss' ||
@@ -236,10 +251,7 @@ export const webpackAppConfig = {
   output: {
     path: path.resolve(
       process.cwd(),
-      process.env.OUTPUT_PATH ||
-        (process.env.SOURCE_PATH
-          ? process.env.SOURCE_PATH + '/../build'
-          : './build'),
+      process.env.OUTPUT_PATH || './public/bundles',
     ),
     filename: '[name].bundle.js',
     publicPath: ASSET_PATH,
