@@ -135,9 +135,6 @@ function generateScopedName(name, filename, css) {
 let postcssPlugins = [
   postcssUrl({
     url: (asset) => {
-      if (isDevelopment) {
-        return `${publicPath}${asset.url}`;
-      }
       return `${accessURL}${publicPath}${asset.url}`;
     },
   }),
@@ -254,10 +251,7 @@ export const webpackAppConfig = {
   output: {
     path: path.resolve(
       process.cwd(),
-      process.env.OUTPUT_PATH ||
-        (process.env.SOURCE_PATH
-          ? process.env.SOURCE_PATH + '/../public/bundles'
-          : './public/bundles'),
+      process.env.OUTPUT_PATH || './public/bundles',
     ),
     filename: '[name].bundle.js',
     publicPath: ASSET_PATH,
