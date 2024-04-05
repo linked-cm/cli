@@ -1183,17 +1183,19 @@ export const ensureEnvironmentLoaded = async () => {
     if (args.includes('--env')) {
       let envIndex = args.indexOf('--env');
       let env = args[envIndex + 1];
-      if (environments.includes(env)) {
-        console.log('Environment: ' + env);
-        process.env = {...process.env, ...vars[env]};
-      } else {
-        console.warn(
-          'Environment ' +
-            env +
-            ' not found in .env-cmdrc.json. Available environments: ' +
-            environments.join(', '),
-        );
-      }
+      env.split(',').forEach((singleEnvironment) => {
+        if (environments.includes(singleEnvironment)) {
+          console.log('Environment: ' + singleEnvironment);
+          process.env = {...process.env, ...vars[singleEnvironment]};
+        } else {
+          console.warn(
+            'Environment ' +
+              singleEnvironment +
+              ' not found in .env-cmdrc.json. Available environments: ' +
+              environments.join(', '),
+          );
+        }
+      });
     } else {
       //chose development by default
       process.env = {...process.env, ...vars.development};
