@@ -20,15 +20,16 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
 
-// get from the project's config-frontend file
+// get from the project's backend config file
 require(path.join(process.cwd(), 'scripts', 'storage-config'));
 const accessURL = LinkedFileStorage.accessURL;
 
-// TODO: Can be overwritten by environment variables process.env.ASSET_PATH?
-// TODO: Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
+// Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
 const publicPath = '/public';
 const bundlesPath = publicPath + '/bundles/';
-const ASSET_PATH = accessURL ? accessURL + bundlesPath : bundlesPath;
+// ASSET_PATH mostly used for the apps to load the assets from the correct path
+const ASSET_PATH =
+  process.env.ASSET_PATH || accessURL ? accessURL + bundlesPath : bundlesPath;
 
 const lincdConfigPath = path.resolve(process.cwd(), 'lincd.config.js');
 const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
