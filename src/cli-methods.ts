@@ -1281,6 +1281,10 @@ export const buildApp = async () => {
       process.exit();
     }
 
+    if(process.env.APP_ENV) {
+      console.warn('Not uploading to CDN for app builds');
+      process.exit();
+    }
     // load the storage config
     const storageConfig = require(
       path.join(process.cwd(), 'scripts', 'storage-config'),
