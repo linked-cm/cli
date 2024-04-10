@@ -3,16 +3,13 @@ import { hydrateRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import React from 'react';
-import { LinkedStorage } from 'lincd/lib/utils/LinkedStorage';
-import { BackendAPIStore } from 'lincd-server/lib/shapes/BackendAPIStore';
 import { AppContextProvider } from 'lincd-server-utils/lib/components/AppContext';
+
+//import the storage & file configuration for the frontend
+import './config-frontend';
 
 window['$RefreshReg$'] = () => {};
 window['$RefreshSig$'] = () => () => {};
-
-//forward all storage requests to the backend
-export const store = new BackendAPIStore();
-LinkedStorage.setDefaultStore(store);
 
 initFrontend().then(() => {
   hydrateRoot(
