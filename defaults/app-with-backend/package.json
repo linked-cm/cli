@@ -87,5 +87,6 @@
     "pinst": "^3.0.0",
     "pm2": "^5.3.0",
     "which": "^3.0.1"
-  }
+  },
+  "packageManager": "yarn@3.6.1"
 }

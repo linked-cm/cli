@@ -1,6 +1,6 @@
 node_modules
 build
-web/assets
+public/bundles
 data/uploads
 data/metadata
 data/sessions
