@@ -6,11 +6,9 @@ import ts from 'typescript';
 import {builtinModules} from 'module';
 import {PackageDetails} from 'interfaces';
 
-const {
-  findNearestPackageJson,
-  findNearestPackageJsonSync,
-} = require('find-nearest-package-json');
-var glob = require('glob');
+import { findNearestPackageJson,findNearestPackageJsonSync } from 'find-nearest-package-json';
+import * as glob from 'glob';
+
 var gruntConfig;
 
 // Credit: https://gist.github.com/tinovyatkin/727ddbf7e7e10831a1eca9e4ff2fc32e

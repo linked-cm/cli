@@ -2,14 +2,36 @@
   "name": "lincd-cli",
   "version": "1.1.1",
   "description": "Command line tools for the lincd.js library",
-  "main": "lib/index.js",
+  "main": "lib/cjs/index.js",
+  "module": "lib/esm/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/esm/index.d.ts",
+      "import": "./lib/esm/index.js",
+      "require": "./lib/cjs/index.js"
+    },
+    "./*": {
+      "types": "./lib/esm/*.d.ts",
+      "import": "./lib/esm/*.js",
+      "require": "./lib/cjs/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "lib/esm/*"
+      ]
+    }
+  },
   "scripts": {
-    "prepublishOnly": "npm exec tsc",
-    "build": "npm exec tsc",
+    "prepublishOnly": "npm exec build",
+    "build": "rimraf ./lib && echo \"compiling CJS\" && yarn tsc -p tsconfig-cjs.json && echo \"compiling ESM\" && yarn tsc -p tsconfig-esm.json && yarn dual-package",
+    "dual-package": "echo 'adding package.json to each lib folder for dual output support' && yarn tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json",
+    "dev": "yarn tsc -p tsconfig-esm.json -w",
+    "dev-cjs": "yarn tsc -p tsconfig-cjs.json -w",
     "postinstall": "husky install",
     "prepack": "npm exec tsc && pinst --disable && yarn version patch",
     "postpack": "pinst --enable",
-    "dev": "npm exec tsc -- -w",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
     "format": "yarn prettier:fix && yarn lint:fix"
@@ -36,9 +58,9 @@
   },
   "license": "MPL-2.0",
   "bin": {
-    "grunt": "expose-grunt.js",
-    "lincd": "lib/cli.js",
-    "lincd-cli": "lib/cli.js"
+    "grunt": "expose-grunt.cjs",
+    "lincd": "lib/esm/cli.js",
+    "lincd-cli": "lib/esm/cli.js"
   },
   "dependencies": {
     "@babel/cli": "^7.23.9",
@@ -99,6 +121,8 @@
     "terser-webpack-plugin": "^5.3.10",
     "ts-loader": "^9.5.1",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
+    "tsconfig-to-dual-package": "^1.2.0",
+    "tsx": "^4.7.2",
     "typescript": "^4.8.4",
     "webpack": "^5.90.3",
     "webpack-bundle-analyzer": "^4.10.1",

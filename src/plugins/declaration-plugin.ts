@@ -1,8 +1,10 @@
 /// <reference path="colors.d.ts" />
-import colors = require('colors');
-import path = require('path');
+import colors from 'colors';
+import * as path from 'path';
 
-const webpack = require('webpack');
+import webpack from 'webpack';
+import * as process from 'process';
+import fs from 'fs';
 const {Compilation} = webpack;
 export default class DeclarationPlugin {
   options: any;
@@ -26,7 +28,9 @@ export default class DeclarationPlugin {
     this.options['root'] = options.root || this.exportRoot; //'/lib'
     this.logMessages = options.debug ? options.debug : false;
 
-    this.modulePackageInfo = require(process.cwd() + '/package.json');
+    //load package.json with fs
+    this.modulePackageInfo = JSON.parse(fs.readFileSync(process.cwd() + '/package.json', 'utf8'));
+    // this.modulePackageInfo = await import(process.cwd() + '/package.json');
     // this.debug('found package name: '+this.modulePackageInfo.name);
   }
 

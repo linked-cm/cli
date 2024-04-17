@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import {exec} from 'child_process';
 import depcheck from 'depcheck';
-import {getEnvFile} from 'env-cmd/dist/get-env-vars';
+import {getEnvFile} from 'env-cmd/dist/get-env-vars.js';
 import fs from 'fs-extra';
 import path from 'path';
 import {
@@ -14,22 +14,22 @@ import {
   getPackageJSON,
   isValidLINCDImport,
   needsRebuilding,
-} from './utils';
+} from './utils.js';
 
 import {statSync} from 'fs';
 import {PackageDetails} from 'interfaces';
 import {findNearestPackageJson} from 'find-nearest-package-json';
-import {GetEnvVars} from 'env-cmd';
-import {LinkedFileStorage} from 'lincd/lib/utils/LinkedFileStorage';
+import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
+// import pkg from 'lincd/utils/LinkedFileStorage';
+// const { LinkedFileStorage } = pkg;
+
 // const config = require('lincd-server/site.webpack.config');
+import { glob } from 'glob';
+import webpack from 'webpack';
 
-var {glob} = require('glob');
+import stagedGitFiles from 'staged-git-files';
+
 var variables = {};
-var open = require('open');
-var stagedGitFiles = require('staged-git-files');
-
-const webpack = require('webpack');
-
 export const createApp = async (name, basePath = process.cwd()) => {
   if (!name) {
     console.warn('Please provide a name as the first argument');
@@ -830,12 +830,12 @@ const replaceVariablesInFiles = function (...files: string[]) {
 const replaceVariablesInFolder = function (folder: string) {
   //get all files in folder, including files that start with a dot
 
-  glob(folder + '/**/*', {dot: true, nodir: true}, function (err, files) {
+  (glob as any)(folder + '/**/*', {dot: true, nodir: true}, async function (err, files) {
     if (err) {
       console.log('Error', err);
     } else {
       // console.log(files);
-      return Promise.all(
+      await Promise.all(
         files.map((file) => {
           return replaceVariablesInFile(file);
         }),
@@ -1159,7 +1159,7 @@ export const depCheck = async (path: string = process.cwd()) => {
 export const ensureEnvironmentLoaded = async () => {
   if (!process.env.NODE_ENV) {
     //load env-cmd for development environment
-    let {GetEnvVars} = require('env-cmd');
+    let {GetEnvVars} = await import('env-cmd');
     let envCmdrcPath = path.join(process.cwd(), '.env-cmdrc.json');
     if (!fs.existsSync(envCmdrcPath)) {
       console.warn(
@@ -1209,16 +1209,16 @@ export const startServer = async (
 ) => {
   await ensureEnvironmentLoaded();
 
-  let lincdConfig = require(path.join(process.cwd(), 'lincd.config'));
+  let lincdConfig = await import(path.join(process.cwd(), 'lincd.config.js'));
 
   if (!ServerClass) {
-    ServerClass = require('lincd-server/lib/shapes/LincdServer').LincdServer;
+    ServerClass = (await import('lincd-server/lib/shapes/LincdServer.js')).LincdServer;
   }
-  require(path.join(process.cwd(), 'scripts', 'storage-config'));
+  await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
 
   let server = new ServerClass({
-    loadAppComponent: () =>
-      require(path.join(process.cwd(), 'src', 'App')).default,
+    loadAppComponent: async () =>
+      (await import(path.join(process.cwd(), 'src', 'App'))).default,
     ...lincdConfig,
   });
   //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
@@ -1232,16 +1232,13 @@ export const startServer = async (
 };
 export const buildApp = async () => {
   await ensureEnvironmentLoaded();
-  const webpackAppConfig = require('./config-webpack-app').webpackAppConfig;
+  const webpackAppConfig = await (await import('./config-webpack-app.js')).getWebpackAppConfig();
 
   console.log(chalk.magenta(`Building ${process.env.NODE_ENV} app bundles`));
   return new Promise((resolve, reject) => {
-    webpack(webpackAppConfig, async (err, stats) => {
+    webpack(webpackAppConfig as any, async (err, stats) => {
       if (err) {
         console.error(err.stack || err);
-        if (err.details) {
-          console.error(err.details);
-        }
         process.exit(1);
       }
       const info = stats.toJson();
@@ -1255,10 +1252,9 @@ export const buildApp = async () => {
           stats.toString({
             chunks: false,
             assets: true,
-            entryPoints: false,
+            entrypoints: false,
             modules: false,
             moduleAssets: false,
-            moduleChunks: false,
             colors: true,
           }),
         );
@@ -1286,8 +1282,8 @@ export const buildApp = async () => {
       process.exit();
     }
     // load the storage config
-    const storageConfig = require(
-      path.join(process.cwd(), 'scripts', 'storage-config'),
+    const storageConfig = await import(
+      path.join(process.cwd(), 'scripts', 'storage-config.js')
     );
 
     // check if LincdFileStorage has a default FileStore

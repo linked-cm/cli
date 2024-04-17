@@ -1,6 +1,10 @@
-#!/usr/bin/env node
-import babelRegister from '@babel/register';
-babelRegister({extensions: ['.ts', '.tsx']});
+#!/usr/bin/env tsx
+//The line above calls the TSX typescript executer as runtime, which extends node.js and supports running typescript
+// see: https://www.npmjs.com/package/tsx
+
+// import babelRegister from '@babel/register';
+// babelRegister({extensions: ['.ts', '.tsx']});
+
 import {
   addCapacitor,
   buildAll,
@@ -24,13 +28,12 @@ import {
   publishUpdated,
   register,
   startServer,
-} from './cli-methods';
+} from './cli-methods.js';
 // import {buildMetadata} from './metadata';
-require('require-extensions');
-
-var program = require('commander');
-var fs = require('fs-extra');
-var path = require('path');
+import 'require-extensions';
+import {program} from 'commander';
+import fs from 'fs-extra';
+import path from 'path';
 
 program
   .command('create-app')
@@ -57,6 +60,23 @@ program
 
 program
   .command('create-package')
+  .action((name, uriBase) => {
+    return createPackage(name, uriBase);
+  })
+  .description(
+    'Create a new folder with all the required files for a new LINCD package',
+  )
+  .argument(
+    '<name>',
+    'The name of the package. Will be used as package name in package.json',
+  )
+  .argument(
+    '[uri_base]',
+    'The base URL used for data of this package. Leave blank to use the URL of your package on lincd.org after you register it',
+  );
+
+program
+  .command('fix-packages')
   .action((name, uriBase) => {
     return createPackage(name, uriBase);
   })
@@ -183,7 +203,7 @@ program.command('publish-updated').action(() => {
   return publishUpdated();
 });
 program.command('publish [version]').action((version) => {
-  return publishPackage(null, false, null, version);
+  publishPackage(null, false, null, version);
 });
 
 program.command('status').action(() => {

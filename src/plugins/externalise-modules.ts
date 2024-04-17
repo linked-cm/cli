@@ -1,5 +1,6 @@
 /// <reference path="colors.d.ts" />
-import colors = require('colors');
+import colors from 'colors';
+import fs from 'fs';
 
 var exportRoot = '/lib';
 var libraryName = 'lincd';
@@ -199,7 +200,7 @@ function isLincdModule(debug, packageName: string) {
     let isLincdModule: boolean;
     let modulePackage;
     try {
-      modulePackage = require(packageName + '/package.json');
+      modulePackage = JSON.parse(fs.readFileSync(packageName + '/package.json','utf8'));
     } catch (e) {
       debug(colors.red(packageName + '/package.json' + ' does not exist'));
       // return callback();

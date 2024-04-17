@@ -1,10 +1,9 @@
 import {generateWebpackConfig} from './config-webpack';
 import {ModuleConfig} from './interfaces';
 import {debug, flatten, generateScopedName, log, warn} from './utils';
-
-const fs = require('fs');
-const chalk = require('chalk');
-const path = require('path');
+import fs from 'fs';
+import chalk from 'chalk';
+import path from 'path';
 
 declare var __dirname: string;
 declare var require: any;
@@ -254,7 +253,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       dev: generateWebpackConfig(
         'dev',
         moduleName,
-        (<any>Object).assign(
+        (Object).assign(
           {
             target: 'es6',
             watch: true,
@@ -267,7 +266,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'dev-prod': generateWebpackConfig(
         'dev',
         moduleName,
-        (<any>Object).assign(
+        (Object).assign(
           {
             target: 'es6',
             watch: true,
@@ -281,7 +280,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'dev-es5': generateWebpackConfig(
         'dev-es5',
         moduleName,
-        (<any>Object).assign(
+        (Object).assign(
           {
             target: 'es5',
             watch: true,
@@ -294,7 +293,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'build-es6': generateWebpackConfig(
         'build-es6',
         moduleName,
-        (<any>Object).assign(
+        (Object).assign(
           {
             target: 'es6',
             watch: false,
@@ -307,7 +306,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'build-es5': generateWebpackConfig(
         'build-es5',
         moduleName,
-        (<any>Object).assign(
+        (Object).assign(
           {
             target: 'es5',
             watch: false,
@@ -320,7 +319,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'prod-es5': generateWebpackConfig(
         'prod-es5',
         moduleName,
-        (<any>Object).assign(
+        (Object).assign(
           {
             target: 'es5',
             watch: false,
@@ -334,7 +333,7 @@ function setupGrunt(grunt, moduleName, config: ModuleConfig) {
       'prod-es6': generateWebpackConfig(
         'prod-es6',
         moduleName,
-        (<any>Object).assign(
+        (Object).assign(
           {
             target: 'es6',
             watch: false,

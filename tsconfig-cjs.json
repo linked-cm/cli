@@ -1,0 +1,15 @@
+{
+  "extends" : "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2018",
+    "outDir": "lib/cjs",
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "downlevelIteration": true,
+    "baseUrl": "./src",
+    "types": ["node"]
+  },
+  "include": ["./src/**/*.ts","./src/**/*.cts"],
+  "files": ["./src/index.ts", "./src/cli.ts"]
+}

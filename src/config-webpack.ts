@@ -8,23 +8,21 @@ import {
   warn,
 } from './utils';
 import {AdjustedModuleConfig} from './interfaces';
-import colors = require('colors');
+import * as colors from 'colors';
 // console.log('Webpack '+require('webpack/package.json').version);
 // console.log('ts-loader '+require('ts-loader/package.json').version);
 
-const fs = require('fs');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const chalk = require('chalk');
-const webpack = require('webpack');
-const path = require('path');
+import fs from 'fs';
+import MiniCssExtractPlugin from 'mini-css-extract-plugin';
+import webpack from 'webpack';
+import path from 'path';
 // const WebpackLicencePlugin = require('webpack-license-plugin');
 // const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
-const BundleAnalyzerPlugin =
-  require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
-const TerserPlugin = require('terser-webpack-plugin');
-const exec = require('child_process').exec;
-const CopyPlugin = require('copy-webpack-plugin');
-const tailwindPlugin = require('tailwindcss/plugin');
+import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
+import TerserPlugin from 'terser-webpack-plugin';
+import { exec } from 'child_process';
+import CopyPlugin from 'copy-webpack-plugin';
+import tailwindPlugin from 'tailwindcss/plugin';
 
 declare var __dirname: string;
 declare var require: any;
@@ -85,9 +83,9 @@ export function generateWebpackConfig(
     process.exit();
   }
 
-  let tsConfig = JSON.parse(fs.readFileSync(configFile));
+  let tsConfig = JSON.parse(fs.readFileSync(configFile,'utf8'));
 
-  var plugins = [
+  var plugins:any[] = [
     // new webpack.DefinePlugin({
     //   'process.env.BROWSER': JSON.stringify(true),
     //   'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
@@ -354,7 +352,7 @@ export function generateWebpackConfig(
     plugins.push(
       new webpack.NormalModuleReplacementPlugin(
         /lincd\/lib\//,
-        (resource, match) => {
+        (resource) => {
           let moduleName = resource.request.match(/lincd\/lib\//)[1];
           if (config.internalsources.indexOf(moduleName) !== -1) {
             console.log(

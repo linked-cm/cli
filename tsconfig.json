@@ -6,6 +6,7 @@
     "target": "es2018",
     "baseUrl": "./src",
     "sourceMap": true,
+    "skipLibCheck": true,
     "downlevelIteration": true,
     "outDir": "./lib",
     "paths": {
