@@ -1571,7 +1571,7 @@ export const removeOldFiles = async (packagePath) => {
         // Check if the difference between the current time and last modified time is greater than 10 seconds
         if (currentTime - lastModifiedTime > 10000) {
           // Attempt to delete the file
-          await fs.unlink(filePath);
+          await fs.remove(filePath);
           console.log(`Removed: ${filePath}`);
         }
       } else {
