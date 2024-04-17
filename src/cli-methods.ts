@@ -1547,6 +1547,42 @@ export const register = function (registryURL) {
   }
 };
 
+/**
+ * Function to remove files older than 10 seconds from the 'lib' folder.
+ * @param {string} packagePath - The path to the package directory.
+ */
+export const removeOldFiles = async (packagePath) => {
+  const libPath = path.join(packagePath, 'lib');
+
+  try {
+    // Read all files in the 'lib' folder asynchronously
+    const files = await fs.readdir(libPath);
+
+    // Iterate through each file
+    for (const file of files) {
+      const filePath = path.join(libPath, file);
+
+      // Check if the file exists before attempting to delete it
+      if (await fs.pathExists(filePath)) {
+        const stats = await fs.stat(filePath);
+        const currentTime = new Date().getTime();
+        const lastModifiedTime = stats.mtime.getTime();
+
+        // Check if the difference between the current time and last modified time is greater than 10 seconds
+        if (currentTime - lastModifiedTime > 10000) {
+          // Attempt to delete the file
+          await fs.unlink(filePath);
+          console.log(`Removed: ${filePath}`);
+        }
+      } else {
+        console.warn(`File ${filePath} does not exist.`);
+      }
+    }
+  } catch (error) {
+    console.error(`Error removing files: ${error.message}`);
+  }
+};
+
 export const buildPackage = (
   target,
   target2,
@@ -1561,6 +1597,8 @@ export const buildPackage = (
       return;
     }
 
+    removeOldFiles(packagePath);
+
     var nodeEnv = '';
     if (target == 'production') {
       if (
@@ -1569,6 +1607,7 @@ export const buildPackage = (
         console.warn('unknown second build target. Use es5 or es6', target2);
         return;
       }
+
       var isWindows = /^win/.test(process.platform);
       if (isWindows) {
         nodeEnv = 'SET NODE_ENV=production&& ';
