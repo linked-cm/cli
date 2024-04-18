@@ -1597,8 +1597,6 @@ export const buildPackage = (
       return;
     }
 
-    removeOldFiles(packagePath);
-
     var nodeEnv = '';
     if (target == 'production') {
       if (
@@ -1648,12 +1646,18 @@ export const buildPackage = (
       false,
       false,
       {cwd: packagePath},
-    ).catch((err) => {
+    )
+    .then(() => {
+      // Once the build is complete, remove old files
+      return removeOldFiles(packagePath);
+    })
+    .catch((err) => {
+      console.error('Error building package:', err);
       process.exit(1);
     });
-  } else {
-    console.warn('unknown build target. Use es5, es6 or production.');
-  }
+} else {
+  console.warn('unknown build target. Use es5, es6, or production.');
+}
 };
 
 export var publishUpdated = function (test: boolean = false) {
