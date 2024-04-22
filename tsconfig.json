@@ -1,19 +1,11 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "newLine": "lf",
-    "esModuleInterop": true,
-    "target": "es2018",
-    "baseUrl": "./src",
     "sourceMap": true,
     "skipLibCheck": true,
-    "downlevelIteration": true,
-    "outDir": "./lib",
-    "paths": {
-      "*": ["node_modules/@types/*", "../node_modules/@types/*", "../../node_modules/@types/*", "*"]
-    },
+    "baseUrl": "./src",
+    "module": "esnext",
     "types": ["node"]
   },
-  "include": ["./src/**/*.ts"],
+  "include": ["./src/**/*.ts","./src/**/*.cts"],
   "files": ["./src/index.ts", "./src/cli.ts"]
 }

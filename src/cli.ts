@@ -27,13 +27,13 @@ import {
   publishPackage,
   publishUpdated,
   register,
-  startServer,
+  startServer,upgradePackages,
 } from './cli-methods.js';
 // import {buildMetadata} from './metadata';
 import 'require-extensions';
 import {program} from 'commander';
 import fs from 'fs-extra';
-import path from 'path';
+import path, { dirname } from 'path';
 
 program
   .command('create-app')
@@ -76,20 +76,12 @@ program
   );
 
 program
-  .command('fix-packages')
-  .action((name, uriBase) => {
-    return createPackage(name, uriBase);
+  .command('upgrade-packages')
+  .action(() => {
+    return upgradePackages();
   })
   .description(
-    'Create a new folder with all the required files for a new LINCD package',
-  )
-  .argument(
-    '<name>',
-    'The name of the package. Will be used as package name in package.json',
-  )
-  .argument(
-    '[uri_base]',
-    'The base URL used for data of this package. Leave blank to use the URL of your package on lincd.org after you register it',
+    'Upgrade all lincd packages in the workspace to ESM/CJS dual packages',
   );
 
 program
@@ -169,11 +161,18 @@ program
 program
   .command('info')
   .action(() => {
-    var ownPackage = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'),
-    );
+    const localDir = dirname(import.meta.url).replace('file:/', '');
+    let packageJsonPath =path.join(localDir,  'package.json')
+    try {
+      var ownPackage = JSON.parse(
+        fs.readFileSync(packageJsonPath, 'utf8'),
+      );
+    } catch (e) {
+      console.warn('Could not read package.json at '+packageJsonPath+': '+e);
+      process.exit();
+    }
     console.log(ownPackage.version);
-    console.log('Running from: ' + __dirname);
+    console.log('Running from: ' + localDir);
   })
   .description(
     "Log the version of this tool and the path that it's running from",

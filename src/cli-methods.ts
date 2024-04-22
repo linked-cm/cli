@@ -3,6 +3,7 @@ import {exec} from 'child_process';
 import depcheck from 'depcheck';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars.js';
 import fs from 'fs-extra';
+import ts from 'typescript';
 import path from 'path';
 import {
   debugInfo,
@@ -28,6 +29,8 @@ import { glob } from 'glob';
 import webpack from 'webpack';
 
 import stagedGitFiles from 'staged-git-files';
+import copyfiles from 'copyfiles';
+import ora from 'ora';
 
 var variables = {};
 export const createApp = async (name, basePath = process.cwd()) => {
@@ -1058,30 +1061,36 @@ export const checkImports = async (
     });
   }
 
+  let res = '';
   // All recursion must have finished, display any errors
   if (depth === 0 && invalidImports.size > 0) {
-    console.warn(chalk.red('\n' + 'Invalid imports found.  See fixes below:'));
-    console.warn(
-      chalk.red(
-        " - For relative imports, ensure you don't import outside of the /src/ folder",
-      ),
-    );
-    console.warn(
-      chalk.red(
-        ' - For lincd imports, access the /lib/ folder instead of /src/',
-      ),
-    );
+
+    res += chalk.red('Invalid imports found.\n');
 
     invalidImports.forEach((value, key) => {
-      console.info(
-        chalk.red('\nFound in file ') + chalk.blue(key) + chalk.red(':'),
-      );
-      value.forEach((i) => console.warn(chalk.red("- '" + i + "'")));
+      // res += '- '+chalk.blueBright(key.split('/').pop()) + ':\n';
+      value.forEach((i) => {
+        res += chalk.red(key.split('/').pop()+" imports from '" + i + "'\n");
+        if(i.indexOf('../../') === 0)
+        {
+          res +=
+            "To fix: import from the NPM package directly.\n";
+        }
+        else if('/src/') {
+          res += "To fix: you likely need to replace /src with /lib\n";
+        }
+
+      });
     });
-    process.exit(1);
+
+
+
+    throw res;
+    // process.exit(1);
   } else if (depth === 0 && invalidImports.size === 0) {
-    console.info('All imports OK');
-    process.exit(0);
+    // console.info('All imports OK');
+    // process.exit(0);
+    return true;
   }
 };
 
@@ -1109,51 +1118,54 @@ export const depCheckStaged = async () => {
     });
   });
 };
-export const depCheck = async (path: string = process.cwd()) => {
-  depcheck(path, {}, (results) => {
-    if (results.missing) {
-      let lincdPackages = getLocalLincdModules();
-      let missing = Object.keys(results.missing);
-      //filter out missing types, if it builds we're not too concerned about that at the moment?
-      //especially things like @types/react, @types/react-dom, @types/node (they are added elsewhere?)
-      // missing = missing.filter(m => m.indexOf('@types/') === 0);
-      //currently react is not an explicit dependency, but we should add it as a peer dependency
-      missing.splice(missing.indexOf('react'), 1);
+export const depCheck = async (packagePath: string = process.cwd()) => {
+  return new Promise((resolve,reject) => {
+    depcheck(packagePath,{},(results) => {
+      if (results.missing)
+      {
+        let lincdPackages = getLocalLincdModules();
+        let missing = Object.keys(results.missing);
+        //filter out missing types, if it builds we're not too concerned about that at the moment?
+        //especially things like @types/react, @types/react-dom, @types/node (they are added elsewhere?)
+        // missing = missing.filter(m => m.indexOf('@types/') === 0);
+        //currently react is not an explicit dependency, but we should add it as a peer dependency
+        missing.splice(missing.indexOf('react'),1);
 
-      let missingLincdPackages = missing.filter((missingDep) => {
-        return lincdPackages.some((lincdPackage) => {
-          return lincdPackage.packageName === missingDep;
+        let missingLincdPackages = missing.filter((missingDep) => {
+          return lincdPackages.some((lincdPackage) => {
+            return lincdPackage.packageName === missingDep;
+          });
         });
-      });
-      //currently just missing LINCD packages cause a hard failure exit code
-      if (missingLincdPackages.length > 0) {
-        console.warn(
-          chalk.red(
-            path +
-              '\n[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
-              missingLincdPackages.join(',\n- '),
-          ),
-        );
-        process.exit(1);
-      } else if (missing.length > 0) {
-        console.warn(
-          chalk.magenta(
-            path +
-              '\nMissing dependencies (for now a warning, soon an error):\n\t' +
-              missing.join(',\n\t'),
-          ),
-        );
+        //currently just missing LINCD packages cause a hard failure exit code
+        if (missingLincdPackages.length > 0)
+        {
+          reject(chalk.red(
+            packagePath.split("/").pop() +
+            '\n[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
+            missingLincdPackages.join(',\n- '),
+          ));
+        }
+        else if (missing.length > 0)
+        {
+          resolve(chalk.redBright(
+            'warning: '+packagePath.split("/").pop() +
+            ' is missing dependencies:\n  - ' +
+            missing.join('\n  - '),
+          ));
+        } else {
+          resolve(true);
+        }
       }
-    }
-    // if(Object.keys(results.invalidFiles).length > 0) {
-    //   console.warn(chalk.red("Invalid files:\n")+Object.keys(results.invalidFiles).join(",\n"));
-    // }
-    // if(Object.keys(results.invalidDirs).length > 0) {
-    //   console.warn(chalk.red("Invalid dirs:\n")+results.invalidDirs.toString());
-    // }
-    // if(results.unused) {
-    //   console.warn("Unused dependencies: "+results.missing.join(", "));
-    // }
+      // if(Object.keys(results.invalidFiles).length > 0) {
+      //   console.warn(chalk.red("Invalid files:\n")+Object.keys(results.invalidFiles).join(",\n"));
+      // }
+      // if(Object.keys(results.invalidDirs).length > 0) {
+      //   console.warn(chalk.red("Invalid dirs:\n")+results.invalidDirs.toString());
+      // }
+      // if(results.unused) {
+      //   console.warn("Unused dependencies: "+results.missing.join(", "));
+      // }
+    });
   });
 };
 export const ensureEnvironmentLoaded = async () => {
@@ -1319,6 +1331,23 @@ export const buildApp = async () => {
     }
   });
 };
+
+export const upgradePackages = async () => {
+  await ensureEnvironmentLoaded();
+  let packages = getLincdPackages();
+  packages = packages.filter((pkg) => {
+    pkg.packageName !== 'lincd'
+  });
+  packages.forEach(pkg => {
+    console.log('Upgrading ' + pkg.packageName);
+    // execPromise(`cd ${pkg.path} && yarn upgrade`).then(() => {
+    //   console.log('Upgraded ' + pkg.packageName);
+    // }).catch(err => {
+    //   console.warn(err);
+    // })
+  })
+
+}
 
 export const createPackage = async (
   name,
@@ -1543,12 +1572,135 @@ export const register = function (registryURL) {
   }
 };
 
-export const buildPackage = (
+export const buildPackage = async (
   target,
   target2,
   packagePath = process.cwd(),
   logResults: boolean = true,
 ) => {
+
+  const spinner = ora({
+    discardStdin: true,
+    text: 'Compiling code',
+  }).start();
+  let buildProcess:Promise<boolean|string|void> = Promise.resolve(true);
+  let buildStep = (step) => {
+    buildProcess = buildProcess.then((previousResult) => {
+      spinner.text = step.name;
+      spinner.start();
+      return step.apply().then(stepResult => {
+        if(typeof stepResult === 'string') {
+          // spinner.text = step.name + ' - ' + stepResult;
+          spinner.warn(step.name + ' - ' + stepResult)
+          spinner.stop();
+          //warning is shown, but build is still succesful with warnings
+          return false;
+        } else if(stepResult === true || typeof stepResult === 'undefined') {
+          spinner.succeed();
+          return previousResult && true;
+        }
+      })
+    });
+  }
+
+  buildStep({
+    name: 'Compiling code',
+    apply: async () => {
+      //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json
+      let cjsConfig = fs.existsSync(path.join(packagePath,'tsconfig-cjs.json'));
+      let esmConfig = fs.existsSync(path.join(packagePath,'tsconfig-esm.json'));
+      let compileCJS = `yarn exec tsc -p tsconfig-cjs.json`;
+      let compileESM = `yarn exec tsc -p tsconfig-esm.json`;
+      let compileCommand;
+      if(cjsConfig && esmConfig) {
+        compileCommand = `${compileCJS} && ${compileESM}`;
+      } else if(cjsConfig) {
+        compileCommand = compileCJS;
+      } else if(esmConfig) {
+        compileCommand = compileESM;
+      } else {
+        compileCommand = `yarn exec tsc`;
+      }
+      return execPromise(compileCommand).then(res => {
+        return res === '';
+      })
+    }
+  });
+  buildStep({
+    name: 'Copying files',
+    apply: async () => {
+      return Promise.all(
+        [new Promise((resolve,reject) => {
+          copyfiles(['src/**/*.json', 'src/**/*.d.ts', 'src/**/*.scss', 'src/**/*.css','lib/esm'],1,(err) => {
+            if(err) {
+              reject(err);
+            }
+            else
+            {
+              resolve(true);
+            }
+          })
+        }),
+        new Promise((resolve,reject) => {
+          copyfiles(['src/**/*.json','src/**/*.d.ts','src/**/*.scss','src/**/*.css','lib/cjs'],1,(err) => {
+            if (err)
+            {
+              return reject(err);
+            }
+            resolve(true);
+          })
+        })
+      ]).then((results) => {
+        return results.every(r => r === true)
+      });
+    }
+  });
+  buildStep({
+    name: 'Checking dependencies',
+    apply: depCheck
+  });
+  buildStep({
+    name: 'Checking imports',
+    apply: checkImports
+  });
+
+  let success = await buildProcess.catch(err => {
+    let msg = (err && err.stdout && err.error) ? (chalk.red('error')+err.error + ':\n'+err.stdout) : err.toString();
+    spinner.stopAndPersist({
+      symbol: chalk.red('✖'),
+      text: 'Build failed',
+    });
+    console.log(msg);
+  });
+    //will be undefined if there was an error
+  if(typeof success !== 'undefined')
+  {
+    spinner.stopAndPersist({
+      symbol: chalk.greenBright('✔'),
+      text: success === true ? 'Build successful' : 'Build successful with warnings',
+    });
+  }
+  return success;
+  //      'build-lib': 'yarn exec tsc --pretty',
+
+  //   'copy:lib',
+  // var copyfiles = require('copyfiles');
+  // copyfiles([paths], opt, callback);
+
+  // {
+  //   expand: true,
+  //     src: ['**/*.json', '**/*.d.ts', '**/*.scss', '**/*.css'],
+  //   dest: config.outputPath || 'lib/',
+  //   cwd: 'src/',
+  //   filter: 'isFile',
+  // },
+
+
+
+  //        command: 'yarn lincd depcheck',
+  //'check-imports': 'yarn lincd check-imports',
+
+
   if (target == 'production' || target == 'es5' || target == 'es6' || !target) {
     if (!fs.existsSync(path.join(packagePath, 'Gruntfile.js'))) {
       console.warn(
