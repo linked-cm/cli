@@ -585,3 +585,65 @@ export async function getFiles(dir: string): Promise<string[]> {
   );
   return Array.prototype.concat(...files);
 }
+
+export interface EndpointCDN {
+  id: string;
+  origin: string;
+  endpoint: string;
+  created_at: string;
+  certificate_id?: string;
+  custom_domain?: string;
+  ttl: number;
+}
+
+/**
+ * get lists spaces object storage digital ocean
+ * https://docs.digitalocean.com/reference/api/api-reference/#operation/cdn_list_endpoints
+ *
+ * @param token
+ * @returns
+ */
+export async function getListCDN(token: string) {
+  try {
+    const response = await fetch(
+      'https://api.digitalocean.com/v2/cdn/endpoints',
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error listing CDN endpoints:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * purge cached content from a CDN endpoint
+ * https://docs.digitalocean.com/reference/api/api-reference/#operation/cdn_purge_cache
+ *
+ * @param token
+ * @param endpoint
+ */
+export async function purgeCacheCDN(token: string, endpoint: EndpointCDN) {
+  const {id, origin} = endpoint;
+  try {
+    await fetch(`https://api.digitalocean.com/v2/cdn/endpoints/${id}/cache`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({files: ['*']}),
+    });
+    console.log(`CDN cache purged successfully for ${origin}`);
+  } catch (error) {
+    console.error('Error purging CDN cache:', error.message);
+    throw error;
+  }
+}

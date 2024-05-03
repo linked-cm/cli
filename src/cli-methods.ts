@@ -6,14 +6,17 @@ import fs from 'fs-extra';
 import path from 'path';
 import {
   debugInfo,
+  EndpointCDN,
   execp,
   execPromise,
   getFileImports,
   getFiles,
   getLastCommitTime,
+  getListCDN,
   getPackageJSON,
   isValidLINCDImport,
   needsRebuilding,
+  purgeCacheCDN,
 } from './utils';
 
 import {statSync} from 'fs';
@@ -1274,53 +1277,6 @@ export const buildApp = async () => {
       }
       // process.exit();
     });
-  }).then(async () => {
-    // make sure environment is not development for storage config
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('Upload build to storage skip in development environment');
-      process.exit();
-    }
-
-    if(process.env.APP_ENV) {
-      console.warn('Not uploading to CDN for app builds');
-      process.exit();
-    }
-    // load the storage config
-    const storageConfig = require(
-      path.join(process.cwd(), 'scripts', 'storage-config'),
-    );
-
-    // check if LincdFileStorage has a default FileStore
-    // if yes: copy all the files in the build folder over with LincdFileStorage
-    if (LinkedFileStorage.getDefaultStore()) {
-      // get public directory
-      const rootDirectory = 'public';
-      const pathDir = path.join(process.cwd(), rootDirectory);
-      if (!fs.existsSync(pathDir)) {
-        console.warn(
-          'No public directory found. Please create a public directory in the root of your project',
-        );
-        return;
-      }
-
-      // get all files in the web directory and then upload them to the storage
-      const files = await getFiles(pathDir);
-      const uploads = files.map(async (filePath) => {
-        // read file content
-        const fileContent = await fs.promises.readFile(filePath);
-
-        // replace pathDir with rootDirectory in filePath to get pathname
-        // example: /Users/username/project/www/index.html -> /project/www/index.html
-        const pathname = filePath.replace(pathDir, `/${rootDirectory}`);
-
-        // upload file to storage
-        return await LinkedFileStorage.saveFile(pathname, fileContent);
-      });
-
-      const urls = await Promise.all(uploads);
-      console.log(`${urls.length} files uploaded to storage`);
-      process.exit();
-    }
   });
 };
 
@@ -1647,17 +1603,17 @@ export const buildPackage = (
       false,
       {cwd: packagePath},
     )
-    .then(() => {
-      // Once the build is complete, remove old files
-      return removeOldFiles(packagePath);
-    })
-    .catch((err) => {
-      console.error('Error building package:', err);
-      process.exit(1);
-    });
-} else {
-  console.warn('unknown build target. Use es5, es6, or production.');
-}
+      .then(() => {
+        // Once the build is complete, remove old files
+        return removeOldFiles(packagePath);
+      })
+      .catch((err) => {
+        console.error('Error building package:', err);
+        process.exit(1);
+      });
+  } else {
+    console.warn('unknown build target. Use es5, es6, or production.');
+  }
 };
 
 export var publishUpdated = function (test: boolean = false) {
@@ -2236,5 +2192,122 @@ export var executeCommandForPackage = function (packageName, command) {
       "Could not find a pkg who's name (partially) matched " +
         chalk.cyan(packageName),
     );
+  }
+};
+
+// upload assets in public directory to CDN bucket
+export const uploadAssetToBucket = async () => {
+  // load environment
+  await ensureEnvironmentLoaded();
+
+  console.log(
+    chalk.magenta(
+      `Starting upload asset to ${process.env.S3_FILES_BUCKET_NAME} CDN bucket...`,
+    ),
+  );
+
+  // make sure environment is not development for storage config
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('Upload build to storage skip in development environment');
+    process.exit();
+  }
+
+  if (process.env.APP_ENV) {
+    console.warn('Not uploading to CDN for app builds');
+    process.exit();
+  }
+
+  // load the storage config
+  const storageConfig = require(
+    path.join(process.cwd(), 'scripts', 'storage-config'),
+  );
+
+  // check if LincdFileStorage has a default FileStore
+  // if yes: copy all the files in the build folder over with LincdFileStorage
+  if (LinkedFileStorage.getDefaultStore()) {
+    // get public directory
+    const rootDirectory = 'public';
+    const pathDir = path.join(process.cwd(), rootDirectory);
+    if (!fs.existsSync(pathDir)) {
+      console.warn(
+        'No public directory found. Please create a public directory in the root of your project',
+      );
+      return;
+    }
+
+    // get all files in the web directory and then upload them to the storage
+    const files = await getFiles(pathDir);
+    console.log('total files to upload: ', files.length);
+
+    const uploads = files.map(async (filePath) => {
+      // read file content
+      const fileContent = await fs.promises.readFile(filePath);
+
+      // replace pathDir with rootDirectory in filePath to get pathname
+      // example: /Users/username/project/www/index.html -> /project/www/index.html
+      const pathname = filePath.replace(pathDir, `/${rootDirectory}`);
+
+      // upload file to storage
+      return await LinkedFileStorage.saveFile(pathname, fileContent);
+    });
+
+    const urls = await Promise.all(uploads);
+    console.log(
+      chalk.magenta(
+        `${urls.length} files uploaded to ${process.env.S3_FILES_BUCKET_NAME} CDN bucket`,
+      ),
+    );
+
+    await purgeCacheBucket();
+    process.exit();
+  }
+};
+
+/**
+ * purge cache for a specific S3 bucket
+ * @returns
+ */
+export const purgeCacheBucket = async () => {
+  // load environment
+  await ensureEnvironmentLoaded();
+
+  const token = process.env.DO_AUTH_TOKEN;
+  const bucketName = process.env.S3_FILES_BUCKET_NAME;
+
+  console.log(
+    chalk.magenta(`Starting to purge cache ${bucketName} CDN bucket...`),
+  );
+
+  // check DO token env
+  // https://docs.digitalocean.com/reference/api/create-personal-access-token/
+  if (!token) {
+    console.warn('DO_AUTH_TOKEN is not defined in environment');
+    process.exit();
+  }
+
+  // check bucket name env
+  if (!bucketName) {
+    console.warn('S3_FILES_BUCKET_NAME is not defined in environment');
+    process.exit();
+  }
+
+  // get list of CDN endpoints
+  // and find the endpoint that matches with S3 bucket name
+  const lists = await getListCDN(token);
+  const getEndpoint = lists.endpoints.find((list: EndpointCDN) =>
+    list.origin.startsWith(bucketName),
+  );
+
+  // check endpoint not found, return error
+  if (!getEndpoint) {
+    console.error(`CDN endpoint not found for bucket ${bucketName}`);
+    return;
+  }
+
+  try {
+    // purge cache based on endpint
+    await purgeCacheCDN(token, getEndpoint);
+  } catch (err) {
+    console.error('Error purging CDN cache:', err);
   }
 };
