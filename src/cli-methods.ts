@@ -1274,53 +1274,6 @@ export const buildApp = async () => {
       }
       // process.exit();
     });
-  }).then(async () => {
-    // make sure environment is not development for storage config
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('Upload build to storage skip in development environment');
-      process.exit();
-    }
-
-    if(process.env.APP_ENV) {
-      console.warn('Not uploading to CDN for app builds');
-      process.exit();
-    }
-    // load the storage config
-    const storageConfig = require(
-      path.join(process.cwd(), 'scripts', 'storage-config'),
-    );
-
-    // check if LincdFileStorage has a default FileStore
-    // if yes: copy all the files in the build folder over with LincdFileStorage
-    if (LinkedFileStorage.getDefaultStore()) {
-      // get public directory
-      const rootDirectory = 'public';
-      const pathDir = path.join(process.cwd(), rootDirectory);
-      if (!fs.existsSync(pathDir)) {
-        console.warn(
-          'No public directory found. Please create a public directory in the root of your project',
-        );
-        return;
-      }
-
-      // get all files in the web directory and then upload them to the storage
-      const files = await getFiles(pathDir);
-      const uploads = files.map(async (filePath) => {
-        // read file content
-        const fileContent = await fs.promises.readFile(filePath);
-
-        // replace pathDir with rootDirectory in filePath to get pathname
-        // example: /Users/username/project/www/index.html -> /project/www/index.html
-        const pathname = filePath.replace(pathDir, `/${rootDirectory}`);
-
-        // upload file to storage
-        return await LinkedFileStorage.saveFile(pathname, fileContent);
-      });
-
-      const urls = await Promise.all(uploads);
-      console.log(`${urls.length} files uploaded to storage`);
-      process.exit();
-    }
   });
 };
 
@@ -1647,17 +1600,17 @@ export const buildPackage = (
       false,
       {cwd: packagePath},
     )
-    .then(() => {
-      // Once the build is complete, remove old files
-      return removeOldFiles(packagePath);
-    })
-    .catch((err) => {
-      console.error('Error building package:', err);
-      process.exit(1);
-    });
-} else {
-  console.warn('unknown build target. Use es5, es6, or production.');
-}
+      .then(() => {
+        // Once the build is complete, remove old files
+        return removeOldFiles(packagePath);
+      })
+      .catch((err) => {
+        console.error('Error building package:', err);
+        process.exit(1);
+      });
+  } else {
+    console.warn('unknown build target. Use es5, es6, or production.');
+  }
 };
 
 export var publishUpdated = function (test: boolean = false) {
