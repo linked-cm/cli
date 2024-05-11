@@ -23,7 +23,7 @@ import {
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
-  getLincdPackages,
+  getLincdPackages,getScriptDir,
   publishPackage,
   publishUpdated,
   register,
@@ -161,7 +161,7 @@ program
 program
   .command('info')
   .action(() => {
-    const localDir = dirname(import.meta.url).replace('file:/', '');
+    let localDir = getScriptDir();
     let packageJsonPath =path.join(localDir,  'package.json')
     try {
       var ownPackage = JSON.parse(

@@ -6,6 +6,6 @@
     "module": "esnext",
     "types": ["node"]
   },
-  "include": ["./src/**/*.ts","./src/**/*.cts"],
+  "include": ["./src/**/*.ts","./src/**/*.cts","./src/**/*.mts"],
   "files": ["./src/index.ts", "./src/cli.ts"]
 }

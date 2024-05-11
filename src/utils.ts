@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
-import {exec} from 'child_process';
+import { exec,ExecOptions } from 'child_process';
 import ts from 'typescript';
 import {builtinModules} from 'module';
 import {PackageDetails} from 'interfaces';
@@ -197,11 +197,12 @@ export var getLINCDDependencies = function (
     // a simple sort with dependencyMap doesn't seem to work,so we start with LINCD (least dependencies) and from there add packages that have all their dependencies already added
     let sortedPackagePaths = [];
     let addedPackages = new Set(['lincd']);
-    sortedPackagePaths.push(
-      lincdPackagePaths.find(([packageName]) => {
-        return packageName === 'lincd';
-      }),
-    );
+    let lincdItself = lincdPackagePaths.find(([packageName]) => {
+      return packageName === 'lincd';
+    });
+    if(lincdItself) {
+      sortedPackagePaths.push(lincdItself);
+    }
 
     while (addedPackages.size !== lincdPackagePaths.length) {
       let startSize = addedPackages.size;
@@ -407,7 +408,7 @@ export function execPromise(
   command,
   log = false,
   allowError: boolean = false,
-  options?: any,
+  options?: ExecOptions,
   pipeOutput: boolean = false,
 ): Promise<string> {
   return new Promise(function (resolve, reject) {
@@ -457,8 +458,9 @@ export function generateScopedName(
       .substring(0, 6);
     return hash;
   }
-  var filename = path.basename(filepath, '.scss');
-  let nearestPackageJson = findNearestPackageJsonSync(filename);
+  var filename = path.basename(filepath).replace(/\.(module\.)?(css|scss)/,'');
+  let resolved = path.resolve(filepath).replace(/[\w\-_\/]+\/file\:/,'');
+  let nearestPackageJson = findNearestPackageJsonSync(resolved);
   let packageName = nearestPackageJson
     ? nearestPackageJson.data.name
     : 'unknown';
