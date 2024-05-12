@@ -5,140 +5,105 @@ import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import webpack from 'webpack';
 import fs from 'fs';
-import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
+import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
 import TerserPlugin from 'terser-webpack-plugin';
-import {findNearestPackageJsonSync} from 'find-nearest-package-json';
-import {getLINCDDependencies, getLinkedTailwindColors} from './utils.js';
+import {
+  generateScopedName,
+  generateScopedNameProduction,
+  getLINCDDependencies,
+  getLinkedTailwindColors,
+} from './utils.js';
 
 import tailwindPlugin from 'tailwindcss/plugin.js';
-import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
+import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
 import postcssUrl from 'postcss-url';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
 const packageJson = JSON.parse(
-  fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
+  fs.readFileSync(path.resolve(process.cwd(),'package.json'),'utf-8'),
 );
 
-// get from the project's backend config file
-import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
-const accessURL = LinkedFileStorage.accessURL;
+const cssModes = ['scss-modules','tailwind','scss','mixed'];
 
-// Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
-const publicPath = '/public';
-const bundlesPath = publicPath + '/bundles/';
-// ASSET_PATH mostly used for the apps to load the assets from the correct path
-const ASSET_PATH =
-  process.env.ASSET_PATH || accessURL ? accessURL + bundlesPath : bundlesPath;
-
-const lincdConfigPathJs = path.resolve(process.cwd(), 'lincd.config.js');
-const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
-
-const cssModes = ['scss-modules', 'tailwind', 'scss', 'mixed'];
-
-
-class RebuildScssJsonPlugin {
-  apply(compiler) {
-    compiler.hooks.watchRun.tap('beforeRun', (comp) => {
-      //NOTE: this code takes care of recompiling .scss.json files whenever a .scss file is changed
-      // we had to ignore .scss.json files to prevent infinite loops (since its input and output)
-      // currently this works, but the build process is one step behind
-      // so when devs change a .scss file, only the SECOND time that they change
-      // and save that file will the first change in .scss.json pickup
-      if (comp.modifiedFiles) {
-        let scssFiles = [...comp.modifiedFiles].filter((file) => {
-          return path.extname(file) === '.scss';
-        });
-        if (scssFiles.length) {
-          scssFiles.forEach((file) => {
-            // Make an entry for each file path that should recompile
-            compiler.inputFileSystem.purge(file + '.json');
-            compiler.fileTimestamps.set(file + '.json', Date.now());
-            compiler.inputFileSystem.purge(file);
-            compiler.fileTimestamps.set(file, Date.now());
-            // console.log(chalk.magenta('Purged:'), file+'.json');
-          });
-          // Triggers the recompile, but somehow only after the current emit is finished
-          compiler.watching.invalidate(() => {
-            // console.log('Recompile finished');
-          });
-
-          return;
-        }
-        // if([...comp.modifiedFiles].every(file => {
-        //   return path.extname(file) === ''
-        // })) {
-        //   // prevent rebuild?
-        //   compiler.modifiedFiles = new Set();
-        //   compiler.finish((a,b) => {
-        //      console.log("Prevented build?",a,b);
-        //   });
-        //   // compiler.stop(() => {
-        //   //   console.log("Prevented build?");
-        //   // });
-        //   return;
-        // }
-      }
-    });
-  }
-}
-class WatchRunPlugin {
-  apply(compiler) {
-    compiler.hooks.watchRun.tap('watchRun', (comp) => {
-      if (comp.modifiedFiles) {
+class WatchRunPlugin
+{
+  apply(compiler)
+  {
+    compiler.hooks.watchRun.tap('watchRun',(comp) => {
+      if (comp.modifiedFiles)
+      {
         const changedFiles = Array.from(
           comp.modifiedFiles,
           (file) => `\n  ${file}`,
         ).join('');
-        if (changedFiles.length) {
-          console.log(chalk.magenta('Changed files:'), changedFiles);
+        if (changedFiles.length)
+        {
+          console.log(chalk.magenta('Changed files:'),changedFiles);
         }
       }
     });
   }
 }
 
-function generateScopedName(name, filename, css) {
-  var file = path.basename(filename, '.scss');
-  let nearestPackageJson = findNearestPackageJsonSync(filename);
-  let packageName = nearestPackageJson
-    ? nearestPackageJson.data.name
-    : packageJson.name;
-  return packageName.replace(/[^a-zA-Z0-9_]+/g, '_') + '_' + file + '_' + name;
+function getLocalIdent(context,currentFormat,name)
+{
+  return isProduction ? generateScopedNameProduction(name,context.resourcePath) : generateScopedName(name,context.resourcePath);
 }
 
 export const getLincdConfig = async () => {
+
+  const lincdConfigPathJs = path.resolve(process.cwd(),'lincd.config.js');
+  const lincdConfigPathJson = path.resolve(process.cwd(),'lincd.config.json');
+
   //default config
   let config: any = {
     //scss-modules is default
     cssMode: cssModes[0],
     analyse: false,
   };
-//overwriting config from package.json.lincdApp or lincd.config.js(on) file
-  if (typeof packageJson.lincdApp === 'object') {
+  //overwriting config from package.json.lincdApp or lincd.config.js(on) file
+  if (typeof packageJson.lincdApp === 'object')
+  {
     //overwrite default with anything that's defined in lincdApp in package.json
-    config = {...config, ...packageJson.lincdApp};
-  } else if (fs.existsSync(lincdConfigPathJs)) {
-    let lincdConfig = await import(lincdConfigPathJs);
-    config = {...config, ...lincdConfig};
-  } else if (fs.existsSync(lincdConfigPathJson)) {
-    let lincdConfig = JSON.parse(fs.readFileSync(lincdConfigPathJson, 'utf-8'))
-    config = {...config, ...lincdConfig};
+    config = { ...config,...packageJson.lincdApp };
   }
-  return config;
-}
-
-export const getWebpackAppConfig = async () => {
-
-  let config = await getLincdConfig();
-
-  if (!cssModes.includes(config.cssMode)) {
+  else if (fs.existsSync(lincdConfigPathJs))
+  {
+    let lincdConfig = await import(lincdConfigPathJs);
+    config = { ...config,...lincdConfig };
+  }
+  else if (fs.existsSync(lincdConfigPathJson))
+  {
+    let lincdConfig = JSON.parse(fs.readFileSync(lincdConfigPathJson,'utf-8'));
+    config = { ...config,...lincdConfig };
+  }
+  if (!cssModes.includes(config.cssMode))
+  {
     console.warn(
       'Invalid value for property cssMode. Should be one of: ' +
       cssModes.join(', '),
     );
     process.exit();
   }
+  return config;
+};
+
+export const getWebpackAppConfig = async () => {
+
+  // get from the project's config-frontend file
+  await import(path.join(process.cwd(),'scripts','storage-config.js'));
+  const accessURL = LinkedFileStorage.accessURL;
+
+  // Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
+  const publicPath = '/public';
+  const bundlesPath = publicPath + '/bundles/';
+  // ASSET_PATH mostly used for the apps to load the assets from the correct path
+  const ASSET_PATH =
+    process.env.ASSET_PATH || accessURL ? accessURL + bundlesPath : bundlesPath;
+
+  let config = await getLincdConfig();
+
   let postcssPlugins = [
     postcssUrl({
       url: (asset) => {
@@ -150,7 +115,8 @@ export const getWebpackAppConfig = async () => {
     config.cssMode === 'scss-modules' ||
     config.cssMode === 'scss' ||
     config.cssMode === 'mixed'
-  ) {
+  )
+  {
     postcssPlugins = postcssPlugins.concat([
       // ['stylelint', {
       //   'extends': [
@@ -185,23 +151,25 @@ export const getWebpackAppConfig = async () => {
       isProduction && 'cssnano',
       // "postcss-reporter",
     ]);
-    if (config.cssMode === 'scss-modules' || config.cssMode === 'mixed') {
-      postcssPlugins.push([
-        'postcss-modules',
-        {
-          generateScopedName: generateScopedName,
-          globalModulePaths: (Array.isArray(config.cssGlobalModulePaths)
-              ? [/tailwind/, ...config.cssGlobalModulePaths]
-              : [/tailwind/, config.cssGlobalModulePaths]
-          ).filter(Boolean),
-        },
-      ]);
+    if (config.cssMode === 'scss-modules' || config.cssMode === 'mixed')
+    {
+      // postcssPlugins.push([
+      //   'postcss-modules',
+      //   {
+      //     generateScopedName: generateScopedName,
+      //     globalModulePaths: (Array.isArray(config.cssGlobalModulePaths)
+      //         ? [/tailwind/, ...config.cssGlobalModulePaths]
+      //         : [/tailwind/, config.cssGlobalModulePaths]
+      //     ).filter(Boolean),
+      //   },
+      // ]);
     }
   }
-  if (config.cssMode === 'tailwind' || config.cssMode === 'mixed') {
+  if (config.cssMode === 'tailwind' || config.cssMode === 'mixed')
+  {
     //make sure that tailwind classes from any LINCD packages that are listed in package.json:dependencies are included
     let lincdPackagePaths: any = getLINCDDependencies(packageJson);
-    lincdPackagePaths = lincdPackagePaths.map(([packageName, packagePath]) => {
+    lincdPackagePaths = lincdPackagePaths.map(([packageName,packagePath]) => {
       return packagePath + '/lib/**/*.{js,mjs}';
     });
     // console.log(
@@ -219,7 +187,7 @@ export const getWebpackAppConfig = async () => {
           : {
             //in development mode we allow all classes here, so that you can easily develop
             pattern: /./,
-            variants: ['sm', 'md', 'lg', 'xl', '2xl'],
+            variants: ['sm','md','lg','xl','2xl'],
           },
         theme: {
           extend: {
@@ -227,7 +195,7 @@ export const getWebpackAppConfig = async () => {
           },
         },
         plugins: [
-          tailwindPlugin(function ({addBase, config}) {
+          tailwindPlugin(function({ addBase,config }) {
             //we can use LINCD CSS variables for default font color, size etc.
             // addBase({
             //   'h1': { fontSize: config('theme.fontSize.2xl') },
@@ -274,7 +242,7 @@ export const getWebpackAppConfig = async () => {
     },
     plugins: [
       // new WatchRunPlugin(),
-      new RebuildScssJsonPlugin(),
+      // new RebuildScssJsonPlugin(),
       new MiniCssExtractPlugin(),
       new webpack.EnvironmentPlugin(Object.keys(process.env)),
       // new ForkTsCheckerWebpackPlugin(),
@@ -294,12 +262,16 @@ export const getWebpackAppConfig = async () => {
               loader: 'css-loader',
               options: {
                 url: false,
-                // modules:{
-                //     exportOnlyLocals:true,
-                //     getLocalIdent: this.getLocalIdent.bind(this),
-                //     localIdentName: "[path][name]__[local]--[hash:base64:5]",
-                //   },
                 importLoaders: 1,
+                modules: {
+                  mode: 'local',
+                  // namedExport:true,
+                  //     exportOnlyLocals:true,
+                  getLocalIdent: getLocalIdent,
+                  localIdentName: '[local]--[hash:base64:6]',
+                  //     localIdentName: "[path][name]__[local]--[hash:base64:5]",
+                },
+
               },
             },
             {
@@ -347,6 +319,7 @@ export const getWebpackAppConfig = async () => {
                     module: 'esnext',
                     moduleResolution: 'node',
                     sourceMap: isDevelopment,
+                    plugins: [{ 'name': 'typescript-plugin-css-modules' }],
                   },
                 }),
               options: {
@@ -383,11 +356,11 @@ export const getWebpackAppConfig = async () => {
       modules: false,
     },
     resolve: {
-      extensions: ['.tsx','.ts','.js','.scss','.scss.json','.json'],
+      extensions: ['.tsx','.ts','.js','.css','.scss','.json'],
       alias: config.alias || {},
     },
     //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
     //see also https://webpack.js.org/configuration/other-options/#cache
     cache: { type: 'memory' },
-  }
-}
+  };
+};

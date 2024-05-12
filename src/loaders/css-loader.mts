@@ -1,6 +1,6 @@
 import createLoader from 'create-esm-loader'
-import parseCSS from 'css-parse';
-import { generateScopedName } from '../utils.js';
+// import parseCSS from 'css-parse';
+import { generateScopedName,generateScopedNameProduction } from '../utils.js';
 
 const cssLoader = {
   resolve(specifier, opts) {
@@ -39,7 +39,12 @@ function parseCssToObject(rawSource:string,filename) {
     myResults.map(result => {
       return result.replace(/[\.\s:]/g,'')
     }).forEach(selector => {
-      let scopedClassName = generateScopedName(process.env.NODE_ENV === 'production',false,selector,filename,null);
+      let scopedClassName;
+      if(process.env.NODE_ENV === 'production') {
+        scopedClassName = generateScopedNameProduction(selector,filename);
+      } else {
+        scopedClassName = generateScopedName(selector,filename);
+      }
       output[selector] = scopedClassName;
     })
   }

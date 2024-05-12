@@ -1747,43 +1747,6 @@ var buildFailed = function(output: string) {
     output.indexOf('Command failed') !== -1
   );
 };
-/*program.command('shapes').action(async () => {
-	//we've imported require-extensions from npm so that we can use this
-	//we want to avoid nodejs tripping up over @import commands in css files
-	require.extensions['.scss'] = function (sourcecode, filename) {
-		return {};
-	};
-	require.extensions['.css'] = function (sourcecode, filename) {
-		return {};
-	};
-
-	if (fs.existsSync(process.cwd() + '/package.json')) {
-		var pack = JSON.parse(
-			fs.readFileSync(process.cwd() + '/package.json', 'utf8'),
-		);
-		let packageName = pack.name;
-
-		//just making sure the library is loaded in correct order because circular references are currently happening when importing BlankNode before NamedNode for example
-		// require('lincd');
-		//TODO: replace with actual index file from package.json, or tsconfig
-		let indexExports = require(process.cwd() + '/lib/index.js');
-		if(indexExports.packageExports)
-		{
-			let shapeJSONLD = await getShapesJSONLD(indexExports.packageExports);
-			console.log(indexExports.packageExports);
-			console.log(shapeJSONLD);
-			console.log(chalk.bold(chalk.green(packageName+'/dist/shapes.json')));
-			return fs.writeFile(path.join('dist', 'shapes.json'), shapeJSONLD);
-		}
-		else
-		{
-			console.warn("Invalid LINCD package. Index file should export a packageExports object. See examples.")
-		}
-
-	} else {
-		console.warn('Not a project');
-	}
-});*/
 
 export const register = function(registryURL) {
   if (fs.existsSync(process.cwd() + '/package.json'))
@@ -1997,95 +1960,6 @@ export const buildPackage = async (
 
   }
   return success;
-  //      'build-lib': 'yarn exec tsc --pretty',
-
-  //   'copy:lib',
-  // var copyfiles = require('copyfiles');
-  // copyfiles([paths], opt, callback);
-
-  // {
-  //   expand: true,
-  //     src: ['**/*.json', '**/*.d.ts', '**/*.scss', '**/*.css'],
-  //   dest: config.outputPath || 'lib/',
-  //   cwd: 'src/',
-  //   filter: 'isFile',
-  // },
-
-  //        command: 'yarn lincd depcheck',
-  //'check-imports': 'yarn lincd check-imports',
-
-  /*if (target == 'production' || target == 'es5' || target == 'es6' || !target)
-  {
-    if (!fs.existsSync(path.join(packagePath,'Gruntfile.js')))
-    {
-      console.warn(
-        `No Gruntfile found at ${packagePath}\\Gruntfile.js. Cannot build.`,
-      );
-      return;
-    }
-
-    var nodeEnv = '';
-    if (target == 'production')
-    {
-      if (
-        !(target2 == 'es5' || target2 == 'es6' || typeof target2 == 'undefined')
-      )
-      {
-        console.warn('unknown second build target. Use es5 or es6',target2);
-        return;
-      }
-      var isWindows = /^win/.test(process.platform);
-      if (isWindows)
-      {
-        nodeEnv = 'SET NODE_ENV=production&& ';
-      }
-      else
-      {
-        nodeEnv = 'NODE_ENV=\'production\' ';
-      }
-    }
-    if (!target)
-    {
-      target = 'es6';
-    }
-
-    log(
-      'building once: ' +
-      nodeEnv +
-      'grunt build' +
-      (target ? '-' + target : '') +
-      (target2 ? '-' + target2 : '') +
-      ' --color',
-    );
-    let method = logResults ? execp : execPromise;
-
-    //NOTE: we moved SCSS:JSON out of webpack and grunt, into this file
-    //this is the beginning of a transition away from grunt
-    //but for the time being it's perhaps a bit strange that we
-    // let x = postcss([
-    //   postcssModules({
-    //     generateScopedName,
-    //   }),
-    // ]);
-
-    //execute the command to build the method, and provide the current work directory as option
-    return method(
-      nodeEnv +
-      'grunt build' +
-      (target ? '-' + target : '') +
-      (target2 ? '-' + target2 : '') +
-      ' --color',
-      false,
-      false,
-      { cwd: packagePath },
-    ).catch((err) => {
-      process.exit(1);
-    });
-  }
-  else
-  {
-    console.warn('unknown build target. Use es5, es6 or production.');
-  }*/
 };
 
 export var publishUpdated = function(test: boolean = false) {
