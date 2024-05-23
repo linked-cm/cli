@@ -1,22 +1,15 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
     "sourceMap": true,
-    "target": "es6",
-    "moduleResolution": "node",
-    "outDir": "lib",
     "declaration": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
     "downlevelIteration": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "pretty": true,
     "jsx": "react",
-    "types": ["node", "react", "react-dom"],
-    "paths": {
-      "react": ["../node_modules/@types/react","../../../node_modules/@types/react"]
-    },
-    "baseUrl": "./src"
+    "types": []
   },
   "files": ["./src/index.ts"],
   "include": ["./src/backend.ts"]

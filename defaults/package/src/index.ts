@@ -1,3 +1,4 @@
+import './types';
 import './ontologies/${hyphen_name}';
 
 //SHAPES FIRST

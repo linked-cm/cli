@@ -9,7 +9,14 @@ import * as _this from './${hyphen_name}';
  * Load the data of this ontology into memory, thus adding the properties of the entities of this ontology to the local graph.
  */
 export var loadData = () => {
-  return import('../data/${hyphen_name}.json').then((data) => JSONLD.parse(data));
+  if (typeof module !== 'undefined' && typeof exports !== 'undefined') {
+    // CommonJS import
+    return import('../data/${hyphen_name}.json').then((data) => JSONLD.parse(data));
+  } else {
+    // ESM import
+    //@ts-ignore
+    return import('../data/${hyphen_name}.json',{ assert: { type: "json" } }).then((data) => JSONLD.parse(data));
+  }
 };
 
 /**

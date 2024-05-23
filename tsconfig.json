@@ -4,6 +4,7 @@
     "skipLibCheck": true,
     "baseUrl": "./src",
     "module": "esnext",
+    "moduleResolution": "node",
     "types": ["node"]
   },
   "include": ["./src/**/*.ts","./src/**/*.cts"],

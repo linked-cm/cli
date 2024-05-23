@@ -11,7 +11,7 @@ import {
   buildApp,
   buildPackage,
   buildUpdated,
-  checkImports,
+  checkImports,compilePackage,
   createApp,
   createComponent,
   createOntology,
@@ -23,7 +23,7 @@ import {
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
-  getLincdPackages,
+  getLincdPackages,getScriptDir,
   publishPackage,
   publishUpdated,
   register,
@@ -161,7 +161,7 @@ program
 program
   .command('info')
   .action(() => {
-    const localDir = dirname(import.meta.url).replace('file:/', '');
+    let localDir = getScriptDir();
     let packageJsonPath =path.join(localDir,  'package.json')
     try {
       var ownPackage = JSON.parse(
@@ -184,6 +184,9 @@ program
     buildPackage(target, target2);
   });
 
+program.command('compile-only').action(() => {
+  compilePackage();
+}).description('Compile the package without other build steps. Run this command from the package folder');
 program.command('build-metadata').action(() => {
   console.log('Needs to be reimplemented');
   // buildMetadata();
