@@ -6,7 +6,6 @@ export const {
   linkedShape,
   linkedUtil,
   linkedOntology,
-  registerPackageModule,
   registerPackageExport,
   packageExports,
   packageName,

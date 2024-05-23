@@ -8,7 +8,6 @@ export const {
   linkedUtil,
   linkedOntology,
   registerPackageExport,
-  registerPackageModule,
   packageExports,
   packageName,
 } = linkedPackage('${hyphen_name}');

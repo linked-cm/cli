@@ -439,27 +439,30 @@ export function execPromise(
   });
 }
 
-// export function generateScopedName(moduleName,name, filename, css) {
-export function generateScopedName(
-  isProduction,
-  isWebpack,
+export function generateScopedNameProduction(
   cssClassName,
   filepath,
-  css,
+  css?,
 ) {
   //for app development we can use short unique hashes
   //but for webpack bundles of lincd modules, we need to ensure unique class names across bundles of many packages
-  if (isProduction && !isWebpack) {
-    //generate a short unique hash based on cssClassName and filepath
-    let hash = require('crypto')
-      .createHash('md5')
-      .update(cssClassName + filepath)
-      .digest('hex')
-      .substring(0, 6);
-    return hash;
-  }
-  var filename = path.basename(filepath, '.scss');
-  let nearestPackageJson = findNearestPackageJsonSync(filename);
+  //generate a short unique hash based on cssClassName and filepath
+  let hash = require('crypto')
+    .createHash('md5')
+    .update(cssClassName + filepath)
+    .digest('hex')
+    .substring(0, 6);
+  return hash;
+
+}
+export function generateScopedName(
+  cssClassName,
+  filepath,
+  css?,
+) {
+  var filename = path.basename(filepath).replace(/\.(module\.)?(css|scss)/,'');
+  let resolved = path.resolve(filepath).replace(/[\w\-_\/]+\/file\:/,'');
+  let nearestPackageJson = findNearestPackageJsonSync(resolved);
   let packageName = nearestPackageJson
     ? nearestPackageJson.data.name
     : 'unknown';

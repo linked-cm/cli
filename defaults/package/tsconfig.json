@@ -11,6 +11,6 @@
     "jsx": "react",
     "types": []
   },
-  "files": ["./src/index.ts"],
+  "files": ["./src/types.d.ts","./src/index.ts"],
   "include": ["./src/backend.ts"]
 }
