@@ -243,7 +243,9 @@ export const getWebpackAppConfig = async () => {
     plugins: [
       // new WatchRunPlugin(),
       // new RebuildScssJsonPlugin(),
-      new MiniCssExtractPlugin(),
+      new MiniCssExtractPlugin({
+        ignoreOrder:true
+      }),
       new webpack.EnvironmentPlugin(Object.keys(process.env)),
       // new ForkTsCheckerWebpackPlugin(),
       isDevelopment && new ReactRefreshWebpackPlugin(),
