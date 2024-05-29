@@ -1,6 +1,6 @@
 {
   "name": "lincd-cli",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Command line tools for the lincd.js library",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
@@ -31,7 +31,7 @@
     "dual-package": "echo 'adding package.json to each lib folder for dual output support' && yarn tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json",
     "dev": "yarn tsc -p tsconfig-esm.json -w",
     "dev-cjs": "yarn tsc -p tsconfig-cjs.json -w",
-    "_postinstall": "husky install",
+    "postinstall": "husky install",
     "prepack": "yarn build && pinst --disable && yarn version patch",
     "postpack": "pinst --enable",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
@@ -121,6 +121,7 @@
     "postcss-reporter": "^7.1.0",
     "postcss-scss": "^4.0.9",
     "postcss-strip-inline-comments": "^0.1.5",
+    "postcss-url": "^10.1.3",
     "react-refresh-typescript": "^2.0.9",
     "require-extensions": "^0.0.4",
     "sass": "^1.71.1",
@@ -145,7 +146,6 @@
     "husky": "^9.0.11",
     "optimize-css-assets-webpack-plugin": "^6.0.1",
     "pinst": "^3.0.0",
-    "postcss-url": "^10.1.3",
     "prettier": "^3.2.5"
   },
   "peerDepencencies": {}
