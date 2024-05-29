@@ -1110,7 +1110,7 @@ export const createShape = async (name,basePath = process.cwd()) => {
   //copy default shape file
   // log("Creating files for shape '" + name + "'");
   let targetFile = path.join(targetFolder,hyphenName + '.ts');
-  fs.copySync(path.join(__dirname,'..','defaults','shape.ts'),targetFile);
+  fs.copySync(path.join(getScriptDir(),'..','..','defaults','shape.ts'),targetFile);
 
   //replace variables in some of the copied files
   await replaceVariablesInFiles(targetFile);
@@ -1137,13 +1137,13 @@ export const createSetComponent = async (name,basePath = process.cwd()) => {
   log('Creating files for set component \'' + name + '\'');
   let targetFile = path.join(targetFolder,hyphenName + '.tsx');
   fs.copySync(
-    path.join(__dirname,'..','defaults','set-component.tsx'),
+    path.join(getScriptDir(),'..','..','defaults','set-component.tsx'),
     targetFile,
   );
 
   let targetFile2 = path.join(targetFolder,hyphenName + '.scss');
   fs.copySync(
-    path.join(__dirname,'..','defaults','component.scss'),
+    path.join(getScriptDir(),'..','..','defaults','component.scss'),
     targetFile2,
   );
 
@@ -1174,13 +1174,13 @@ export const createComponent = async (name,basePath = process.cwd()) => {
   log('Creating files for component \'' + name + '\'');
   let targetFile = path.join(targetFolder,hyphenName + '.tsx');
   fs.copySync(
-    path.join(__dirname,'..','defaults','component.tsx'),
+    path.join(getScriptDir(),'..','defaults','component.tsx'),
     targetFile,
   );
 
   let targetFile2 = path.join(targetFolder,hyphenName + '.scss');
   fs.copySync(
-    path.join(__dirname,'..','defaults','component.scss'),
+    path.join(getScriptDir(),'..','defaults','component.scss'),
     targetFile2,
   );
 
@@ -1763,7 +1763,7 @@ export const createPackage = async (
     setNameVariables(cleanPackageName);
 
   log('Creating new LINCD package \'' + name + '\'');
-  fs.copySync(path.join(__dirname,'..','defaults','package'),targetFolder);
+  fs.copySync(path.join(getScriptDir(),'..','..','defaults','package'),targetFolder);
 
   //replace variables in some of the copied files
   await Promise.all(
@@ -2570,11 +2570,11 @@ export var addCapacitor = async function(basePath = process.cwd()) {
 
   log('Adding capacitor');
   fs.copySync(
-    path.join(__dirname,'..','defaults','app-static'),
+    path.join(getScriptDir(),'..','..','defaults','app-static'),
     targetFolder,
   );
   fs.copySync(
-    path.join(__dirname,'..','defaults','capacitor','scripts'),
+    path.join(getScriptDir(),'..','..','defaults','capacitor','scripts'),
     path.join(targetFolder,'scripts'),
   );
 

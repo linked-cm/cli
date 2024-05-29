@@ -1,6 +1,6 @@
 {
   "name": "lincd-cli",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Command line tools for the lincd.js library",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
@@ -31,8 +31,8 @@
     "dual-package": "echo 'adding package.json to each lib folder for dual output support' && yarn tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json",
     "dev": "yarn tsc -p tsconfig-esm.json -w",
     "dev-cjs": "yarn tsc -p tsconfig-cjs.json -w",
-    "postinstall": "husky install",
-    "prepack": "npm exec tsc && pinst --disable && yarn version patch",
+    "_postinstall": "husky install",
+    "prepack": "yarn build && pinst --disable && yarn version patch",
     "postpack": "pinst --enable",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
