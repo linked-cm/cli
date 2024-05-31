@@ -2008,8 +2008,7 @@ export const buildPackage = async (
   });
 
   let success = await buildProcess.catch(err => {
-    //err.error + ':\n' +
-    let msg = (err && err.stdout && err.error) ? err.stdout : err.toString();
+    let msg = err.error ? err.error : err.stdout + '\n'+err.stderr;
     if (logResults)
     {
       spinner.stopAndPersist({
