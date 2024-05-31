@@ -1444,6 +1444,7 @@ export const startServer = async (
 
   if (!ServerClass)
   {
+    //@ts-ignore
     ServerClass = (await import('lincd-server/shapes/LincdServer')).LincdServer;
   }
   await import(path.join(process.cwd(),'scripts','storage-config.js'));
