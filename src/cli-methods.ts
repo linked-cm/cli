@@ -2527,7 +2527,7 @@ export var executeCommandForEachPackage = function(
     packages = packages.filter((pkg) => {
       if (
         !seen &&
-        (pkg.packageName == startFrom || pkg.packageName == startFrom)
+        pkg.packageName.includes(startFrom)
       )
       {
         seen = true;
@@ -2714,8 +2714,8 @@ export const removeOldFiles = async (packagePath) => {
         const currentTime = new Date().getTime();
         const lastModifiedTime = stats.mtime.getTime();
 
-        // Check if the difference between the current time and last modified time is greater than 10 seconds
-        if (currentTime - lastModifiedTime > 10000) {
+        // Check if the difference between the current time and last modified time is greater than 120 seconds
+        if (currentTime - lastModifiedTime > 120000) {
           // Attempt to delete the file
           await fs.unlink(file);
           // console.log(`Removed: ${file}`);
