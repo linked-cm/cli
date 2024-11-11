@@ -1444,6 +1444,7 @@ export const startServer = async (
 
   if (!ServerClass)
   {
+    //@ts-ignore
     ServerClass = (await import('lincd-server/shapes/LincdServer')).LincdServer;
   }
   await import(path.join(process.cwd(),'scripts','storage-config.js'));
@@ -2007,8 +2008,7 @@ export const buildPackage = async (
   });
 
   let success = await buildProcess.catch(err => {
-    //err.error + ':\n' +
-    let msg = (err && err.stdout && err.error) ? err.stdout : err.toString();
+    let msg = err.error ? err.error : err.stdout + '\n'+err.stderr;
     if (logResults)
     {
       spinner.stopAndPersist({
