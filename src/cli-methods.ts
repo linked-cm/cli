@@ -1512,9 +1512,10 @@ export const buildApp = async () => {
     });
   }).then(async () => {
     // make sure environment is not development for storage config
-    if (process.env.NODE_ENV === 'development')
+    // and if we want to upload to storage, we need set S3_BUCKET_ENDPOINT
+    if (process.env.NODE_ENV === 'development' || !process.env.S3_BUCKET_ENDPOINT)
     {
-      console.warn('Upload build to storage skip in development environment');
+      console.warn('Upload build to storage skip in development environment or S3_BUCKET_ENDPOINT is not set');
       process.exit();
     }
 
@@ -1523,6 +1524,7 @@ export const buildApp = async () => {
       console.warn('Not uploading to CDN for app builds');
       process.exit();
     }
+
     // load the storage config
     const storageConfig = await import(
       path.join(process.cwd(),'scripts','storage-config.js')
