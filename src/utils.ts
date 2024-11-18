@@ -8,6 +8,7 @@ import {PackageDetails} from 'interfaces';
 
 import { findNearestPackageJson,findNearestPackageJsonSync } from 'find-nearest-package-json';
 import * as glob from 'glob';
+import * as crypto from 'crypto';
 
 var gruntConfig;
 
@@ -447,7 +448,7 @@ export function generateScopedNameProduction(
   //for app development we can use short unique hashes
   //but for webpack bundles of lincd modules, we need to ensure unique class names across bundles of many packages
   //generate a short unique hash based on cssClassName and filepath
-  let hash = require('crypto')
+  let hash = crypto
     .createHash('md5')
     .update(cssClassName + filepath)
     .digest('hex')
