@@ -1516,8 +1516,11 @@ export const removeOldFiles = async (packagePath) => {
       const filePath = path.join(libPath, file);
 
       //check if the file is a directory
-      // const stats = await fs.stat(filePath);
-      // let isDir = stats.isDirectory();
+      const stats = await fs.stat(filePath);
+      let isDir = stats.isDirectory();
+      if (isDir) {
+        continue;
+      }
 
       // Check if the file exists before attempting to delete it
       if (await fs.pathExists(filePath)) {
