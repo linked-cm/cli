@@ -65,7 +65,7 @@
     "env-cmd": "^10.1.0",
     "find-nearest-package-json": "^2.0.1",
     "fs-extra": "^11.2.0",
-    "glob": "^10.3.10",
+    "glob": "^7.1.6",
     "grunt": "^1.6.1",
     "grunt-cli": "^1.4.3",
     "grunt-concurrent": "^3.0.0",

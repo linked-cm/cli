@@ -1515,6 +1515,10 @@ export const removeOldFiles = async (packagePath) => {
     for (const file of files) {
       const filePath = path.join(libPath, file);
 
+      //check if the file is a directory
+      // const stats = await fs.stat(filePath);
+      // let isDir = stats.isDirectory();
+
       // Check if the file exists before attempting to delete it
       if (await fs.pathExists(filePath)) {
         const stats = await fs.stat(filePath);
@@ -1522,7 +1526,7 @@ export const removeOldFiles = async (packagePath) => {
         const lastModifiedTime = stats.mtime.getTime();
 
         // Check if the difference between the current time and last modified time is greater than 10 seconds
-        if (currentTime - lastModifiedTime > 10000) {
+        if (currentTime - lastModifiedTime > 120_000) {
           // Attempt to delete the file
           await fs.remove(filePath);
           console.log(`Removed: ${filePath}`);

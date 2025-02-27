@@ -3,6 +3,7 @@
     "module": "commonjs",
     "newLine": "lf",
     "esModuleInterop": true,
+    "skipLibCheck": true,
     "target": "es2018",
     "baseUrl": "./src",
     "sourceMap": true,
