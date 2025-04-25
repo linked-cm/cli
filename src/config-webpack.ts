@@ -22,7 +22,7 @@ import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
 import TerserPlugin from 'terser-webpack-plugin';
 import { exec } from 'child_process';
 import CopyPlugin from 'copy-webpack-plugin';
-import tailwindPlugin from 'tailwindcss/plugin';
+// import tailwindPlugin from 'tailwindcss/plugin';
 
 declare var __dirname: string;
 declare var require: any;
@@ -239,14 +239,14 @@ export function generateWebpackConfig(
           },
         },
         plugins: [
-          tailwindPlugin(function ({addBase, config}) {
+          // tailwindPlugin(function ({addBase, config}) {
             //we can use LINCD CSS variables for default font color, size etc.
             // addBase({
             //   'h1': { fontSize: config('theme.fontSize.2xl') },
             //   'h2': { fontSize: config('theme.fontSize.xl') },
             //   'h3': { fontSize: config('theme.fontSize.lg') },
             // })
-          }),
+          // }),
         ],
       },
     ]);

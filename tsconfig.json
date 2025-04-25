@@ -5,7 +5,8 @@
     "baseUrl": "./src",
     "module": "esnext",
     "moduleResolution": "node",
-    "types": ["node"]
+    "types": ["node"],
+    "allowSyntheticDefaultImports": true
   },
   "include": ["./src/**/*.ts","./src/**/*.cts","./src/**/*.mts"],
   "files": ["./src/index.ts", "./src/cli.ts"]

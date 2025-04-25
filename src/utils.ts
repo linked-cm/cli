@@ -28,28 +28,68 @@ const tsHost = ts.createCompilerHost(
 );
 
 export var getFileImports = async function (filePath) {
-  const sourceFile = tsHost.getSourceFile(
-    filePath,
-    ts.ScriptTarget.Latest,
-    (msg) => {
-      throw new Error(`Failed to parse ${filePath}: ${msg}`);
-    },
-  );
-  if (!sourceFile) throw ReferenceError(`Failed to find file ${filePath}`);
-  const importing: string[] = [];
-  delintNode(sourceFile);
-  return importing;
+  try {
+    const importing: string[] = [];
 
-  function delintNode(node: ts.Node) {
-    if (ts.isImportDeclaration(node)) {
-      const moduleName = node.moduleSpecifier.getText().replace(/['"]/g, '');
-      if (
-        !moduleName.startsWith('node:') &&
-        !builtinModules.includes(moduleName)
-      )
-        importing.push(moduleName);
-    } else ts.forEachChild(node, delintNode);
+    const delintNode = (node: ts.Node) => {
+      if (ts.isImportDeclaration(node)) {
+        const moduleName = node.moduleSpecifier.getText().replace(/['"]/g, '');
+        if (
+          !moduleName.startsWith('node:') &&
+          !builtinModules.includes(moduleName)
+        )
+          importing.push(moduleName);
+      } else ts.forEachChild(node, delintNode);
+    }
+    const sourceFile = tsHost.getSourceFile(
+      filePath,
+      ts.ScriptTarget.Latest,
+      (msg) => {
+        throw new Error(`Failed to parse ${filePath}: ${msg}`);
+      },
+    );
+    //check if its a directory, then we wanr that we can't parse it
+    let stat = fs.lstatSync(filePath);
+    if(stat.isDirectory()) {
+      return importing;
+    }
+
+    if (!sourceFile) {
+      console.warn(`Failed to find file ${filePath}`);
+      return importing;
+    }
+    delintNode(sourceFile);
+    return importing;
+  } catch(err) {
+    console.warn(`Error parsing file ${filePath}: ${err}`);
+    return [];
   }
+
+
+};
+
+/**
+ *
+ * @param importPath The import path to check
+ * @param curFileDepth How many folders deep the current file is (0 = src, 1 = src/foo, etc.)
+ * @returns
+ */
+export var isInvalidLINCDImport = function (
+  importPath: string,
+  curFileDepth: number,
+) {
+  return importPath.includes('lincd') && (importPath.includes('/src/') || importPath.includes('/lib/'));
+}
+export var isImportOutsideOfPackage = function (
+  importPath: string,
+  curFileDepth: number,
+) {
+  if (importPath.includes('..')) {
+    //the number of '..' in the import path should be less than or equal to the current file depth
+    //if its bigger then the import is outside of the package
+    return importPath.split('..').length - 1 > curFileDepth;
+  }
+  return false;
 };
 
 /**
@@ -75,6 +115,18 @@ export var isValidLINCDImport = function (
 
   return validLincdPath || validRelativePath;
 };
+
+export var isImportWithMissingExtension = function (importPath: string) {
+  //if  a relative import then it needs an extension
+  if(importPath.startsWith('../') || importPath.startsWith('./')) {
+    //check if the last part of the import after the last slash has a file extension
+    if(importPath.split('/').pop().split('.').length < 2) {
+      //if it doesn't have an extension, then it's missing, so return true
+      return true;
+    }
+  }
+  return false;
+}
 
 export var getPackageJSON = function (root = process.cwd(), error = true) {
   let packagePath = path.join(root, 'package.json');
@@ -461,6 +513,7 @@ export function generateScopedName(
   filepath,
   css?,
 ) {
+  // return cssClassName;
   var filename = path.basename(filepath).replace(/\.(module\.)?(css|scss)/,'');
   let resolved = path.resolve(filepath).replace(/[\w\-_\/]+\/file\:/,'');
   let nearestPackageJson = findNearestPackageJsonSync(resolved);

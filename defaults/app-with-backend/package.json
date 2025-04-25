@@ -16,7 +16,7 @@
   "main": "scripts/start-server.js",
   "license": "MIT",
   "scripts": {
-    "start": "yarn lincd start --env development",
+    "start": "node --import ./node_modules/lincd-cli/lib/esm/loaders/register.js node_modules/.bin/lincd-cli start --env development",
     "build": "yarn lincd build-app --env production",
     "postinstall": "husky install",
     "prepack": "pinst --disable",
@@ -63,13 +63,14 @@
     "lincd-jsonld": "~1.0",
     "lincd-server": "~1.0",
     "lincd-server-utils": "~1.0",
+    "node-gyp": "^11.1.0",
     "react": "^18.2",
     "react-dom": "^18.2",
     "react-error-boundary": "^3.1.3",
     "react-router-dom": "^6.3.0"
   },
   "devDependencies": {
-    "@types/node": "^18.11.10",
+    "@types/node": "^20.12.7",
     "@types/react": "^18.0.17",
     "@types/react-dom": "^18.0.6",
     "@typescript-eslint/eslint-plugin": "latest",

@@ -282,6 +282,13 @@ program
           .join(' ')
       : null;
 
+    //TODO: call
+    // let pkgName = process.argv[1];
+    // console.log(pkgName);
+    // let restArgs = process.argv.slice(2)
+    // program.parse([],{from:'user'});
+    // program.parse(['--port', '80'], { from: 'user' })
+
     executeCommandForPackage(name, fullCommand);
   })
   .alias('p')

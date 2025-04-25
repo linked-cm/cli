@@ -14,9 +14,11 @@ import {
   getLinkedTailwindColors,
 } from './utils.js';
 
-import tailwindPlugin from 'tailwindcss/plugin.js';
+// import tailwindPlugin from 'tailwindcss/plugin.js';
 import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
 import postcssUrl from 'postcss-url';
+//@ts-ignore
+import plugin from 'tailwindcss/plugin';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -33,14 +35,50 @@ class WatchRunPlugin
     compiler.hooks.watchRun.tap('watchRun',(comp) => {
       if (comp.modifiedFiles)
       {
-        const changedFiles = Array.from(
-          comp.modifiedFiles,
-          (file) => `\n  ${file}`,
-        ).join('');
-        if (changedFiles.length)
-        {
-          console.log(chalk.magenta('Changed files:'),changedFiles);
-        }
+        // const changedFiles = Array.from(
+        //   comp.modifiedFiles,
+        //   (file) => `\n  ${file}`,
+        // ).join('');
+        // if (changedFiles.length)
+        // {
+        //   console.log(chalk.magenta('Changed files:'),changedFiles);
+        // }
+        const changedFiles = Array.from(comp.modifiedFiles);
+
+        console.log(chalk.magenta('Changed files:'));
+        const entriesToCheck = [];
+
+        changedFiles.forEach((file) => {
+          try {
+            const stat = fs.statSync(file.toString());
+            console.log(`  ${chalk.magenta(file)}`);
+            entriesToCheck.push({ path: file, mtime: stat.mtime });
+            if (stat.isDirectory()) {
+              const contents = fs.readdirSync(file.toString());
+              contents.forEach((name) => {
+                const fullPath = path.join(file.toString(), name);
+                try {
+                  const innerStat = fs.statSync(fullPath);
+                  entriesToCheck.push({ path: fullPath, mtime: innerStat.mtime });
+                } catch (e) {
+                  entriesToCheck.push({ path: fullPath, mtime: new Date(0), error: e.message });
+                }
+              });
+            }
+          } catch (err) {
+            entriesToCheck.push({ path: file, mtime: new Date(0), error: err.message });
+          }
+        });
+
+        entriesToCheck
+          .sort((a, b) => b.mtime - a.mtime)
+          .splice(0,7)
+          .forEach((entry) => {
+            const label = entry.error
+              ? `[error: ${entry.error}]`
+              : `[${entry.mtime.toISOString()}]`;
+            console.log(`  ${entry.path} ${label}`);
+          });
       }
     });
   }
@@ -71,7 +109,7 @@ export const getLincdConfig = async () => {
   else if (fs.existsSync(lincdConfigPathJs))
   {
     let lincdConfig = await import(lincdConfigPathJs);
-    config = { ...config,...lincdConfig };
+    config = { ...config,...lincdConfig.default };
   }
   else if (fs.existsSync(lincdConfigPathJson))
   {
@@ -104,13 +142,164 @@ export const getWebpackAppConfig = async () => {
 
   let config = await getLincdConfig();
 
-  let postcssPlugins = [
+  let postcssPlugins = [];
+
+  //tailwind first (so its processed last and doesnt overwrite custom CSS modules)
+  if (config.cssMode === 'tailwind' || config.cssMode === 'mixed')
+  {
+    //make sure that tailwind classes from any LINCD packages that are listed in package.json:dependencies are included
+    let lincdPackagePaths: any = getLINCDDependencies(packageJson);
+    lincdPackagePaths = lincdPackagePaths.map(([packageName,packagePath]) => {
+      return packagePath + '/lib/**/*.{js,mjs}';
+    });
+    // console.log(
+    //   chalk.blueBright('tailwind content: ') + chalk.magenta(['./frontend/src/**/*.{tsx,ts}', ...lincdPackagePaths]),
+    // );
+    postcssPlugins.push([
+      '@tailwindcss/postcss',
+      {
+        content: [
+          (process.env.SOURCE_PATH || './src/') + '**/*.{tsx,ts}',
+          ...lincdPackagePaths,
+        ],
+        // safelist: isProduction
+        //   ? {}
+        //   : {
+        //     //in development mode we allow all classes here, so that you can easily develop
+        //     pattern: /./,
+        //     variants: ['sm','md','lg','xl','2xl'],
+        //   },
+        // features: {
+        //   themeVariables: {
+        //     generateAll: true,
+        //   },
+        // },
+        theme: {
+          extend: {
+            colors: getLinkedTailwindColors(),
+          },
+        },
+        plugins: [
+          plugin(function({ addBase, theme }) {
+            //add styles to the base styles
+            //this replicates the preflight settings of tailwind v4, but without the destructive/strict #/# selectors
+            addBase({
+              // Reset all elements except common inline tags and semantic containers
+              '*:not(code):not(pre):not(kbd):not(samp):not(mark):not(q):not(ins):not(del):not(span):not(a):not(b):not(i):not(em):not(u):not(s):not(small):not(strong):not(sub):not(sup), ::before, ::after': {
+                boxSizing: 'border-box',
+                margin: '0',
+                padding: '0',
+                borderWidth: '0',
+                borderStyle: 'solid',
+                borderColor: 'currentColor',
+              },
+              html: {
+                lineHeight: '1.5',
+                textSizeAdjust: '100%',
+                WebkitTextSizeAdjust: '100%',
+                MozTextSizeAdjust: '100%',
+                fontFamily: 'system-ui, sans-serif',
+              },
+              body: {
+                margin: '0',
+                lineHeight: 'inherit',
+                backgroundColor: 'white',
+              },
+              hr: {
+                height: '0',
+                color: 'inherit',
+                borderTopWidth: '1px',
+              },
+              abbr: {
+                textDecoration: 'underline dotted',
+              },
+              'b, strong': {
+                fontWeight: 'bolder',
+              },
+              'code, kbd, samp, pre': {
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: '1em',
+              },
+              small: {
+                fontSize: '80%',
+              },
+              'sub, sup': {
+                fontSize: '75%',
+                lineHeight: '0',
+                position: 'relative',
+                verticalAlign: 'baseline',
+              },
+              sub: { bottom: '-0.25em' },
+              sup: { top: '-0.5em' },
+              table: {
+                textIndent: '0',
+                borderColor: 'inherit',
+                borderCollapse: 'collapse',
+              },
+              'button, input, optgroup, select, textarea': {
+                font: 'inherit',
+                color: 'inherit',
+                margin: '0',
+                padding: '0',
+                lineHeight: 'inherit',
+                backgroundColor: 'transparent',
+                borderColor: 'inherit',
+              },
+              'button, select': {
+                textTransform: 'none',
+              },
+              'button, [type="button"], [type="reset"], [type="submit"]': {
+                appearance: 'button',
+                WebkitAppearance: 'button',
+              },
+              '::-moz-focus-inner': {
+                borderStyle: 'none',
+                padding: '0',
+              },
+              ':-moz-focusring': {
+                outline: 'auto',
+              },
+              ':-moz-ui-invalid': {
+                boxShadow: 'none',
+              },
+              fieldset: {
+                margin: '0',
+                padding: '0',
+                border: '0',
+              },
+              legend: {
+                padding: '0',
+              },
+            });
+          }),
+        ],
+        // plugins: [
+          // tailwindPlugin(function({ addBase,config }) {
+          //   //we can use LINCD CSS variables for default font color, size etc.
+          //   // addBase({
+          //   //   'h1': { fontSize: config('theme.fontSize.2xl') },
+          //   //   'h2': { fontSize: config('theme.fontSize.xl') },
+          //   //   'h3': { fontSize: config('theme.fontSize.lg') },
+          //   // })
+          // }),
+        // ],
+      },
+    ]);
+  }
+  postcssPlugins.push([
     postcssUrl({
       url: (asset) => {
-        return `${accessURL}${publicPath}${asset.url}`;
+        //This convert URLs used in CSS and adds the full public URL instead of a local path
+        //TODO: for assets of packages, we want to detect the package path and resolve through node_modules/package-name/...something/assets
+        if(!asset.url.startsWith('data:'))
+        {
+          // console.log('Transform CSS URL:'+asset.url);
+          return `${accessURL}${publicPath}${asset.url}`;
+        }
+        return asset.url;
       },
     }),
-  ];
+  ])
   if (
     config.cssMode === 'scss-modules' ||
     config.cssMode === 'scss' ||
@@ -153,6 +342,7 @@ export const getWebpackAppConfig = async () => {
     ]);
     if (config.cssMode === 'scss-modules' || config.cssMode === 'mixed')
     {
+      //NOTE: this is replaced with the css-loader
       // postcssPlugins.push([
       //   'postcss-modules',
       //   {
@@ -165,52 +355,10 @@ export const getWebpackAppConfig = async () => {
       // ]);
     }
   }
-  if (config.cssMode === 'tailwind' || config.cssMode === 'mixed')
-  {
-    //make sure that tailwind classes from any LINCD packages that are listed in package.json:dependencies are included
-    let lincdPackagePaths: any = getLINCDDependencies(packageJson);
-    lincdPackagePaths = lincdPackagePaths.map(([packageName,packagePath]) => {
-      return packagePath + '/lib/**/*.{js,mjs}';
-    });
-    // console.log(
-    //   chalk.blueBright('tailwind content: ') + chalk.magenta(['./frontend/src/**/*.{tsx,ts}', ...lincdPackagePaths]),
-    // );
-    postcssPlugins.push([
-      'tailwindcss',
-      {
-        content: [
-          (process.env.SOURCE_PATH || './src/') + '**/*.{tsx,ts}',
-          ...lincdPackagePaths,
-        ],
-        safelist: isProduction
-          ? {}
-          : {
-            //in development mode we allow all classes here, so that you can easily develop
-            pattern: /./,
-            variants: ['sm','md','lg','xl','2xl'],
-          },
-        theme: {
-          extend: {
-            colors: getLinkedTailwindColors(),
-          },
-        },
-        plugins: [
-          tailwindPlugin(function({ addBase,config }) {
-            //we can use LINCD CSS variables for default font color, size etc.
-            // addBase({
-            //   'h1': { fontSize: config('theme.fontSize.2xl') },
-            //   'h2': { fontSize: config('theme.fontSize.xl') },
-            //   'h3': { fontSize: config('theme.fontSize.lg') },
-            // })
-          }),
-        ],
-      },
-    ]);
-  }
 
   return {
     mode: isProduction ? 'production' : 'development',
-    devtool: isProduction ? 'source-map' : 'cheap-module-source-map',
+    devtool: isProduction ? 'source-map' : 'eval-cheap-module-source-map',
     entry: [
       isDevelopment && 'webpack-hot-middleware/client',
       path.resolve(
@@ -232,7 +380,8 @@ export const getWebpackAppConfig = async () => {
       clean: true,
     },
     watchOptions: {
-      ignored: ['**/*.d.ts','**/*.js.map','**/*.scss.json'],
+      //ignore everything except the src folder. ignore specific files in the src folder
+      ignored: /(^((?!src).)*$|\.d\.ts$|\.js\.map$|\.scss\.json$|node_modules|public|\.idea|[/\\]\..*)/,
       aggregateTimeout: 500,
     },
     devServer: {
@@ -241,7 +390,7 @@ export const getWebpackAppConfig = async () => {
       },
     },
     plugins: [
-      // new WatchRunPlugin(),
+      new WatchRunPlugin(),
       // new RebuildScssJsonPlugin(),
       new MiniCssExtractPlugin({
         ignoreOrder:true
@@ -269,8 +418,18 @@ export const getWebpackAppConfig = async () => {
                   mode: 'local',
                   // namedExport:true,
                   //     exportOnlyLocals:true,
+                  // exclude:/tailwind/i,
                   getLocalIdent: getLocalIdent,
-                  localIdentName: '[local]--[hash:base64:6]',
+                  // auto: (resourcePath: string) => {
+                  //   // Use CSS Modules for everything except node_modules/tailwind
+                  //   return !/node_modules[\\/]tailwind/.test(resourcePath);
+                  // },
+                  auto: (resourcePath: string) => {
+                    //make sure this only applies to .module.css files, and not to tailwind
+                    return /\.module\.css$/i.test(resourcePath) && !/tailwind/i.test(resourcePath);
+                  }
+                  // localIdentName: '[local]--[hash:base64:6]',
+                  // localIdentName: '[local]',
                   //     localIdentName: "[path][name]__[local]--[hash:base64:5]",
                 },
 
@@ -284,10 +443,10 @@ export const getWebpackAppConfig = async () => {
                 },
               },
             },
-            {
-              loader: 'sass-loader',
-              options: { sourceMap: true },
-            },
+            // {
+            //   loader: 'sass-loader',
+            //   options: { sourceMap: true },
+            // },
           ],
         },
         // {
