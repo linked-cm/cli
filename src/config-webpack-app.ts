@@ -9,16 +9,14 @@ import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
 import TerserPlugin from 'terser-webpack-plugin';
 import {
   generateScopedName,
-  generateScopedNameProduction,
-  getLINCDDependencies,
-  getLinkedTailwindColors,
+  generateScopedNameProduction,getLINCDDependencies,
 } from './utils.js';
 
-// import tailwindPlugin from 'tailwindcss/plugin.js';
 import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
 import postcssUrl from 'postcss-url';
 //@ts-ignore
 import plugin from 'tailwindcss/plugin';
+// import { addLincdSourcesPlugin } from './plugins/lincd-tailwind-sources';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -35,17 +33,9 @@ class WatchRunPlugin
     compiler.hooks.watchRun.tap('watchRun',(comp) => {
       if (comp.modifiedFiles)
       {
-        // const changedFiles = Array.from(
-        //   comp.modifiedFiles,
-        //   (file) => `\n  ${file}`,
-        // ).join('');
-        // if (changedFiles.length)
-        // {
-        //   console.log(chalk.magenta('Changed files:'),changedFiles);
-        // }
         const changedFiles = Array.from(comp.modifiedFiles);
 
-        console.log(chalk.magenta('Changed files:'));
+        console.log(chalk.magenta('Changed files sorted by \'modified time\' stamps:'));
         const entriesToCheck = [];
 
         changedFiles.forEach((file) => {
@@ -59,7 +49,10 @@ class WatchRunPlugin
                 const fullPath = path.join(file.toString(), name);
                 try {
                   const innerStat = fs.statSync(fullPath);
-                  entriesToCheck.push({ path: fullPath, mtime: innerStat.mtime });
+                  //if less than 2 minutes ago...
+                  if (innerStat.mtime > new Date(Date.now() - 2 * 60 * 1000)) {
+                    entriesToCheck.push({ path: fullPath, mtime: innerStat.mtime });
+                  }
                 } catch (e) {
                   entriesToCheck.push({ path: fullPath, mtime: new Date(0), error: e.message });
                 }
@@ -72,7 +65,7 @@ class WatchRunPlugin
 
         entriesToCheck
           .sort((a, b) => b.mtime - a.mtime)
-          .splice(0,7)
+          .splice(0,3)
           .forEach((entry) => {
             const label = entry.error
               ? `[error: ${entry.error}]`
@@ -84,6 +77,12 @@ class WatchRunPlugin
   }
 }
 
+/**
+ * Converts a css class name to a unique scoped name (for CSS Modules)
+ * @param context
+ * @param currentFormat
+ * @param name
+ */
 function getLocalIdent(context,currentFormat,name)
 {
   return isProduction ? generateScopedNameProduction(name,context.resourcePath) : generateScopedName(name,context.resourcePath);
@@ -129,22 +128,25 @@ export const getLincdConfig = async () => {
 
 export const getWebpackAppConfig = async () => {
 
-  // get from the project's config-frontend file
+  // set up the storage config for the app
   await import(path.join(process.cwd(),'scripts','storage-config.js'));
   const accessURL = LinkedFileStorage.accessURL;
 
-  // Should relate to the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
+  // set up the public path for the app
+  // This should match the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
   const publicPath = '/public';
   const bundlesPath = publicPath + '/bundles/';
-  // ASSET_PATH mostly used for the apps to load the assets from the correct path
+
+  // ASSET_PATH is used load the assets from the correct path
   const ASSET_PATH =
     process.env.ASSET_PATH || accessURL ? accessURL + bundlesPath : bundlesPath;
 
   let config = await getLincdConfig();
 
-  let postcssPlugins = [];
+  let postcssPlugins = [
+  ];
 
-  //tailwind first (so its processed last and doesnt overwrite custom CSS modules)
+  //tailwind first (so its processed last and doesn't overwrite custom CSS modules)
   if (config.cssMode === 'tailwind' || config.cssMode === 'mixed')
   {
     //make sure that tailwind classes from any LINCD packages that are listed in package.json:dependencies are included
@@ -158,10 +160,27 @@ export const getWebpackAppConfig = async () => {
     postcssPlugins.push([
       '@tailwindcss/postcss',
       {
-        content: [
-          (process.env.SOURCE_PATH || './src/') + '**/*.{tsx,ts}',
-          ...lincdPackagePaths,
-        ],
+        content: {
+          files:[
+            (process.env.SOURCE_PATH || './src/') + '**/*.{js}',
+            // ...lincdPackagePaths,
+          ]
+        },
+        // config: {
+        //   content: {
+        //     files:[
+        //       (process.env.SOURCE_PATH || './src/') + '**/*.{tsx,ts}',
+        //       ...lincdPackagePaths,
+        //     ]
+        //   },
+        //   // plugins:[
+        //   //   addLincdSourcesPlugin(),
+        //   // ]
+        // },
+        // content: [
+        //   (process.env.SOURCE_PATH || './src/') + '**/*.{tsx,ts}',
+        //   ...lincdPackagePaths,
+        // ],
         // safelist: isProduction
         //   ? {}
         //   : {
@@ -174,104 +193,104 @@ export const getWebpackAppConfig = async () => {
         //     generateAll: true,
         //   },
         // },
-        theme: {
-          extend: {
-            colors: getLinkedTailwindColors(),
-          },
-        },
+        // theme: {
+        //   extend: {
+        //     colors: getLinkedTailwindColors(),
+        //   },
+        // },
         plugins: [
-          plugin(function({ addBase, theme }) {
+          // plugin(function({ addBase, theme }) {
             //add styles to the base styles
             //this replicates the preflight settings of tailwind v4, but without the destructive/strict #/# selectors
-            addBase({
-              // Reset all elements except common inline tags and semantic containers
-              '*:not(code):not(pre):not(kbd):not(samp):not(mark):not(q):not(ins):not(del):not(span):not(a):not(b):not(i):not(em):not(u):not(s):not(small):not(strong):not(sub):not(sup), ::before, ::after': {
-                boxSizing: 'border-box',
-                margin: '0',
-                padding: '0',
-                borderWidth: '0',
-                borderStyle: 'solid',
-                borderColor: 'currentColor',
-              },
-              html: {
-                lineHeight: '1.5',
-                textSizeAdjust: '100%',
-                WebkitTextSizeAdjust: '100%',
-                MozTextSizeAdjust: '100%',
-                fontFamily: 'system-ui, sans-serif',
-              },
-              body: {
-                margin: '0',
-                lineHeight: 'inherit',
-                backgroundColor: 'white',
-              },
-              hr: {
-                height: '0',
-                color: 'inherit',
-                borderTopWidth: '1px',
-              },
-              abbr: {
-                textDecoration: 'underline dotted',
-              },
-              'b, strong': {
-                fontWeight: 'bolder',
-              },
-              'code, kbd, samp, pre': {
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                fontSize: '1em',
-              },
-              small: {
-                fontSize: '80%',
-              },
-              'sub, sup': {
-                fontSize: '75%',
-                lineHeight: '0',
-                position: 'relative',
-                verticalAlign: 'baseline',
-              },
-              sub: { bottom: '-0.25em' },
-              sup: { top: '-0.5em' },
-              table: {
-                textIndent: '0',
-                borderColor: 'inherit',
-                borderCollapse: 'collapse',
-              },
-              'button, input, optgroup, select, textarea': {
-                font: 'inherit',
-                color: 'inherit',
-                margin: '0',
-                padding: '0',
-                lineHeight: 'inherit',
-                backgroundColor: 'transparent',
-                borderColor: 'inherit',
-              },
-              'button, select': {
-                textTransform: 'none',
-              },
-              'button, [type="button"], [type="reset"], [type="submit"]': {
-                appearance: 'button',
-                WebkitAppearance: 'button',
-              },
-              '::-moz-focus-inner': {
-                borderStyle: 'none',
-                padding: '0',
-              },
-              ':-moz-focusring': {
-                outline: 'auto',
-              },
-              ':-moz-ui-invalid': {
-                boxShadow: 'none',
-              },
-              fieldset: {
-                margin: '0',
-                padding: '0',
-                border: '0',
-              },
-              legend: {
-                padding: '0',
-              },
-            });
-          }),
+          //   addBase({
+          //     // Reset all elements except common inline tags and semantic containers
+          //     '*:not(code):not(pre):not(kbd):not(samp):not(mark):not(q):not(ins):not(del):not(span):not(a):not(b):not(i):not(em):not(u):not(s):not(small):not(strong):not(sub):not(sup), ::before, ::after': {
+          //       boxSizing: 'border-box',
+          //       margin: '0',
+          //       padding: '0',
+          //       borderWidth: '0',
+          //       borderStyle: 'solid',
+          //       borderColor: 'currentColor',
+          //     },
+          //     html: {
+          //       lineHeight: '1.5',
+          //       textSizeAdjust: '100%',
+          //       WebkitTextSizeAdjust: '100%',
+          //       MozTextSizeAdjust: '100%',
+          //       fontFamily: 'system-ui, sans-serif',
+          //     },
+          //     body: {
+          //       margin: '0',
+          //       lineHeight: 'inherit',
+          //       backgroundColor: 'white',
+          //     },
+          //     hr: {
+          //       height: '0',
+          //       color: 'inherit',
+          //       borderTopWidth: '1px',
+          //     },
+          //     abbr: {
+          //       textDecoration: 'underline dotted',
+          //     },
+          //     'b, strong': {
+          //       fontWeight: 'bolder',
+          //     },
+          //     'code, kbd, samp, pre': {
+          //       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          //       fontSize: '1em',
+          //     },
+          //     small: {
+          //       fontSize: '80%',
+          //     },
+          //     'sub, sup': {
+          //       fontSize: '75%',
+          //       lineHeight: '0',
+          //       position: 'relative',
+          //       verticalAlign: 'baseline',
+          //     },
+          //     sub: { bottom: '-0.25em' },
+          //     sup: { top: '-0.5em' },
+          //     table: {
+          //       textIndent: '0',
+          //       borderColor: 'inherit',
+          //       borderCollapse: 'collapse',
+          //     },
+          //     'button, input, optgroup, select, textarea': {
+          //       font: 'inherit',
+          //       color: 'inherit',
+          //       margin: '0',
+          //       padding: '0',
+          //       lineHeight: 'inherit',
+          //       backgroundColor: 'transparent',
+          //       borderColor: 'inherit',
+          //     },
+          //     'button, select': {
+          //       textTransform: 'none',
+          //     },
+          //     'button, [type="button"], [type="reset"], [type="submit"]': {
+          //       appearance: 'button',
+          //       WebkitAppearance: 'button',
+          //     },
+          //     '::-moz-focus-inner': {
+          //       borderStyle: 'none',
+          //       padding: '0',
+          //     },
+          //     ':-moz-focusring': {
+          //       outline: 'auto',
+          //     },
+          //     ':-moz-ui-invalid': {
+          //       boxShadow: 'none',
+          //     },
+          //     fieldset: {
+          //       margin: '0',
+          //       padding: '0',
+          //       border: '0',
+          //     },
+          //     legend: {
+          //       padding: '0',
+          //     },
+          //   });
+          // }),
         ],
         // plugins: [
           // tailwindPlugin(function({ addBase,config }) {
@@ -285,11 +304,20 @@ export const getWebpackAppConfig = async () => {
         // ],
       },
     ]);
+  } else {
+    //if not using tailwind, then we use postcss-nested to enable nesting of css
+    postcssPlugins.push(
+      ['postcss-import',{}],
+      ['postcss-preset-env',{
+        features: { 'nesting-rules': true },
+      }]
+    );
+
   }
+  //Add plugin which converts URLs in CSS to the correct FULL absolute path
   postcssPlugins.push([
     postcssUrl({
       url: (asset) => {
-        //This convert URLs used in CSS and adds the full public URL instead of a local path
         //TODO: for assets of packages, we want to detect the package path and resolve through node_modules/package-name/...something/assets
         if(!asset.url.startsWith('data:'))
         {
@@ -336,24 +364,9 @@ export const getWebpackAppConfig = async () => {
       //     'number-max-precision':null,
       //   },
       // }],
-      'postcss-preset-env',
       isProduction && 'cssnano',
       // "postcss-reporter",
     ]);
-    if (config.cssMode === 'scss-modules' || config.cssMode === 'mixed')
-    {
-      //NOTE: this is replaced with the css-loader
-      // postcssPlugins.push([
-      //   'postcss-modules',
-      //   {
-      //     generateScopedName: generateScopedName,
-      //     globalModulePaths: (Array.isArray(config.cssGlobalModulePaths)
-      //         ? [/tailwind/, ...config.cssGlobalModulePaths]
-      //         : [/tailwind/, config.cssGlobalModulePaths]
-      //     ).filter(Boolean),
-      //   },
-      // ]);
-    }
   }
 
   return {
@@ -390,13 +403,11 @@ export const getWebpackAppConfig = async () => {
       },
     },
     plugins: [
-      new WatchRunPlugin(),
-      // new RebuildScssJsonPlugin(),
+      // new WatchRunPlugin(),
       new MiniCssExtractPlugin({
         ignoreOrder:true
       }),
       new webpack.EnvironmentPlugin(Object.keys(process.env)),
-      // new ForkTsCheckerWebpackPlugin(),
       isDevelopment && new ReactRefreshWebpackPlugin(),
       isDevelopment && new webpack.HotModuleReplacementPlugin(),
       config.analyse && new BundleAnalyzerPlugin(),
@@ -416,21 +427,11 @@ export const getWebpackAppConfig = async () => {
                 importLoaders: 1,
                 modules: {
                   mode: 'local',
-                  // namedExport:true,
-                  //     exportOnlyLocals:true,
-                  // exclude:/tailwind/i,
                   getLocalIdent: getLocalIdent,
-                  // auto: (resourcePath: string) => {
-                  //   // Use CSS Modules for everything except node_modules/tailwind
-                  //   return !/node_modules[\\/]tailwind/.test(resourcePath);
-                  // },
                   auto: (resourcePath: string) => {
                     //make sure this only applies to .module.css files, and not to tailwind
                     return /\.module\.css$/i.test(resourcePath) && !/tailwind/i.test(resourcePath);
                   }
-                  // localIdentName: '[local]--[hash:base64:6]',
-                  // localIdentName: '[local]',
-                  //     localIdentName: "[path][name]__[local]--[hash:base64:5]",
                 },
 
               },
@@ -443,31 +444,8 @@ export const getWebpackAppConfig = async () => {
                 },
               },
             },
-            // {
-            //   loader: 'sass-loader',
-            //   options: { sourceMap: true },
-            // },
           ],
         },
-        // {
-        //   test: /\.(ts|tsx)$/,
-        //   exclude: /node_modules/,
-        //   include: [path.join(process.cwd(),"frontend")], // only bundle files in this directory
-        //   use: {
-        //     loader: "babel-loader", // cf. .babelrc.json in this folder and browser list in package.json
-        //     options: {
-        //       plugins: isDevelopment ? ["react-refresh/babel"] : [],
-        //       cacheCompression: false,
-        //       cacheDirectory: true,
-        //     },
-        //   },
-        // },
-        // {
-        //   test: /\.m?js/,
-        //   resolve: {
-        //     fullySpecified: false
-        //   }
-        // },
         {
           test: /\.tsx?$/,
           use: [
