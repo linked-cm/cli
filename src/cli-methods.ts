@@ -29,6 +29,9 @@ import webpack from 'webpack';
 import stagedGitFiles from 'staged-git-files';
 import ora,{ Ora } from 'ora';
 
+//@ts-ignore
+let dirname__ = typeof __dirname !== 'undefined' ? __dirname : dirname(import.meta.url).replace('file:/','');
+
 var variables = {};
 export const createApp = async (name,basePath = process.cwd()) => {
   if (!name)
@@ -43,8 +46,9 @@ export const createApp = async (name,basePath = process.cwd()) => {
     fs.mkdirSync(targetFolder);
   }
 
+
   fs.copySync(
-    path.join(__dirname,'..','defaults','app-with-backend'),
+    path.join(dirname__,'..','..','defaults','app-with-backend'),
     targetFolder,
   );
   //make sure the data folder exists (even though its empty).. copying empty folders does not work with fs.copySync
@@ -874,7 +878,8 @@ export const createOntology = async (
   let targetFile = path.join(targetFolder,hyphenName + '.ts');
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -900,7 +905,8 @@ export const createOntology = async (
   );
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -912,7 +918,8 @@ export const createOntology = async (
   );
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -1088,17 +1095,18 @@ function getSourceFolder(basePath = process.cwd())
  * get __dirname for either ESM/CJS
  */
 export const getScriptDir = () => {
-  // @ts-ignore
-  if (typeof __dirname !== 'undefined')
-  {
-    // @ts-ignore
-    return __dirname;
-  }
-  else
-  {
-    // @ts-ignore
-    return dirname(import.meta.url).replace('file:/','');
-  }
+  return dirname__;
+  // // @ts-ignore
+  // if (typeof __dirname !== 'undefined')
+  // {
+  //   // @ts-ignore
+  //   return __dirname;
+  // }
+  // else
+  // {
+  //   // @ts-ignore
+  //   return dirname(import.meta.url).replace('file:/','');
+  // }
 
 };
 export const createShape = async (name,basePath = process.cwd()) => {

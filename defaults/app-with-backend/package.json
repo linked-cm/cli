@@ -4,6 +4,7 @@
   "description": "",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "lincdApp": true,
   "author": {
     "name": "",
@@ -18,7 +19,7 @@
   "scripts": {
     "start": "node --import ./node_modules/lincd-cli/lib/esm/loaders/register.js node_modules/.bin/lincd-cli start --env development",
     "build": "yarn lincd build-app --env production",
-    "postinstall": "husky install",
+    "prepare": "husky",
     "prepack": "pinst --disable",
     "postpack": "pinst --enable",
     "server:prod": "yarn lincd start --env production",
@@ -36,7 +37,7 @@
       "prettier --write"
     ]
   },
-  "workspaces" : [
+  "workspaces": [
     "packages/*"
   ],
   "keywords": [
@@ -49,21 +50,10 @@
     "web3"
   ],
   "dependencies": {
-    "@babel/cli": "^7.22.9",
-    "@babel/core": "^7.22.9",
-    "@babel/plugin-proposal-decorators": "^7.22.7",
-    "@babel/plugin-transform-runtime": "^7.22.9",
-    "@babel/preset-env": "^7.22.9",
-    "@babel/preset-react": "^7.22.5",
-    "@babel/preset-typescript": "^7.22.5",
-    "@babel/register": "^7.22.5",
-    "chalk": "^4.1.2",
-    "lincd": "^1.0",
+    "lincd": "~1.0",
     "lincd-auth": "~1.0",
-    "lincd-jsonld": "~1.0",
     "lincd-server": "~1.0",
     "lincd-server-utils": "~1.0",
-    "node-gyp": "^11.1.0",
     "react": "^18.2",
     "react-dom": "^18.2",
     "react-error-boundary": "^3.1.3",
@@ -83,10 +73,11 @@
     "eslint-plugin-react": "latest",
     "eslint-plugin-react-hooks": "^4.6.0",
     "husky": "^8.0.0",
-    "lincd-cli": "^1.1",
+    "lincd-cli": "^1.2.1",
     "nodemon": "^2.0.22",
     "pinst": "^3.0.0",
     "pm2": "^5.3.0",
+    "typescript-plugin-css-modules": "^5.1.0",
     "which": "^3.0.1"
   },
   "packageManager": "yarn@3.6.1"

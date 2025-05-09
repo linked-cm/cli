@@ -8,6 +8,7 @@ import { AppContextProvider } from 'lincd-server-utils/lib/components/AppContext
 //import the storage & file configuration for the frontend
 import './config-frontend';
 
+//to avoid errors with react-refresh-webpack-plugin
 window['$RefreshReg$'] = () => {};
 window['$RefreshSig$'] = () => () => {};
 

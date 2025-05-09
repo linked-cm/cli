@@ -1,6 +1,5 @@
-import {DefaultLayout} from '../layout/DefaultLayout';
-import './Home.scss';
-import style from './Home.scss.json';
+import { DefaultLayout } from '../layout/DefaultLayout';
+import style from './Home.module.css';
 
 export default function Home() {
   return (

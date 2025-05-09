@@ -1,6 +1,6 @@
 {
   "name": "lincd-cli",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Command line tools for the lincd.js library",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",

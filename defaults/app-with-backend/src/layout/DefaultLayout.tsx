@@ -1,9 +1,8 @@
 import React from 'react';
-import {Header} from './Header';
-import './DefaultLayout.scss';
-import style from './DefaultLayout.scss.json';
+import { Header } from './Header';
+import style from './DefaultLayout.module.css';
 
-export function DefaultLayout({children}) {
+export function DefaultLayout({ children }) {
   return (
     <main className={style.main}>
       <Header />
