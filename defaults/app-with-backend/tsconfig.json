@@ -19,6 +19,6 @@
     ],
     "pretty": true
   },
-  "files": ["./src/index.tsx"],
+  "files": ["./src/index.tsx", "./src/types.ts"],
   "include": ["./src/backend.ts"]
 }

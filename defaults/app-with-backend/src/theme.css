@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 /*apply tailwind config, which ensures that all LINCD components are considered "content" for tailwind */
-@config "../../node_modules/lincd-cli/lib/esm/tailwind.config.js";
+@config "../node_modules/lincd-cli/lib/esm/tailwind.config.js";
 
 /*Use this to generate ALL css variables */
 /*@theme static {*/
@@ -24,74 +24,69 @@
 /*}*/
 
 @theme {
-  /* Primary Palette mapped to Tailwind sky */
-  --color-primary-50: var(--color-sky-50);
-  --color-primary-100: var(--color-sky-100);
-  --color-primary-200: var(--color-sky-200);
-  --color-primary-300: var(--color-sky-300);
-  --color-primary-400: var(--color-sky-400);
-  --color-primary-500: var(--color-sky-500);
-  --color-primary-600: var(--color-sky-600);
-  --color-primary-700: var(--color-sky-700);
-  --color-primary-800: var(--color-sky-800);
-  --color-primary-900: var(--color-sky-900);
+    /* Primary Palette mapped to Tailwind sky */
+    --color-primary-50: var(--color-sky-50);
+    --color-primary-100: var(--color-sky-100);
+    --color-primary-200: var(--color-sky-200);
+    --color-primary-300: var(--color-sky-300);
+    --color-primary-400: var(--color-sky-400);
+    --color-primary-500: var(--color-sky-500);
+    --color-primary-600: var(--color-sky-600);
+    --color-primary-700: var(--color-sky-700);
+    --color-primary-800: var(--color-sky-800);
+    --color-primary-900: var(--color-sky-900);
 
-  /* === Shadows === */
-  --shadow-surface: var(--shadow-sm); /* Background panels, sections */
-  --shadow-card: var(--shadow-md); /* Cards, organized content blocks */
-  --shadow-popover: var(--shadow-lg); /* Tooltips, dropdowns, popovers */
-  --shadow-modal: var(--shadow-2xl); /* Modals, overlays */
-  --shadow-floating-action: var(
-    --shadow-lg
-  ); /* Floating buttons, floating toolbars */
-  --shadow-content: none; /* Buttons, inputs inside surfaces */
+    /* === Shadows === */
+    --shadow-surface: var(--shadow-sm); /* Background panels, sections */
+    --shadow-card: var(--shadow-md); /* Cards, organized content blocks */
+    --shadow-popover: var(--shadow-lg); /* Tooltips, dropdowns, popovers */
+    --shadow-modal: var(--shadow-2xl); /* Modals, overlays */
+    --shadow-floating-action: var(
+            --shadow-lg
+    ); /* Floating buttons, floating toolbars */
+    --shadow-content: none; /* Buttons, inputs inside surfaces */
+    /* === Backgrounds / Surfaces === */
+    --bg-page: var(--color-gray-50); /* Main app background */
+    --bg-section: var(--color-gray-100); /* Sections inside pages */
+    --bg-card: var(--color-white); /* Cards */
+    --bg-popover: var(--color-white); /* Popovers, dropdowns */
+    --bg-modal: var(--color-white); /* Modals, dialogs */
+    --bg-sidebar: var(--color-gray-200); /* Sidebars */
+    --bg-footer: var(--color-gray-300); /* Footer areas */
+    --bg-overlay: var(--color-gray-900); /* Overlay scrims (dark) */
+    /* for bg-card and text-card? */
+    --color-card: var(--color-white);
 
-  /* === Backgrounds / Surfaces === */
-  --bg-page: var(--color-gray-50); /* Main app background */
-  --bg-section: var(--color-gray-100); /* Sections inside pages */
-  --bg-card: var(--color-white); /* Cards */
-  --bg-popover: var(--color-white); /* Popovers, dropdowns */
-  --bg-modal: var(--color-white); /* Modals, dialogs */
-  --bg-sidebar: var(--color-gray-200); /* Sidebars */
-  --bg-footer: var(--color-gray-300); /* Footer areas */
-  --bg-overlay: var(--color-gray-900); /* Overlay scrims (dark) */
+    /* === Z-Index === */
+    --z-base: 0; /* Normal document flow */
+    --z-surface: 10; /* Cards, panels */
+    --z-popover: 30; /* Dropdowns, popovers */
+    --z-modal: 50; /* Modals, dialogs */
+    --z-overlay: 75; /* Overlays, backdrops */
+    --z-tooltip: 100; /* Tooltips, highest priority */
+    /* === Border Radius === */
+    /*TODO: should this not be much larger then card? from large to small? */
+    --radius-surface: var(--radius-sm); /* Default background surfaces */
+    --radius-card: var(--radius-lg); /* Cards and panels */
+    /*TODO: we need something for items inside a card, like buttons and images. Or even if they are on surfaces */
+    --radius-element: var(--radius-md); /* Images and buttons */
+    --radius-popover: var(--radius-md); /* Popovers, tooltips, dropdowns */
+    --radius-modal: var(--radius-2xl); /* Modals, overlays */
+    --radius-floating-action: var(
+            --radius-full
+    ); /* Floating buttons, floating toolbars (FAB) */
+    --radius-none: 0px; /* Flat design option */
+    /* === Z-Index === */
+    --z-base: 0; /* Normal flow */
+    --z-surface: 10; /* Cards, panels */
+    --z-popover: 30; /* Dropdowns, popovers */
+    --z-modal: 50; /* Modals, dialogs */
+    --z-overlay: 75; /* Overlays, spinners */
+    --z-tooltip: 100; /* Tooltips, highest priority */
+    /* === Spacing (example for consistent gaps/padding) === */
+    --spacing-card: calc(var(--spacing) * 4);
 
-  /* for bg-card and text-card? */
-  --color-card: var(--color-white);
-
-  /* === Z-Index === */
-  --z-base: 0; /* Normal document flow */
-  --z-surface: 10; /* Cards, panels */
-  --z-popover: 30; /* Dropdowns, popovers */
-  --z-modal: 50; /* Modals, dialogs */
-  --z-overlay: 75; /* Overlays, backdrops */
-  --z-tooltip: 100; /* Tooltips, highest priority */
-
-  /* === Border Radius === */
-  /*TODO: should this not be much larger then card? from large to small? */
-  --radius-surface: var(--radius-sm); /* Default background surfaces */
-  --radius-card: var(--radius-lg); /* Cards and panels */
-  /*TODO: we need something for items inside a card, like buttons and images. Or even if they are on surfaces */
-  --radius-element: var(--radius-md); /* Images and buttons */
-  --radius-popover: var(--radius-md); /* Popovers, tooltips, dropdowns */
-  --radius-modal: var(--radius-2xl); /* Modals, overlays */
-  --radius-floating-action: var(
-    --radius-full
-  ); /* Floating buttons, floating toolbars (FAB) */
-  --radius-none: 0px; /* Flat design option */
-
-  /* === Z-Index === */
-  --z-base: 0; /* Normal flow */
-  --z-surface: 10; /* Cards, panels */
-  --z-popover: 30; /* Dropdowns, popovers */
-  --z-modal: 50; /* Modals, dialogs */
-  --z-overlay: 75; /* Overlays, spinners */
-  --z-tooltip: 100; /* Tooltips, highest priority */
-
-  /* === Spacing (example for consistent gaps/padding) === */
-  --spacing-card: calc(var(--spacing) * 4);
-
-  /* TODO: set Header font family and font sizes in theme. Should they become increasingly bigger? Or should they be semantic? Like sub-header, ... we had some names once*/
+    /* TODO: set Header font family and font sizes in theme. Should they become increasingly bigger? Or should they be semantic? Like sub-header, ... we had some names once*/
 }
 
 /*@source utilities:bg:*,text:*,p-*,m-*,rounded-*,shadow-**/

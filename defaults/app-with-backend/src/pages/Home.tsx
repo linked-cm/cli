@@ -1,3 +1,4 @@
+import React from 'react';
 import { DefaultLayout } from '../layout/DefaultLayout';
 import style from './Home.module.css';
 
