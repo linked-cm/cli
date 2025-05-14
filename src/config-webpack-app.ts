@@ -497,6 +497,7 @@ export const getWebpackAppConfig = async () => {
     resolve: {
       extensions: ['.tsx','.ts','.js','.css','.scss','.json'],
       alias: config.alias || {},
+      // traceResolution: true
     },
     //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
     //see also https://webpack.js.org/configuration/other-options/#cache

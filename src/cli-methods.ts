@@ -2048,7 +2048,7 @@ export const buildPackage = async (
   });
   buildStep({
     name: 'Checking imports',
-    apply: () => checkImports(packagePath),
+    apply: () => checkImports(packagePath+'/src'),
   });
   buildStep({
     name: 'Checking dependencies',
