@@ -5,6 +5,7 @@
     "baseUrl": "./src",
     "module": "esnext",
     "moduleResolution": "node",
+    "target": "es6",
     "types": ["node"],
     "allowSyntheticDefaultImports": true
   },

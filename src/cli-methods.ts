@@ -1,4 +1,3 @@
-import hook from 'node-hook';
 import chalk from 'chalk';
 import { exec } from 'child_process';
 import depcheck from 'depcheck';
@@ -12,7 +11,10 @@ import {
   getFileImports,
   getFiles,
   getLastCommitTime,
-  getPackageJSON,isImportOutsideOfPackage,isImportWithMissingExtension,isInvalidLINCDImport,
+  getPackageJSON,
+  isImportOutsideOfPackage,
+  isImportWithMissingExtension,
+  isInvalidLINCDImport,
   needsRebuilding,
 } from './utils.js';
 
@@ -20,6 +22,7 @@ import { statSync } from 'fs';
 import { PackageDetails } from 'interfaces';
 import { findNearestPackageJson } from 'find-nearest-package-json';
 import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
+import {spawn as spawnChild} from 'child_process';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;
 // const config = require('lincd-server/site.webpack.config');
@@ -45,7 +48,6 @@ export const createApp = async (name,basePath = process.cwd()) => {
   {
     fs.mkdirSync(targetFolder);
   }
-
 
   fs.copySync(
     path.join(dirname__,'..','..','defaults','app-with-backend'),
@@ -560,7 +562,8 @@ export function buildAll(options)
           //any other string is the build error text
           //undefined result means it failed
           // if (res !== '' && res !== true && res !== false) {
-          if (typeof res === 'undefined') {
+          if (typeof res === 'undefined')
+          {
             failedModules.push(pkg.packageName);
             let dependentModules = getDependentPackages(dependencies,pkg);
             if (dependentModules.length > 0)
@@ -1220,7 +1223,7 @@ export const createComponent = async (name,basePath = process.cwd()) => {
 export const checkImports = async (
   sourceFolder: string = getSourceFolder(),
   depth: number = 0, // Used to check if the import is outside the src folder
-  invalidImports: Map<string,{type:string,importPath:string}[]> = new Map(),
+  invalidImports: Map<string,{ type: string,importPath: string }[]> = new Map(),
 ) => {
   const dir = fs.readdirSync(sourceFolder);
 
@@ -1238,7 +1241,7 @@ export const checkImports = async (
       {
         if (statSync(filename).isDirectory())
         {
-          await checkImports(filename, depth + 1, invalidImports);
+          await checkImports(filename,depth + 1,invalidImports);
         }
         else
         {
@@ -1247,7 +1250,8 @@ export const checkImports = async (
           // - .tsx
           continue;
         }
-      } catch(e) {
+      } catch (e)
+      {
         console.log(e);
       }
     }
@@ -1260,23 +1264,25 @@ export const checkImports = async (
 
     allImports.forEach((i) => {
 
-      if(isImportOutsideOfPackage(i,depth)) {
+      if (isImportOutsideOfPackage(i,depth))
+      {
         invalidImports.get(filename).push({
-          type:'outside_package',
-          importPath:i
+          type: 'outside_package',
+          importPath: i,
         });
       }
       if (isInvalidLINCDImport(i,depth))
       {
         invalidImports.get(filename).push({
-          type:'lincd',
-          importPath:i
+          type: 'lincd',
+          importPath: i,
         });
       }
-      if(isImportWithMissingExtension(i)) {
+      if (isImportWithMissingExtension(i))
+      {
         invalidImports.get(filename).push({
-          type:'missing_extension',
-          importPath:i
+          type: 'missing_extension',
+          importPath: i,
         });
       }
     });
@@ -1292,18 +1298,21 @@ export const checkImports = async (
 
     invalidImports.forEach((value,key) => {
       // res += '- '+chalk.blueBright(key.split('/').pop()) + ':\n';
-      value.forEach(({type,importPath}) => {
-        let message = key.split('/').pop() + ' imports from \'' + importPath+'\'';
-        if(type === 'outside_package') {
+      value.forEach(({ type,importPath }) => {
+        let message = key.split('/').pop() + ' imports from \'' + importPath + '\'';
+        if (type === 'outside_package')
+        {
           message += ' which is outside the package source root';
         }
-        if(type === 'lincd') {
+        if (type === 'lincd')
+        {
           message += ' which should not contain /src/ or /lib/ in the import path';
         }
-        if(type === 'missing_extension') {
+        if (type === 'missing_extension')
+        {
           message += ' which should end with a file extension. Like .js or .scss';
         }
-        res += chalk.red(message+'\n');
+        res += chalk.red(message + '\n');
       });
     });
 
@@ -1366,7 +1375,10 @@ export const depCheck = async (packagePath: string = process.cwd()) => {
           reject(chalk.red(
             packagePath.split('/').pop() +
             '\n[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
-            missingLincdPackages.join(',\n- '),
+            missingLincdPackages.map(missedKey => {
+              const files = results.missing[missedKey];
+              return `${missedKey} (${files.length} files: ${files.join(', ')})`;
+            }).join(',\n- '),
           ));
         }
         else if (missing.length > 0)
@@ -1450,6 +1462,87 @@ export const ensureEnvironmentLoaded = async () => {
     }
   }
 };
+export const runMethod = async (
+  packageName: string,
+  method: string,
+  options: { spawn: boolean },
+) => {
+  await ensureEnvironmentLoaded();
+
+  if (options.spawn)
+  {
+    let lincdConfig = (await import(path.join(process.cwd(),'lincd.config.js'))).default;
+    //@ts-ignore
+    const ServerClass = (await import('lincd-server/shapes/LincdServer')).LincdServer;
+    await import(path.join(process.cwd(),'scripts','storage-config.js'));
+    let server = new ServerClass({
+      loadAppComponent: async () =>
+        (await import(path.join(process.cwd(),'src','App'))).default,
+      ...lincdConfig,
+    });
+    //init the server
+    console.log('Initializing server...');
+    server.initOnly().then(() => {
+      //process the backend method call
+      console.log('Running method ' + method);
+      //mock the request and response objects
+      let request = {
+        body: {},
+        query: {},
+        params: {},
+        headers: {},
+        method: 'POST',
+        url: '/' + packageName + '/' + method,
+      };
+      let response = {
+        status: (statusCode) => {
+          console.log('Response status code:',statusCode);
+          return response;
+        },
+        json: (data) => {
+          console.log('Response data:',data);
+        },
+        send: (data) => {
+          console.log('Response data:',data);
+        },
+      };
+      //TODO; allow sending args
+      server.callBackendMethod(packageName,method,[],request as any,response as any).then(() => {
+        console.log('Done');
+        process.exit();
+      });
+    });
+  }
+  else
+  {
+    //reuse the existing running LincdServer instance.
+    //make a HTTP call
+    //'/call/:pkg/:method',
+    fetch(process.env.SITE_ROOT + '/call/' + packageName + '/' + method,{
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).then((response) => {
+      if (!response.ok)
+      {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    }).then((data) => {
+      console.log('Response data:',data);
+      process.exit();
+    }).catch((error) => {
+      if(error.code === 'ECONNREFUSED' || error.cause?.code === 'ECONNREFUSED') {
+        console.error(chalk.red('Could not connect to the backend server. Is it running?'));
+        console.error(`Make sure you ${chalk.magenta('run "yarn start" in a separate process')} before calling this method.`);
+      } else {
+        console.error('Error during backend call:',error);
+      }
+      process.exit(1);
+    });
+  }
+}
 export const startServer = async (
   initOnly: boolean = false,
   ServerClass = null,
@@ -1945,7 +2038,7 @@ export const buildPackage = async (
   logResults: boolean = true,
 ) => {
 
-  let spinner:Ora;
+  let spinner: Ora;
   if (logResults)
   {
     //TODO: replace with listr so we can show multiple processes at once
@@ -1957,7 +2050,8 @@ export const buildPackage = async (
   let buildProcess: Promise<boolean | string | void> = Promise.resolve(true);
   let buildStep = (step) => {
     buildProcess = buildProcess.then((previousResult) => {
-      if(!previousResult) {
+      if (!previousResult)
+      {
         return false;
       }
       if (logResults)
@@ -1987,13 +2081,15 @@ export const buildPackage = async (
           }
           return previousResult && true;
         }
-        else if(typeof stepResult === 'object' && stepResult.error) {
-          if(logResults) {
+        else if (typeof stepResult === 'object' && stepResult.error)
+        {
+          if (logResults)
+          {
             spinner.fail(step.name + ' - ' + stepResult.error);
             spinner.stop();
           }
           //failed and should stop
-          return false
+          return false;
         }
       });
     });
@@ -2048,7 +2144,7 @@ export const buildPackage = async (
   });
   buildStep({
     name: 'Checking imports',
-    apply: () => checkImports(packagePath+'/src'),
+    apply: () => checkImports(packagePath + '/src'),
   });
   buildStep({
     name: 'Checking dependencies',
@@ -2056,7 +2152,7 @@ export const buildPackage = async (
   });
 
   let success = await buildProcess.catch(err => {
-    let msg = typeof err === 'string' || err instanceof Error ? err.toString() : (err.error && !err.error.toString().includes("Command failed:") ? err.error : err.stdout + '\n'+err.stderr);
+    let msg = typeof err === 'string' || err instanceof Error ? err.toString() : (err.error && !err.error.toString().includes('Command failed:') ? err.error : err.stdout + '\n' + err.stderr);
     if (logResults)
     {
       spinner.stopAndPersist({
@@ -2082,7 +2178,9 @@ export const buildPackage = async (
       });
     }
 
-  } else {
+  }
+  else
+  {
     spinner.stopAndPersist({
       symbol: chalk.red('✖'),
       text: 'Build failed',
@@ -2115,7 +2213,7 @@ export const compilePackage = async (packagePath = process.cwd()) => {
   // }
   await compilePackageESM(packagePath);
   await compilePackageCJS(packagePath);
-}
+};
 export const compilePackageESM = async (packagePath = process.cwd()) => {
   //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json
   let compileCommand = `yarn exec tsc -p tsconfig-esm.json`;
@@ -2129,9 +2227,9 @@ export const compilePackageCJS = async (packagePath = process.cwd()) => {
     return res === '';
   }).catch(err => {
     return {
-      error:err.stdout
+      error: err.stdout,
     };
-  })
+  });
 };
 
 export var publishUpdated = function(test: boolean = false) {
@@ -2504,14 +2602,15 @@ export var buildUpdated = async function(
             pkg.path +
             ' && yarn build' +
             (target ? ' ' + target : '') +
-            (target2 ? ' ' + target2 : ''),
-          )
+            (target2 ? ' ' + target2 : ''))
             .then((res) => {
-              if(res === '')
+              if (res === '')
               {
                 debugInfo(chalk.green(pkg.packageName + ' successfully built'));
                 return chalk.green(pkg.packageName + ' built');
-              } else if (typeof res === 'string') {
+              }
+              else if (typeof res === 'string')
+              {
                 warn(chalk.red('Failed to build ' + pkg.packageName));
                 // console.log(res);
                 process.exit(1);
@@ -2742,18 +2841,18 @@ export var executeCommandForPackage = function(packageName,command) {
     log(
       'Executing \'cd ' +
       packageDetails.path +
-      ' && yarn exec lincd' +
+      ' && yarn lincd' +
       (command ? ' ' + command : '') +
       '\'',
     );
 
-    //TODO : replace with spawn("path to executable", ["params"], {stdio: "inherit"});
-    // maybe make spawnPromise that returns a promise
-    return execp(
-      'cd ' +
-      packageDetails.path +
-      ' && yarn exec lincd' +
-      (command ? ' ' + command : ''),
+    spawnChild(
+      process.platform === 'win32' ? 'yarn.cmd' : 'yarn',  // Windows quirk
+      ['lincd',command || null],
+      {
+        cwd:packageDetails.path,
+        stdio: 'inherit',
+      }
     );
   }
   else
@@ -2770,33 +2869,37 @@ export var executeCommandForPackage = function(packageName,command) {
  * @param {string} packagePath - The path to the package directory.
  */
 export const removeOldFiles = async (packagePath) => {
-  const libPath = path.join(packagePath, 'lib');
+  const libPath = path.join(packagePath,'lib');
 
-  try {
+  try
+  {
     // Read all files in the 'lib' folder asynchronously
-    const files = await glob(packagePath + '/lib/**/*.*')
+    const files = await glob(packagePath + '/lib/**/*.*');
 
     // Iterate through each file
-    for (const file of files) {
+    for (const file of files)
+    {
       // const filePath = path.join(libPath, file);
 
       // Check if the file exists before attempting to delete it
       // if (await fs.pathExists(filePath)) {
-        const stats = await fs.stat(file);
-        const currentTime = new Date().getTime();
-        const lastModifiedTime = stats.mtime.getTime();
+      const stats = await fs.stat(file);
+      const currentTime = new Date().getTime();
+      const lastModifiedTime = stats.mtime.getTime();
 
-        // Check if the difference between the current time and last modified time is greater than 120 seconds
-        if (currentTime - lastModifiedTime > 120000) {
-          // Attempt to delete the file
-          await fs.unlink(file);
-          // console.log(`Removed: ${file}`);
-        }
+      // Check if the difference between the current time and last modified time is greater than 120 seconds
+      if (currentTime - lastModifiedTime > 120000)
+      {
+        // Attempt to delete the file
+        await fs.unlink(file);
+        // console.log(`Removed: ${file}`);
+      }
       // }
     }
     return true;
-  } catch (error) {
+  } catch (error)
+  {
     console.error(`Error removing files: ${error.message}`);
-    return false
+    return false;
   }
 };

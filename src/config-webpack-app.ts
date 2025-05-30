@@ -394,7 +394,7 @@ export const getWebpackAppConfig = async () => {
     },
     watchOptions: {
       //ignore everything except the src folder. ignore specific files in the src folder
-      ignored: /(^((?!src).)*$|\.d\.ts$|\.js\.map$|\.scss\.json$|node_modules|public|\.idea|[/\\]\..*)/,
+      ignored: /(^((?!src).)*$|\.d\.ts$|\.js\.map$|\.scss\.json$|public|\.idea|[/\\]\..*)/,
       aggregateTimeout: 500,
     },
     devServer: {

@@ -26,7 +26,7 @@ import {
   getLincdPackages,getScriptDir,
   publishPackage,
   publishUpdated,
-  register,
+  register,runMethod,
   startServer,upgradePackages,
 } from './cli-methods.js';
 // import {buildMetadata} from './metadata';
@@ -57,6 +57,18 @@ program
   .description(
     'Start the LINCD node.js server. Use --initOnly to start the backend without http server',
   );
+
+program
+  .command('call')
+  .action((packageName, method, options) => {
+    return runMethod(packageName,method,{ spawn: options.spawn });
+  })
+  .option('--spawn', 'Start a new server instance instead of using an existing one')
+  .option('--env', 'The node environment to use. Default is "development"')
+  .description(
+    'Start the LINCD node.js server but without http server. Instead it immediately calls the specified method of the specified package and exits afterwards',
+  ).argument('<package>', 'the package of the backend provider that contains this method')
+  .argument('<method>', 'the name of the method you want to call');
 
 program
   .command('create-package')
@@ -274,7 +286,6 @@ program
   .action((name, command, args: string[]) => {
     let fullCommand = command
       ? command +
-        ' ' +
         ' ' +
         args
           .slice(0, 3)
