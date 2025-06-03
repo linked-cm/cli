@@ -2096,6 +2096,10 @@ export const buildPackage = async (
   };
 
   buildStep({
+    name: 'Checking imports',
+    apply: () => checkImports(packagePath + '/src'),
+  });
+  buildStep({
     name: 'Compiling ESM',
     apply: async () => {
       return compilePackageESM(packagePath);
@@ -2141,10 +2145,6 @@ export const buildPackage = async (
     apply: async () => {
       return removeOldFiles(packagePath);
     },
-  });
-  buildStep({
-    name: 'Checking imports',
-    apply: () => checkImports(packagePath + '/src'),
   });
   buildStep({
     name: 'Checking dependencies',
@@ -2612,7 +2612,7 @@ export var buildUpdated = async function(
               else if (typeof res === 'string')
               {
                 warn(chalk.red('Failed to build ' + pkg.packageName));
-                // console.log(res);
+                console.log(res);
                 process.exit(1);
               }
             })
