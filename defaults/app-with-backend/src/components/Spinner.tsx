@@ -1,7 +1,7 @@
-import './Spinner.scss';
-import * as style from './Spinner.scss.json';
+import React from 'react';
+import style from './Spinner.module.css';
 
-export function Spinner({active = true}) {
+export function Spinner({ active = true }) {
   return (
     <div
       className={[style.spinner, active && style.active].join(' ')}

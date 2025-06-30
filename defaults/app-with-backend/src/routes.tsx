@@ -1,10 +1,10 @@
-import React, {lazy, Suspense} from 'react';
-import {Route, Routes} from 'react-router-dom';
-import {Spinner} from './components/Spinner';
-import {RequireAuth} from 'lincd-auth/lib/components/RequireAuth';
+import React, { lazy, Suspense } from 'react';
+import { Route, Routes } from 'react-router-dom';
+import { Spinner } from './components/Spinner';
+import { RequireAuth } from 'lincd-auth/components/RequireAuth';
 import PageNotFound from './pages/PageNotFound';
 
-//In React 18 you can use 'lazy' to import pages only when you need them.
+//From React 18 you can use 'lazy' to import pages only when you need them.
 //This will cause webpack to create multiple bundles, and the right bundles are automatically loaded
 interface RouteObj {
   path: string;
@@ -14,7 +14,8 @@ interface RouteObj {
   excludeFromMenu?: boolean;
   label?: string;
 }
-export const ROUTES: {[key: string]: RouteObj} = {
+
+export const ROUTES: { [key: string]: RouteObj } = {
   index: {
     path: '/',
     component: lazy(() => import('./pages/Home' /* webpackPrefetch: true */)),
@@ -44,7 +45,7 @@ export default function AppRoutes() {
         //if a route is marked as requireAuth, wrap it in the RequireAuth component and pass the signinRoute
         const AuthGuard = route.requireAuth ? RequireAuth : React.Fragment;
         const authProps = route.requireAuth
-          ? {signinRoute: ROUTES.signin.path}
+          ? { signinRoute: ROUTES.signin.path }
           : {};
 
         // define a render function that determines what to render based on the component and route.render

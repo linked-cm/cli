@@ -1,4 +1,3 @@
-import hook from 'node-hook';
 import chalk from 'chalk';
 import { exec } from 'child_process';
 import depcheck from 'depcheck';
@@ -13,7 +12,9 @@ import {
   getFiles,
   getLastCommitTime,
   getPackageJSON,
-  isValidLINCDImport,
+  isImportOutsideOfPackage,
+  isImportWithMissingExtension,
+  isInvalidLINCDImport,
   needsRebuilding,
 } from './utils.js';
 
@@ -21,6 +22,7 @@ import { statSync } from 'fs';
 import { PackageDetails } from 'interfaces';
 import { findNearestPackageJson } from 'find-nearest-package-json';
 import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
+import {spawn as spawnChild} from 'child_process';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;
 // const config = require('lincd-server/site.webpack.config');
@@ -28,7 +30,10 @@ import { glob } from 'glob';
 import webpack from 'webpack';
 
 import stagedGitFiles from 'staged-git-files';
-import ora from 'ora';
+import ora,{ Ora } from 'ora';
+
+//@ts-ignore
+let dirname__ = typeof __dirname !== 'undefined' ? __dirname : dirname(import.meta.url).replace('file:/','');
 
 var variables = {};
 export const createApp = async (name,basePath = process.cwd()) => {
@@ -45,7 +50,7 @@ export const createApp = async (name,basePath = process.cwd()) => {
   }
 
   fs.copySync(
-    path.join(__dirname,'..','defaults','app-with-backend'),
+    path.join(dirname__,'..','..','defaults','app-with-backend'),
     targetFolder,
   );
   //make sure the data folder exists (even though its empty).. copying empty folders does not work with fs.copySync
@@ -557,7 +562,8 @@ export function buildAll(options)
           //any other string is the build error text
           //undefined result means it failed
           // if (res !== '' && res !== true && res !== false) {
-          if (typeof res === 'undefined') {
+          if (typeof res === 'undefined')
+          {
             failedModules.push(pkg.packageName);
             let dependentModules = getDependentPackages(dependencies,pkg);
             if (dependentModules.length > 0)
@@ -875,7 +881,8 @@ export const createOntology = async (
   let targetFile = path.join(targetFolder,hyphenName + '.ts');
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -901,7 +908,8 @@ export const createOntology = async (
   );
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -913,7 +921,8 @@ export const createOntology = async (
   );
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -939,7 +948,7 @@ export const createOntology = async (
   {
     //then also add an import to index
     let indexPath = addLineToIndex(
-      `import './ontologies/${hyphenName}';`,
+      `import './ontologies/${hyphenName}.js';`,
       'ontologies',
     );
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
@@ -1089,17 +1098,18 @@ function getSourceFolder(basePath = process.cwd())
  * get __dirname for either ESM/CJS
  */
 export const getScriptDir = () => {
-  // @ts-ignore
-  if (typeof __dirname !== 'undefined')
-  {
-    // @ts-ignore
-    return __dirname;
-  }
-  else
-  {
-    // @ts-ignore
-    return dirname(import.meta.url).replace('file:/','');
-  }
+  return dirname__;
+  // // @ts-ignore
+  // if (typeof __dirname !== 'undefined')
+  // {
+  //   // @ts-ignore
+  //   return __dirname;
+  // }
+  // else
+  // {
+  //   // @ts-ignore
+  //   return dirname(import.meta.url).replace('file:/','');
+  // }
 
 };
 export const createShape = async (name,basePath = process.cwd()) => {
@@ -1124,7 +1134,7 @@ export const createShape = async (name,basePath = process.cwd()) => {
   let indexPath;
   if (!sourceFolder.includes('frontend'))
   {
-    indexPath = addLineToIndex(`import './shapes/${hyphenName}';`,'shapes');
+    indexPath = addLineToIndex(`import './shapes/${hyphenName}.js';`,'shapes');
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
@@ -1151,7 +1161,7 @@ export const createSetComponent = async (name,basePath = process.cwd()) => {
   await replaceVariablesInFiles(targetFile,targetFile2);
 
   let indexPath = addLineToIndex(
-    `import './components/${hyphenName}';`,
+    `import './components/${hyphenName}.js';`,
     'components',
   );
 
@@ -1200,7 +1210,7 @@ export const createComponent = async (name,basePath = process.cwd()) => {
   {
     //then also add an import to index
     let indexPath = addLineToIndex(
-      `import './components/${hyphenName}';`,
+      `import './components/${hyphenName}.js';`,
       'components',
     );
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
@@ -1209,11 +1219,11 @@ export const createComponent = async (name,basePath = process.cwd()) => {
 
 //read the source of all ts/tsx files in the src folder
 //if there is an import that imports a lincd package with /src/ in it, then warn
-//if there is an import that imports outside of the src folder, then warn
+//if there is an import that imports something from outside the src folder, then warn
 export const checkImports = async (
   sourceFolder: string = getSourceFolder(),
-  depth: number = 0, // Used to check if the import is outside of the src folder
-  invalidImports: Map<string,string[]> = new Map(),
+  depth: number = 0, // Used to check if the import is outside the src folder
+  invalidImports: Map<string,{ type: string,importPath: string }[]> = new Map(),
 ) => {
   const dir = fs.readdirSync(sourceFolder);
 
@@ -1227,56 +1237,82 @@ export const checkImports = async (
     //  i.e. the program not having access to check the file metadata
     if (!filename.match(/\.tsx?$/))
     {
-      if (statSync(filename).isDirectory())
+      try
       {
-        await checkImports(filename,depth + 1,invalidImports);
+        if (statSync(filename).isDirectory())
+        {
+          await checkImports(filename,depth + 1,invalidImports);
+        }
+        else
+        {
+          // Ignore all files that aren't one of the following:
+          // - .ts
+          // - .tsx
+          continue;
+        }
+      } catch (e)
+      {
+        console.log(e);
       }
-
-      // Ignore all files that aren't one of the following:
-      // - .ts
-      // - .tsx
-      continue;
     }
 
     const allImports = await getFileImports(filename);
-    const lincdImports = allImports.filter(
-      (i) => i.includes('lincd') || i.includes('..'),
-    );
+    if (!invalidImports.has(filename))
+    {
+      invalidImports.set(filename,[]);
+    }
 
-    lincdImports.forEach((i) => {
-      if (!isValidLINCDImport(i,depth))
+    allImports.forEach((i) => {
+
+      if (isImportOutsideOfPackage(i,depth))
       {
-        if (!invalidImports.has(filename))
-        {
-          invalidImports.set(filename,[]);
-        }
-
-        invalidImports.get(filename).push(i);
+        invalidImports.get(filename).push({
+          type: 'outside_package',
+          importPath: i,
+        });
+      }
+      if (isInvalidLINCDImport(i,depth))
+      {
+        invalidImports.get(filename).push({
+          type: 'lincd',
+          importPath: i,
+        });
+      }
+      if (isImportWithMissingExtension(i))
+      {
+        invalidImports.get(filename).push({
+          type: 'missing_extension',
+          importPath: i,
+        });
       }
     });
   }
 
   let res = '';
+  //check if invalidImports has any
+  let flat = [...invalidImports.values()].flat();
   // All recursion must have finished, display any errors
-  if (depth === 0 && invalidImports.size > 0)
+  if (depth === 0 && flat.length > 0)
   {
-
     res += chalk.red('Invalid imports found.\n');
 
     invalidImports.forEach((value,key) => {
       // res += '- '+chalk.blueBright(key.split('/').pop()) + ':\n';
-      value.forEach((i) => {
-        res += chalk.red(key.split('/').pop() + ' imports from \'' + i + '\'\n');
-        if (i.indexOf('../../') === 0)
+      value.forEach(({ type,importPath }) => {
+        let message = key.split('/').pop() + ' imports from \'' + importPath + '\'';
+        if (type === 'outside_package')
         {
-          res +=
-            'To fix: import from the NPM package directly.\n';
+          message += ' which is outside the package source root';
         }
-        else if ('/src/')
+        if (type === 'lincd')
         {
-          res += 'To fix: you likely need to replace /src with /lib\n';
+          message += ' which should not contain /src/ or /lib/ in the import path';
         }
-
+        if (type === 'missing_extension')
+        {
+          message += ' which should end with a file extension. Like .js or .scss';
+        }
+        res += chalk.red(message + '\n');
       });
     });
 
@@ -1339,7 +1375,10 @@ export const depCheck = async (packagePath: string = process.cwd()) => {
           reject(chalk.red(
             packagePath.split('/').pop() +
             '\n[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
-            missingLincdPackages.join(',\n- '),
+            missingLincdPackages.map(missedKey => {
+              const files = results.missing[missedKey];
+              return `${missedKey} (${files.length} files: ${files.join(', ')})`;
+            }).join(',\n- '),
           ));
         }
         else if (missing.length > 0)
@@ -1423,13 +1462,94 @@ export const ensureEnvironmentLoaded = async () => {
     }
   }
 };
+export const runMethod = async (
+  packageName: string,
+  method: string,
+  options: { spawn: boolean },
+) => {
+  await ensureEnvironmentLoaded();
+
+  if (options.spawn)
+  {
+    let lincdConfig = (await import(path.join(process.cwd(),'lincd.config.js'))).default;
+    //@ts-ignore
+    const ServerClass = (await import('lincd-server/shapes/LincdServer')).LincdServer;
+    await import(path.join(process.cwd(),'scripts','storage-config.js'));
+    let server = new ServerClass({
+      loadAppComponent: async () =>
+        (await import(path.join(process.cwd(),'src','App'))).default,
+      ...lincdConfig,
+    });
+    //init the server
+    console.log('Initializing server...');
+    server.initOnly().then(() => {
+      //process the backend method call
+      console.log('Running method ' + method);
+      //mock the request and response objects
+      let request = {
+        body: {},
+        query: {},
+        params: {},
+        headers: {},
+        method: 'POST',
+        url: '/' + packageName + '/' + method,
+      };
+      let response = {
+        status: (statusCode) => {
+          console.log('Response status code:',statusCode);
+          return response;
+        },
+        json: (data) => {
+          console.log('Response data:',data);
+        },
+        send: (data) => {
+          console.log('Response data:',data);
+        },
+      };
+      //TODO; allow sending args
+      server.callBackendMethod(packageName,method,[],request as any,response as any).then(() => {
+        console.log('Done');
+        process.exit();
+      });
+    });
+  }
+  else
+  {
+    //reuse the existing running LincdServer instance.
+    //make a HTTP call
+    //'/call/:pkg/:method',
+    fetch(process.env.SITE_ROOT + '/call/' + packageName + '/' + method,{
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).then((response) => {
+      if (!response.ok)
+      {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    }).then((data) => {
+      console.log('Response data:',data);
+      process.exit();
+    }).catch((error) => {
+      if(error.code === 'ECONNREFUSED' || error.cause?.code === 'ECONNREFUSED') {
+        console.error(chalk.red('Could not connect to the backend server. Is it running?'));
+        console.error(`Make sure you ${chalk.magenta('run "yarn start" in a separate process')} before calling this method.`);
+      } else {
+        console.error('Error during backend call:',error);
+      }
+      process.exit(1);
+    });
+  }
+}
 export const startServer = async (
   initOnly: boolean = false,
   ServerClass = null,
 ) => {
   await ensureEnvironmentLoaded();
 
-  let lincdConfig = await import(path.join(process.cwd(),'lincd.config.js'));
+  let lincdConfig = (await import(path.join(process.cwd(),'lincd.config.js'))).default;
 
   // function scssLoadcall(source, filename) {
   //   return 'console.log("SCSS CALL: ' + filename + '");\n' + source;
@@ -1918,24 +2038,30 @@ export const buildPackage = async (
   logResults: boolean = true,
 ) => {
 
-  let spinner;
+  let spinner: Ora;
   if (logResults)
   {
     //TODO: replace with listr so we can show multiple processes at once
     spinner = ora({
       discardStdin: true,
-      text: 'Compiling code',
+      text: 'Compiling ESM',
     }).start();
   }
   let buildProcess: Promise<boolean | string | void> = Promise.resolve(true);
   let buildStep = (step) => {
     buildProcess = buildProcess.then((previousResult) => {
+      if (!previousResult)
+      {
+        return false;
+      }
       if (logResults)
       {
         spinner.text = step.name;
         spinner.start();
       }
       return step.apply().then(stepResult => {
+        //if a build step returns a string,
+        //a warning is shown but the build is still successful with warnings
         if (typeof stepResult === 'string')
         {
           // spinner.text = step.name + ' - ' + stepResult;
@@ -1944,8 +2070,8 @@ export const buildPackage = async (
             spinner.warn(step.name + ' - ' + stepResult);
             spinner.stop();
           }
-          //warning is shown, but build is still succesful with warnings
-          return false;
+          //can still continue
+          return true;
         }
         else if (stepResult === true || typeof stepResult === 'undefined')
         {
@@ -1955,14 +2081,34 @@ export const buildPackage = async (
           }
           return previousResult && true;
         }
+        else if (typeof stepResult === 'object' && stepResult.error)
+        {
+          if (logResults)
+          {
+            spinner.fail(step.name + ' - ' + stepResult.error);
+            spinner.stop();
+          }
+          //failed and should stop
+          return false;
+        }
       });
     });
   };
 
   buildStep({
-    name: 'Compiling code',
+    name: 'Checking imports',
+    apply: () => checkImports(packagePath + '/src'),
+  });
+  buildStep({
+    name: 'Compiling ESM',
     apply: async () => {
-      return compilePackage(packagePath);
+      return compilePackageESM(packagePath);
+    },
+  });
+  buildStep({
+    name: 'Compiling CJS',
+    apply: async () => {
+      return compilePackageCJS(packagePath);
     },
   });
   buildStep({
@@ -2001,31 +2147,28 @@ export const buildPackage = async (
     },
   });
   buildStep({
-    name: 'Checking imports',
-    apply: () => checkImports(packagePath),
-  });
-  buildStep({
     name: 'Checking dependencies',
     apply: () => depCheck(packagePath),
   });
 
   let success = await buildProcess.catch(err => {
-    let msg = err.error ? err.error : err.stdout + '\n'+err.stderr;
+    let msg = typeof err === 'string' || err instanceof Error ? err.toString() : (err.error && !err.error.toString().includes('Command failed:') ? err.error : err.stdout + '\n' + err.stderr);
     if (logResults)
     {
       spinner.stopAndPersist({
         symbol: chalk.red('✖'),
-        text: 'Build failed',
+        // text: 'Build failed',
       });
     }
     else
     {
       console.log(chalk.red(packagePath.split('/').pop(),' - Build failed:'));
+      console.log(err);
     }
     console.log(msg);
   });
   //will be undefined if there was an error
-  if (typeof success !== 'undefined')
+  if (typeof success !== 'undefined' && success !== false)
   {
     if (logResults)
     {
@@ -2036,33 +2179,56 @@ export const buildPackage = async (
     }
 
   }
+  else
+  {
+    spinner.stopAndPersist({
+      symbol: chalk.red('✖'),
+      text: 'Build failed',
+    });
+  }
   return success;
 };
 export const compilePackage = async (packagePath = process.cwd()) => {
   //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json
-  let cjsConfig = fs.existsSync(path.join(packagePath,'tsconfig-cjs.json'));
-  let esmConfig = fs.existsSync(path.join(packagePath,'tsconfig-esm.json'));
-  let compileCJS = `yarn exec tsc -p tsconfig-cjs.json`;
-  let compileESM = `yarn exec tsc -p tsconfig-esm.json`;
-  let compileCommand;
-  if (cjsConfig && esmConfig)
-  {
-    compileCommand = `${compileCJS} && ${compileESM}`;
-  }
-  else if (cjsConfig)
-  {
-    compileCommand = compileCJS;
-  }
-  else if (esmConfig)
-  {
-    compileCommand = compileESM;
-  }
-  else
-  {
-    compileCommand = `yarn exec tsc`;
-  }
+  // let cjsConfig = fs.existsSync(path.join(packagePath,'tsconfig-cjs.json'));
+  // let esmConfig = fs.existsSync(path.join(packagePath,'tsconfig-esm.json'));
+  // let compileCJS = `yarn exec tsc -p tsconfig-cjs.json`;
+  // let compileESM = `yarn exec tsc -p tsconfig-esm.json`;
+  // let compileCommand;
+  // if (cjsConfig && esmConfig)
+  // {
+  //   compileCommand = `${compileCJS} && ${compileESM}`;
+  // }
+  // else if (cjsConfig)
+  // {
+  //   compileCommand = compileCJS;
+  // }
+  // else if (esmConfig)
+  // {
+  //   compileCommand = compileESM;
+  // }
+  // else
+  // {
+  //   compileCommand = `yarn exec tsc`;
+  // }
+  await compilePackageESM(packagePath);
+  await compilePackageCJS(packagePath);
+};
+export const compilePackageESM = async (packagePath = process.cwd()) => {
+  //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json
+  let compileCommand = `yarn exec tsc -p tsconfig-esm.json`;
   return execPromise(compileCommand,false,false,{ cwd: packagePath }).then(res => {
     return res === '';
+  });
+};
+export const compilePackageCJS = async (packagePath = process.cwd()) => {
+  let compileCommand = `yarn exec tsc -p tsconfig-cjs.json`;
+  return execPromise(compileCommand,false,false,{ cwd: packagePath }).then(res => {
+    return res === '';
+  }).catch(err => {
+    return {
+      error: err.stdout,
+    };
   });
 };
 
@@ -2436,14 +2602,15 @@ export var buildUpdated = async function(
             pkg.path +
             ' && yarn build' +
             (target ? ' ' + target : '') +
-            (target2 ? ' ' + target2 : ''),
-          )
+            (target2 ? ' ' + target2 : ''))
             .then((res) => {
-              if(res === '')
+              if (res === '')
               {
                 debugInfo(chalk.green(pkg.packageName + ' successfully built'));
                 return chalk.green(pkg.packageName + ' built');
-              } else if (typeof res === 'string') {
+              }
+              else if (typeof res === 'string')
+              {
                 warn(chalk.red('Failed to build ' + pkg.packageName));
                 console.log(res);
                 process.exit(1);
@@ -2674,16 +2841,18 @@ export var executeCommandForPackage = function(packageName,command) {
     log(
       'Executing \'cd ' +
       packageDetails.path +
-      ' && yarn exec lincd' +
+      ' && yarn lincd' +
       (command ? ' ' + command : '') +
       '\'',
     );
 
-    return execp(
-      'cd ' +
-      packageDetails.path +
-      ' && yarn exec lincd' +
-      (command ? ' ' + command : ''),
+    spawnChild(
+      process.platform === 'win32' ? 'yarn.cmd' : 'yarn',  // Windows quirk
+      ['lincd',command || null],
+      {
+        cwd:packageDetails.path,
+        stdio: 'inherit',
+      }
     );
   }
   else
@@ -2700,33 +2869,37 @@ export var executeCommandForPackage = function(packageName,command) {
  * @param {string} packagePath - The path to the package directory.
  */
 export const removeOldFiles = async (packagePath) => {
-  const libPath = path.join(packagePath, 'lib');
+  const libPath = path.join(packagePath,'lib');
 
-  try {
+  try
+  {
     // Read all files in the 'lib' folder asynchronously
-    const files = await glob(packagePath + '/lib/**/*.*')
+    const files = await glob(packagePath + '/lib/**/*.*');
 
     // Iterate through each file
-    for (const file of files) {
+    for (const file of files)
+    {
       // const filePath = path.join(libPath, file);
 
       // Check if the file exists before attempting to delete it
       // if (await fs.pathExists(filePath)) {
-        const stats = await fs.stat(file);
-        const currentTime = new Date().getTime();
-        const lastModifiedTime = stats.mtime.getTime();
+      const stats = await fs.stat(file);
+      const currentTime = new Date().getTime();
+      const lastModifiedTime = stats.mtime.getTime();
 
-        // Check if the difference between the current time and last modified time is greater than 120 seconds
-        if (currentTime - lastModifiedTime > 120000) {
-          // Attempt to delete the file
-          await fs.unlink(file);
-          // console.log(`Removed: ${file}`);
-        }
+      // Check if the difference between the current time and last modified time is greater than 120 seconds
+      if (currentTime - lastModifiedTime > 120000)
+      {
+        // Attempt to delete the file
+        await fs.unlink(file);
+        // console.log(`Removed: ${file}`);
+      }
       // }
     }
     return true;
-  } catch (error) {
+  } catch (error)
+  {
     console.error(`Error removing files: ${error.message}`);
-    return false
+    return false;
   }
 };

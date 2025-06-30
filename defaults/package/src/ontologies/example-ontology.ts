@@ -15,7 +15,7 @@ export var loadData = () => {
   } else {
     // ESM import
     //@ts-ignore
-    return import('../data/${hyphen_name}.json',{ assert: { type: "json" } }).then((data) => JSONLD.parse(data));
+    return import('../data/${hyphen_name}.json',{ with: { type: "json" } }).then((data) => JSONLD.parse(data));
   }
 };
 
