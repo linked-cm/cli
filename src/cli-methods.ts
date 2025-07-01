@@ -1571,9 +1571,9 @@ export const startServer = async (
 
   let appPromise;
   if(process.env.NODE_ENV !== 'development') {
-    appPromise = (await import(path.join(process.cwd(),'lib','app.js'))).default;
+    appPromise = (await import(path.join(process.cwd(),'lib','App.js'))).default;
   } else {
-    appPromise = (await import(path.join(process.cwd(),'src','app.js'))).default;
+    appPromise = (await import(path.join(process.cwd(),'src','App.js'))).default;
   }
   let server = new ServerClass({
     loadAppComponent: async () => {
