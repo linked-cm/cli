@@ -1569,10 +1569,16 @@ export const startServer = async (
   }
   await import(path.join(process.cwd(),'scripts','storage-config.js'));
 
+  let appPromise;
+  if(process.env.NODE_ENV !== 'development') {
+    appPromise = (await import(path.join(process.cwd(),'lib','app.js'))).default;
+  } else {
+    appPromise = (await import(path.join(process.cwd(),'src','app.js'))).default;
+  }
   let server = new ServerClass({
-    loadAppComponent: async () =>
-      (await import(path.join(process.cwd(),'src','App'))).default,
-    ...lincdConfig,
+    loadAppComponent: async () => {
+      return appPromise;
+    },...lincdConfig,
   });
   //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
   let args = process.argv.slice(2);
@@ -1587,11 +1593,17 @@ export const startServer = async (
   }
 };
 export const buildApp = async () => {
+  await buildFrontend();
+  await buildBackend();
+  console.log(chalk.magenta(`✅ ${process.env.NODE_ENV} app build finished`));
+  process.exit();
+};
+export const buildFrontend = async () => {
   await ensureEnvironmentLoaded();
   const webpackAppConfig = await (await import('./config-webpack-app.js')).getWebpackAppConfig();
 
-  console.log(chalk.magenta(`Building ${process.env.NODE_ENV} app bundles`));
-  return new Promise((resolve,reject) => {
+  console.log(chalk.magenta(`🛠 Building ${process.env.NODE_ENV} frontend bundles`));
+  await new Promise((resolve,reject) => {
     webpack(webpackAppConfig as any,async (err,stats) => {
       if (err)
       {
@@ -1636,13 +1648,15 @@ export const buildApp = async () => {
     if (process.env.NODE_ENV === 'development' || !process.env.S3_BUCKET_ENDPOINT)
     {
       console.warn('Upload build to storage skip in development environment or S3_BUCKET_ENDPOINT is not set');
-      process.exit();
+      return;
+      // process.exit();
     }
 
     if (process.env.APP_ENV)
     {
       console.warn('Not uploading to CDN for app builds');
-      process.exit();
+      return;
+      // process.exit();
     }
 
     // load the storage config
@@ -1667,6 +1681,13 @@ export const buildApp = async () => {
 
       // get all files in the web directory and then upload them to the storage
       const files = await getFiles(pathDir);
+      console.log(chalk.magenta('🕊️ uploading public files to linked files storage'));
+      const clearSpinner = ora({
+        discardStdin: true,
+        text: `Publishing ${files.length} public files`,
+      }).start();
+
+      let counter = 0;
       const uploads = files.map(async (filePath) => {
         // read file content
         const fileContent = await fs.promises.readFile(filePath);
@@ -1676,15 +1697,84 @@ export const buildApp = async () => {
         const pathname = filePath.replace(pathDir,`/${rootDirectory}`);
 
         // upload file to storage
-        return await LinkedFileStorage.saveFile(pathname,fileContent);
+        await LinkedFileStorage.saveFile(pathname,fileContent).then(() => {
+          clearSpinner.text = `${counter++}/${files.length}: - Published ${pathname} `;
+
+        }).catch(console.error)
       });
 
       const urls = await Promise.all(uploads);
-      console.log(`${urls.length} files uploaded to storage`);
-      process.exit();
+      clearSpinner.succeed(`${urls.length} files uploaded to storage`)
     }
   });
-};
+}
+export const buildBackend = async () => {
+  console.log(chalk.magenta(`🛠 Preparing ${process.env.NODE_ENV} backend`));
+  //run tsc in the backend folder
+  await ensureEnvironmentLoaded();
+
+  const sourceFolder = path.join(process.cwd(),'src');
+  const targetFolder = path.join(process.cwd(),'lib');
+
+  // Step 1: Clear lib folder
+  const clearSpinner = ora({
+    discardStdin: true,
+    text: 'Clearing lib folder',
+  }).start();
+
+  try {
+    if (fs.existsSync(targetFolder)) {
+      await fs.remove(targetFolder);
+    }
+    clearSpinner.succeed('Lib folder cleared');
+  } catch (e) {
+    console.error(e);
+    clearSpinner.fail('Failed to clear lib folder');
+    return;
+  }
+
+  // Step 2: Compile TS files
+  const compileSpinner = ora({
+    discardStdin: true,
+    text: 'Compiling backend TS files',
+  }).start();
+
+  try {
+    await execPromise(`yarn exec tsc`);
+    compileSpinner.succeed('Backend TS files compiled');
+  } catch (e) {
+    console.error(e);
+    compileSpinner.fail('Failed to compile backend TS files');
+    return;
+  }
+
+  // Step 3: Copy CSS files
+  const copySpinner = ora({
+    discardStdin: true,
+    text: 'Copying CSS files',
+  }).start();
+
+  try {
+    const cssFiles = await getFiles(sourceFolder,'.css');
+    await Promise.all(
+      cssFiles.map((file) => {
+        const targetFile = file.replace(sourceFolder,targetFolder);
+        //ensure the target folder exists
+        const targetDir = path.dirname(targetFile);
+        if (!fs.existsSync(targetDir))
+        {
+          fs.mkdirSync(targetDir,{ recursive: true });
+        }
+        return fs.copyFile(file,targetFile);
+      }),
+    );
+    copySpinner.succeed(`${cssFiles.length} CSS files copied`);
+  } catch (e) {
+    console.error(e);
+    copySpinner.fail('Failed to copy CSS files');
+  }
+  return true;
+}
 
 export const upgradePackages = async () => {
   await ensureEnvironmentLoaded();

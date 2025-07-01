@@ -631,13 +631,19 @@ export function getLinkedTailwindColors() {
  * @param dir The directory to get files from
  * @returns A promise that resolves to an array of file paths
  */
-export async function getFiles(dir: string): Promise<string[]> {
+export async function getFiles(dir: string,filenameFilter?:string): Promise<string[]> {
   const entries = await fs.promises.readdir(dir, {withFileTypes: true});
-  const files = await Promise.all(
+  let files = await Promise.all(
     entries.map((entry) => {
       const res = path.resolve(dir, entry.name);
-      return entry.isDirectory() ? getFiles(res) : res;
+      return entry.isDirectory() ? getFiles(res,filenameFilter) : res;
     }),
   );
-  return Array.prototype.concat(...files);
+  //flatten the array of arrays into a single array
+  let flatFiles = flatten(files) as string[];
+  if(filenameFilter) {
+    //filter the files to only include those that match the filenameFilter
+    flatFiles = flatFiles.filter(file => file.includes(filenameFilter));
+  }
+  return flatFiles;
 }
