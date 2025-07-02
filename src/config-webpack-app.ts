@@ -85,7 +85,8 @@ class WatchRunPlugin
  */
 function getLocalIdent(context,currentFormat,name)
 {
-  return isProduction ? generateScopedNameProduction(name,context.resourcePath) : generateScopedName(name,context.resourcePath);
+  // return isProduction ? generateScopedNameProduction(name,context.resourcePath) : generateScopedName(name,context.resourcePath);
+  return generateScopedName(name,context.resourcePath);
 }
 
 export const getLincdConfig = async () => {
