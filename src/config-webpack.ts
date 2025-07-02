@@ -187,7 +187,7 @@ export function generateWebpackConfig(
   ) {
     postcssPlugins = postcssPlugins.concat([
       'postcss-preset-env',
-      productionMode && 'cssnano',
+      // productionMode && 'cssnano',
     ]);
     //we once had:
     // 'postcss-import': {},

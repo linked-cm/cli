@@ -364,7 +364,7 @@ export const getWebpackAppConfig = async () => {
       //     'number-max-precision':null,
       //   },
       // }],
-      isProduction && 'cssnano',
+      // isProduction && 'cssnano',
       // "postcss-reporter",
     ]);
   }
