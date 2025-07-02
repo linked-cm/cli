@@ -1596,7 +1596,6 @@ export const buildApp = async () => {
   await buildFrontend();
   await buildBackend();
   console.log(chalk.magenta(`✅ ${process.env.NODE_ENV} app build finished`));
-  process.exit();
 };
 export const buildFrontend = async () => {
   await ensureEnvironmentLoaded();
@@ -1681,7 +1680,7 @@ export const buildFrontend = async () => {
 
       // get all files in the web directory and then upload them to the storage
       const files = await getFiles(pathDir);
-      console.log(chalk.magenta('🕊️ uploading public files to linked files storage'));
+      console.log(chalk.magenta(`🕊  Publishing ${files.length} public files to linked file storage`));
       const clearSpinner = ora({
         discardStdin: true,
         text: `Publishing ${files.length} public files`,
