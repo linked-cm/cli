@@ -2624,27 +2624,27 @@ export var buildUpdated = async function(
   let packages = getLocalLincdPackageMap();
 
   // console.log(packages);
-  let jsonldPkgUpdated = await needsRebuilding(
-    packages.get('lincd-jsonld'),
-    useGitForLastModified,
-  );
+  // let jsonldPkgUpdated = await needsRebuilding(
+  //   packages.get('lincd-jsonld'),
+  //   useGitForLastModified,
+  // );
   // let cliPkgUpdated = await needsRebuilding(packages.get('lincd-cli'), useGitForLastModified);
 
   //if either cli or jsonldPkg needs to be rebuilt
   // if (jsonldPkgUpdated || cliPkgUpdated) {
-  if (jsonldPkgUpdated)
-  {
-    await execPromise(
-      'yarn exec tsc && echo "compiled lincd-jsonld"',
-      false,
-      false,
-      {
-        cwd: packages.get('lincd-jsonld').path,
-      },
-      true,
-    );
-    // await execPromise('yarn build-core', false, false, {}, true);
-  }
+  // if (jsonldPkgUpdated)
+  // {
+  //   await execPromise(
+  //     'yarn exec tsc && echo "compiled lincd-jsonld"',
+  //     false,
+  //     false,
+  //     {
+  //       cwd: packages.get('lincd-jsonld').path,
+  //     },
+  //     true,
+  //   );
+  //   // await execPromise('yarn build-core', false, false, {}, true);
+  // }
   let rebuildAllModules = false;
   // if (cliPkgUpdated) {
   //   rebuildAllModules = true;
