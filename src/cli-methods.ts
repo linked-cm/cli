@@ -2669,10 +2669,10 @@ export var buildUpdated = async function(
           // true,
         );
 
-        if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated)
-        {
-          needRebuild = true;
-        }
+        // if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated)
+        // {
+        //   needRebuild = true;
+        // }
         if (needRebuild || rebuildAllModules)
         {
           //TODO: when building a pkg, also rebuild all packages that depend on this package.. and iteratively build packages that depend on those packages..
