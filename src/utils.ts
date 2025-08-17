@@ -249,12 +249,13 @@ export var getLINCDDependencies = function (
 
     // a simple sort with dependencyMap doesn't seem to work,so we start with LINCD (least dependencies) and from there add packages that have all their dependencies already added
     let sortedPackagePaths = [];
-    let addedPackages = new Set(['lincd']);
+    let addedPackages = new Set();
     let lincdItself = lincdPackagePaths.find(([packageName]) => {
       return packageName === 'lincd';
     });
     if(lincdItself) {
       sortedPackagePaths.push(lincdItself);
+      addedPackages = new Set(['lincd']);
     }
 
     while (addedPackages.size !== lincdPackagePaths.length) {
