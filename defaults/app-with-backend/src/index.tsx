@@ -20,7 +20,7 @@ initFrontend().then(() => {
         <AppContextProvider
           assets={window['assetManifest']}
           requestLD={document.getElementById('request-ld')?.innerText}
-          requestObject={document.getElementById('request-json')?.innerText}
+          requestObject={JSON.parse(document.getElementById('request-json')?.innerText || '{}')}
         >
           <App />
         </AppContextProvider>
