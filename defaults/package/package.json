@@ -10,7 +10,7 @@
     "type": "git",
     "url": ""
   },
-  "version": "0.1.0",
+  "version": "1.0.0",
   "lincd": true,
   "main": "lib/index.js",
   "types": "dist/${output_file_name}.d.ts",
@@ -28,11 +28,38 @@
     "semantic web",
     "web3"
   ],
+  "module": "lib/esm/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/esm/index.d.ts",
+      "import": "./lib/esm/index.js",
+      "require": "./lib/cjs/index.js"
+    },
+    "./*.js": {
+      "types": "./lib/esm/*.d.ts",
+      "import": "./lib/esm/*.js",
+      "require": "./lib/cjs/*.js"
+    },
+    "./*": {
+      "types": "./lib/esm/*.d.ts",
+      "import": "./lib/esm/*.js",
+      "require": "./lib/cjs/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "lib/esm/*"
+      ]
+    }
+  },
   "dependencies": {
     "lincd": "^1.0",
-    "lincd-jsonld": "^0.1"
+    "lincd-jsonld": "^1.0"
   },
   "devDependencies": {
-    "lincd-cli": "^1.2"
+    "@types/node": "^22.13.14",
+    "lincd-cli": "^1.2",
+    "tsconfig-to-dual-package": "^1.2.0"
   }
 }

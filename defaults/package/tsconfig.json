@@ -9,8 +9,9 @@
     "esModuleInterop": true,
     "pretty": true,
     "jsx": "react",
-    "types": []
+    "types": ["node"]
   },
-  "files": ["./src/types.d.ts","./src/index.ts"],
+  "files": [
+    "./src/types.ts","./src/index.ts"],
   "include": ["./src/backend.ts"]
 }

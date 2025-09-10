@@ -2,11 +2,12 @@ import {linkedPackage} from 'lincd/utils/Package';
 
 export const {
   linkedComponent,
-  linkedComponentClass,
   linkedShape,
   linkedUtil,
   linkedOntology,
   registerPackageExport,
   packageExports,
   packageName,
+  getPackageShape
+
 } = linkedPackage('${package_name}');

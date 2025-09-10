@@ -1,9 +1,9 @@
 import {NamedNode} from 'lincd/models';
-import {JSONLD} from 'lincd-jsonld/lib/utils/JSONLD';
+import {JSONLD} from 'lincd-jsonld/utils/JSONLD';
 import {createNameSpace} from 'lincd/utils/NameSpace';
-import {linkedOntology} from '../package';
+import {linkedOntology} from '../package.js';
 //import all the exports of this file as one variable called _this (we need this at the end)
-import * as _this from './${hyphen_name}';
+import * as _this from './${hyphen_name}.js';
 
 /**
  * Load the data of this ontology into memory, thus adding the properties of the entities of this ontology to the local graph.
@@ -15,7 +15,7 @@ export var loadData = () => {
   } else {
     // ESM import
     //@ts-ignore
-    return import('../data/${hyphen_name}.json',{ with: { type: "json" } }).then((data) => JSONLD.parse(data));
+    return import('../data/${hyphen_name}.json',{ with: { type: "json" } }).then((data) => JSONLD.parse(data.defauilt));
   }
 };
 
