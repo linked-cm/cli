@@ -204,7 +204,7 @@ function checkPackagePath(rootPath,packagePath,res)
   }
 }
 
-function runOnPackagesGroupedByDependencies(
+export function runOnPackagesGroupedByDependencies(
   lincdPackages,
   onBuildStack: (
     packageGroup,
