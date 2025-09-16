@@ -1573,7 +1573,7 @@ export const startServer = async (
   if(process.env.NODE_ENV !== 'development') {
     appPromise = (await import(path.join(process.cwd(),'lib','App.js'))).default;
   } else {
-    appPromise = (await import(path.join(process.cwd(),'src','App.js'))).default;
+    appPromise = (await import(path.join(process.cwd(),'src','App.tsx'))).default;
   }
   let server = new ServerClass({
     loadAppComponent: async () => {
