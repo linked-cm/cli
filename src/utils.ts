@@ -1,14 +1,14 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import chalk from 'chalk';
-import { exec,ExecOptions } from 'child_process';
+import { exec, ExecOptions } from 'child_process';
+import * as fs from 'fs';
+import { PackageDetails } from 'interfaces';
+import { builtinModules } from 'module';
+import * as path from 'path';
 import ts from 'typescript';
-import {builtinModules} from 'module';
-import {PackageDetails} from 'interfaces';
 
-import { findNearestPackageJson,findNearestPackageJsonSync } from 'find-nearest-package-json';
-import * as glob from 'glob';
 import * as crypto from 'crypto';
+import { findNearestPackageJsonSync } from 'find-nearest-package-json';
+import * as glob from 'glob';
 
 var gruntConfig;
 
@@ -647,4 +647,13 @@ export async function getFiles(dir: string,filenameFilter?:string): Promise<stri
     flatFiles = flatFiles.filter(file => file.includes(filenameFilter));
   }
   return flatFiles;
+}
+
+/**
+ * Strip ANSI escape codes from a string
+ * @param str The string to strip ANSI codes from
+ * @returns The string with ANSI codes removed
+ */
+export function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, '');
 }

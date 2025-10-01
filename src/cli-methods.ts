@@ -3,7 +3,7 @@ import { exec } from 'child_process';
 import depcheck from 'depcheck';
 import { getEnvFile } from 'env-cmd/dist/get-env-vars.js';
 import fs from 'fs-extra';
-import path,{ dirname } from 'path';
+import path, { dirname } from 'path';
 import {
   debugInfo,
   execp,
@@ -16,21 +16,22 @@ import {
   isImportWithMissingExtension,
   isInvalidLINCDImport,
   needsRebuilding,
+  stripAnsi,
 } from './utils.js';
 
+import { spawn as spawnChild } from 'child_process';
+import { findNearestPackageJson } from 'find-nearest-package-json';
 import { statSync } from 'fs';
 import { PackageDetails } from 'interfaces';
-import { findNearestPackageJson } from 'find-nearest-package-json';
 import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
-import {spawn as spawnChild} from 'child_process';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;
 // const config = require('lincd-server/site.webpack.config');
 import { glob } from 'glob';
 import webpack from 'webpack';
 
+import ora, { Ora } from 'ora';
 import stagedGitFiles from 'staged-git-files';
-import ora,{ Ora } from 'ora';
 
 //@ts-ignore
 let dirname__ = typeof __dirname !== 'undefined' ? __dirname : dirname(import.meta.url).replace('file:/','');
@@ -115,11 +116,16 @@ function progressUpdate(message)
 export function warn(...messages)
 {
   messages.forEach((message) => {
-    console.log(chalk.redBright('Warning: ') + message);
+    console.warn(chalk.redBright('Warning: ') + message);
     // console.log(chalk.red(message));
   });
 }
-
+export function logError(...messages)
+{
+  messages.forEach((message) => {
+    console.error(chalk.redBright('Error: ') + message);
+  });
+}
 export function developPackage(target,mode)
 {
   if (!target) target = 'es6';
@@ -608,7 +614,7 @@ export function buildAll(options)
           }
         })
           .catch(({ error,stdout,stderr }) => {
-            warn(chalk.red('Failed to build ' + pkg.packageName));
+            logError(chalk.red('Failed to build ' + pkg.packageName));
             console.log(stdout);
             process.exit(1);
             // let dependentModules = getDependentP
@@ -2467,7 +2473,7 @@ export var publishUpdated = function(test: boolean = false) {
           .catch(({ error,stdout,stderr }) => {
             if (error)
             {
-              console.log(error.message);
+              console.error(error.message);
             }
             if (stdout)
             {
@@ -2599,7 +2605,7 @@ export var publishPackage = async function(
       );
     })
     .catch(({ error,stdout,stderr }) => {
-      console.log(chalk.red('Failed to publish: ' + error.message));
+      logError('Failed to publish: ' + error.message);
       return chalk.red(pkg.packageName + ' failed to publish');
     });
 };
@@ -2700,15 +2706,16 @@ export var buildUpdated = async function(
               }
               else if (typeof res === 'string')
               {
-                warn(chalk.red('Failed to build ' + pkg.packageName));
-                console.log(res);
+                logError('Failed to build ' + pkg.packageName);
+                console.error(stripAnsi(res));
                 process.exit(1);
               }
             })
             .catch(({ error,stdout,stderr }) => {
-              warn(chalk.red('Failed to build ' + pkg.packageName));
-              console.log(stdout);
+              logError('Failed to build ' + pkg.packageName);
+              console.log(stripAnsi(stdout));
               process.exit(1);
+
               // let dependentModules = getDependentPackages(dependencies, pkg);
               // if (dependentModules.length > 0) {
               //   // printBuildResults(failedModules, done);
