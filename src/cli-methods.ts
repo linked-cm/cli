@@ -16,7 +16,6 @@ import {
   isImportWithMissingExtension,
   isInvalidLINCDImport,
   needsRebuilding,
-  stripAnsi,
 } from './utils.js';
 
 import {spawn as spawnChild} from 'child_process';
@@ -2375,10 +2374,12 @@ export const buildPackage = async (
       });
     }
   } else {
-    spinner.stopAndPersist({
-      symbol: chalk.red('✖'),
-      text: 'Build failed',
-    });
+    if (logResults) {
+      spinner.stopAndPersist({
+        symbol: chalk.red('✖'),
+        text: 'Build failed',
+      });
+    }
   }
   return success;
 };
@@ -2768,45 +2769,36 @@ export var buildUpdated = async function (
             return chalk.blue(pkg.packageName + ' should be build');
           }
           log('Building ' + pkg.packageName);
-          // return buildPackage(null,null,pkg.path)
-          return execPromise(
-            'cd ' +
-              pkg.path +
-              ' && yarn build' +
-              (target ? ' ' + target : '') +
-              (target2 ? ' ' + target2 : ''),
+          return buildPackage(
+            null,
+            null,
+            path.join(process.cwd(), pkg.path),
+            false,
           )
             .then((res) => {
-              if (res === '') {
+              //empty string or true is success
+              //false is success with warnings
+              //any other string is the build error text
+              //undefined result means it failed
+              if (typeof res === 'undefined') {
+                logError('Failed to build ' + pkg.packageName);
+                process.exit(1);
+              } else {
                 debugInfo(chalk.green(pkg.packageName + ' successfully built'));
                 return chalk.green(pkg.packageName + ' built');
-              } else if (typeof res === 'string') {
-                logError('Failed to build ' + pkg.packageName);
-                console.error(stripAnsi(res));
-                process.exit(1);
               }
             })
-            .catch(({error, stdout, stderr}) => {
+            .catch((err) => {
               logError('Failed to build ' + pkg.packageName);
-              console.log(stripAnsi(stdout));
+              console.error(err);
               process.exit(1);
-
-              // let dependentModules = getDependentPackages(dependencies, pkg);
-              // if (dependentModules.length > 0) {
-              //   // printBuildResults(failedModules, done);
-              //   warn(chalk.red(pkg.packageName + ' build failed'));
-              //   warn(
-              //     'Stopping build-updated process because ' +
-              //       dependentModules.length +
-              //       ' other packages depend on this package.\n',
-              //   ); //"+dependentModules.map(d => d.packageName).join(", ")));
-              // }
             });
         }
       };
     },
-    (results) => {
+    (dependencies, results) => {
       if (results.length) {
+        log(chalk.green('Changed packages have been rebuilt'));
         log('Summary:');
         log(results.join('\n'));
       } else {
