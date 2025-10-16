@@ -24,7 +24,7 @@ export interface ModuleConfig {
   afterBuildCommandProduction?: string;
   afterFirstBuildCommand?: string;
   cssGlobalModulePaths?: string;
-  cssMode?: 'scss' | 'scss-modules' | 'tailwind' | 'mixed';
+  cssMode?: 'tailwind' | 'postcss';
   cssFileName?: string;
   //used to overwrite tsConfig settings of the usual build process
   tsConfigOverwrites?: Object;

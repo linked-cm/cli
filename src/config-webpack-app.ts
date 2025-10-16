@@ -1,48 +1,43 @@
-import path from 'path';
-import chalk from 'chalk';
-import ReactRefreshTypeScript from 'react-refresh-typescript';
 import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
-import MiniCssExtractPlugin from 'mini-css-extract-plugin';
-import webpack from 'webpack';
+import chalk from 'chalk';
 import fs from 'fs';
-import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
+import MiniCssExtractPlugin from 'mini-css-extract-plugin';
+import path from 'path';
+import ReactRefreshTypeScript from 'react-refresh-typescript';
 import TerserPlugin from 'terser-webpack-plugin';
-import {
-  generateScopedName,
-  generateScopedNameProduction,getLINCDDependencies,
-} from './utils.js';
+import webpack from 'webpack';
+import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
+import {generateScopedName, getLINCDDependencies} from './utils.js';
 
-import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
+import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
 import postcssUrl from 'postcss-url';
 //@ts-ignore
-import plugin from 'tailwindcss/plugin';
 // import { addLincdSourcesPlugin } from './plugins/lincd-tailwind-sources';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
 const packageJson = JSON.parse(
-  fs.readFileSync(path.resolve(process.cwd(),'package.json'),'utf-8'),
+  fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'),
 );
 
-const cssModes = ['scss-modules','tailwind','scss','mixed'];
+const cssModes = ['tailwind', 'postcss'];
 
-class WatchRunPlugin
-{
-  apply(compiler)
-  {
-    compiler.hooks.watchRun.tap('watchRun',(comp) => {
-      if (comp.modifiedFiles)
-      {
+class WatchRunPlugin {
+  apply(compiler) {
+    compiler.hooks.watchRun.tap('watchRun', (comp) => {
+      if (comp.modifiedFiles) {
         const changedFiles = Array.from(comp.modifiedFiles);
 
-        console.log(chalk.magenta('Changed files sorted by \'modified time\' stamps:'));
+        console.log(
+          chalk.magenta("Changed files sorted by 'modified time' stamps:"),
+        );
         const entriesToCheck = [];
 
         changedFiles.forEach((file) => {
           try {
             const stat = fs.statSync(file.toString());
             console.log(`  ${chalk.magenta(file)}`);
-            entriesToCheck.push({ path: file, mtime: stat.mtime });
+            entriesToCheck.push({path: file, mtime: stat.mtime});
             if (stat.isDirectory()) {
               const contents = fs.readdirSync(file.toString());
               contents.forEach((name) => {
@@ -51,21 +46,32 @@ class WatchRunPlugin
                   const innerStat = fs.statSync(fullPath);
                   //if less than 2 minutes ago...
                   if (innerStat.mtime > new Date(Date.now() - 2 * 60 * 1000)) {
-                    entriesToCheck.push({ path: fullPath, mtime: innerStat.mtime });
+                    entriesToCheck.push({
+                      path: fullPath,
+                      mtime: innerStat.mtime,
+                    });
                   }
                 } catch (e) {
-                  entriesToCheck.push({ path: fullPath, mtime: new Date(0), error: e.message });
+                  entriesToCheck.push({
+                    path: fullPath,
+                    mtime: new Date(0),
+                    error: e.message,
+                  });
                 }
               });
             }
           } catch (err) {
-            entriesToCheck.push({ path: file, mtime: new Date(0), error: err.message });
+            entriesToCheck.push({
+              path: file,
+              mtime: new Date(0),
+              error: err.message,
+            });
           }
         });
 
         entriesToCheck
           .sort((a, b) => b.mtime - a.mtime)
-          .splice(0,3)
+          .splice(0, 3)
           .forEach((entry) => {
             const label = entry.error
               ? `[error: ${entry.error}]`
@@ -83,44 +89,36 @@ class WatchRunPlugin
  * @param currentFormat
  * @param name
  */
-function getLocalIdent(context,currentFormat,name)
-{
+function getLocalIdent(context, currentFormat, name) {
   // return isProduction ? generateScopedNameProduction(name,context.resourcePath) : generateScopedName(name,context.resourcePath);
-  return generateScopedName(name,context.resourcePath);
+  return generateScopedName(name, context.resourcePath);
 }
 
 export const getLincdConfig = async () => {
-
-  const lincdConfigPathJs = path.resolve(process.cwd(),'lincd.config.js');
-  const lincdConfigPathJson = path.resolve(process.cwd(),'lincd.config.json');
+  const lincdConfigPathJs = path.resolve(process.cwd(), 'lincd.config.js');
+  const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
 
   //default config
   let config: any = {
-    //scss-modules is default
-    cssMode: cssModes[0],
+    //postcss is default
+    cssMode: cssModes[1],
     analyse: false,
   };
   //overwriting config from package.json.lincdApp or lincd.config.js(on) file
-  if (typeof packageJson.lincdApp === 'object')
-  {
+  if (typeof packageJson.lincdApp === 'object') {
     //overwrite default with anything that's defined in lincdApp in package.json
-    config = { ...config,...packageJson.lincdApp };
-  }
-  else if (fs.existsSync(lincdConfigPathJs))
-  {
+    config = {...config, ...packageJson.lincdApp};
+  } else if (fs.existsSync(lincdConfigPathJs)) {
     let lincdConfig = await import(lincdConfigPathJs);
-    config = { ...config,...lincdConfig.default };
+    config = {...config, ...lincdConfig.default};
+  } else if (fs.existsSync(lincdConfigPathJson)) {
+    let lincdConfig = JSON.parse(fs.readFileSync(lincdConfigPathJson, 'utf-8'));
+    config = {...config, ...lincdConfig};
   }
-  else if (fs.existsSync(lincdConfigPathJson))
-  {
-    let lincdConfig = JSON.parse(fs.readFileSync(lincdConfigPathJson,'utf-8'));
-    config = { ...config,...lincdConfig };
-  }
-  if (!cssModes.includes(config.cssMode))
-  {
+  if (!cssModes.includes(config.cssMode)) {
     console.warn(
       'Invalid value for property cssMode. Should be one of: ' +
-      cssModes.join(', '),
+        cssModes.join(', '),
     );
     process.exit();
   }
@@ -128,9 +126,8 @@ export const getLincdConfig = async () => {
 };
 
 export const getWebpackAppConfig = async () => {
-
   // set up the storage config for the app
-  await import(path.join(process.cwd(),'scripts','storage-config.js'));
+  await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
   const accessURL = LinkedFileStorage.accessURL;
 
   // set up the public path for the app
@@ -144,28 +141,23 @@ export const getWebpackAppConfig = async () => {
 
   let config = await getLincdConfig();
 
-  let postcssPlugins = [
-  ];
+  let postcssPlugins = [];
 
-  //tailwind first (so its processed last and doesn't overwrite custom CSS modules)
-  if (config.cssMode === 'tailwind' || config.cssMode === 'mixed')
-  {
+  if (config.cssMode === 'tailwind') {
     //make sure that tailwind classes from any LINCD packages that are listed in package.json:dependencies are included
     let lincdPackagePaths: any = getLINCDDependencies(packageJson);
-    lincdPackagePaths = lincdPackagePaths.map(([packageName,packagePath]) => {
+    lincdPackagePaths = lincdPackagePaths.map(([packageName, packagePath]) => {
       return packagePath + '/lib/**/*.{js,mjs}';
     });
-    // console.log(
-    //   chalk.blueBright('tailwind content: ') + chalk.magenta(['./frontend/src/**/*.{tsx,ts}', ...lincdPackagePaths]),
-    // );
+
     postcssPlugins.push([
       '@tailwindcss/postcss',
       {
         content: {
-          files:[
+          files: [
             (process.env.SOURCE_PATH || './src/') + '**/*.{js}',
             // ...lincdPackagePaths,
-          ]
+          ],
         },
         // config: {
         //   content: {
@@ -201,8 +193,8 @@ export const getWebpackAppConfig = async () => {
         // },
         plugins: [
           // plugin(function({ addBase, theme }) {
-            //add styles to the base styles
-            //this replicates the preflight settings of tailwind v4, but without the destructive/strict #/# selectors
+          //add styles to the base styles
+          //this replicates the preflight settings of tailwind v4, but without the destructive/strict #/# selectors
           //   addBase({
           //     // Reset all elements except common inline tags and semantic containers
           //     '*:not(code):not(pre):not(kbd):not(samp):not(mark):not(q):not(ins):not(del):not(span):not(a):not(b):not(i):not(em):not(u):not(s):not(small):not(strong):not(sub):not(sup), ::before, ::after': {
@@ -294,81 +286,43 @@ export const getWebpackAppConfig = async () => {
           // }),
         ],
         // plugins: [
-          // tailwindPlugin(function({ addBase,config }) {
-          //   //we can use LINCD CSS variables for default font color, size etc.
-          //   // addBase({
-          //   //   'h1': { fontSize: config('theme.fontSize.2xl') },
-          //   //   'h2': { fontSize: config('theme.fontSize.xl') },
-          //   //   'h3': { fontSize: config('theme.fontSize.lg') },
-          //   // })
-          // }),
+        // tailwindPlugin(function({ addBase,config }) {
+        //   //we can use LINCD CSS variables for default font color, size etc.
+        //   // addBase({
+        //   //   'h1': { fontSize: config('theme.fontSize.2xl') },
+        //   //   'h2': { fontSize: config('theme.fontSize.xl') },
+        //   //   'h3': { fontSize: config('theme.fontSize.lg') },
+        //   // })
+        // }),
         // ],
       },
     ]);
   } else {
-    //if not using tailwind, then we use postcss-nested to enable nesting of css
+    // postcss mode: use postcss-nested to enable nesting of css + CSS Modules
     postcssPlugins.push(
-      ['postcss-import',{}],
-      ['postcss-preset-env',{
-        features: { 'nesting-rules': true },
-      }]
+      ['postcss-import', {}],
+      [
+        'postcss-preset-env',
+        {
+          features: {'nesting-rules': true},
+        },
+      ],
     );
-
   }
+
   //Add plugin which converts URLs in CSS to the correct FULL absolute path
   postcssPlugins.push([
     postcssUrl({
       url: (asset) => {
         //TODO: for assets of packages, we want to detect the package path and resolve through node_modules/package-name/...something/assets
-        if(!asset.url.startsWith('data:'))
-        {
+        if (!asset.url.startsWith('data:')) {
           // console.log('Transform CSS URL:'+asset.url);
           return `${accessURL}${publicPath}${asset.url}`;
         }
         return asset.url;
       },
     }),
-  ])
-  if (
-    config.cssMode === 'scss-modules' ||
-    config.cssMode === 'scss' ||
-    config.cssMode === 'mixed'
-  )
-  {
-    postcssPlugins = postcssPlugins.concat([
-      // ['stylelint', {
-      //   'extends': [
-      //     'stylelint-config-standard'
-      //   ],
-      //   'plugins': ['stylelint-scss'],
-      //   'rules': {
-      //     'at-rule-no-unknown': null,
-      //     'scss/at-rule-no-unknown': [
-      //       true,
-      //       {
-      //         ignoreAtRules: [
-      //           'tailwind',
-      //           'apply',
-      //           'variants',
-      //           'responsive',
-      //           'screen',
-      //         ],
-      //       },
-      //     ],
-      //     'no-descending-specificity': null,
-      //     'at-rule-empty-line-before':null,
-      //     'rule-empty-line-before': null,
-      //     'no-missing-end-of-source-newline': null,
-      //     'max-line-length': null,
-      //     'color-function-notation': null,
-      //     'alpha-value-notation': null,
-      //     'number-max-precision':null,
-      //   },
-      // }],
-      // isProduction && 'cssnano',
-      // "postcss-reporter",
-    ]);
-  }
+  ]);
 
   return {
     mode: isProduction ? 'production' : 'development',
@@ -378,9 +332,9 @@ export const getWebpackAppConfig = async () => {
       path.resolve(
         process.cwd(),
         process.env.ENTRY_PATH ||
-        (process.env.SOURCE_PATH
-          ? process.env.SOURCE_PATH + '/index.tsx'
-          : './src/index.tsx'),
+          (process.env.SOURCE_PATH
+            ? process.env.SOURCE_PATH + '/index.tsx'
+            : './src/index.tsx'),
       ),
     ].filter(Boolean),
     watch: isDevelopment || config.analyse,
@@ -395,7 +349,8 @@ export const getWebpackAppConfig = async () => {
     },
     watchOptions: {
       //ignore everything except the src folder. ignore specific files in the src folder
-      ignored: /(^((?!src).)*$|\.d\.ts$|\.js\.map$|\.scss\.json$|public|\.idea|[/\\]\..*)/,
+      ignored:
+        /(^((?!src).)*$|\.d\.ts$|\.js\.map$|\.css\.json$|public|\.idea|[/\\]\..*)/,
       aggregateTimeout: 500,
     },
     devServer: {
@@ -406,7 +361,7 @@ export const getWebpackAppConfig = async () => {
     plugins: [
       // new WatchRunPlugin(),
       new MiniCssExtractPlugin({
-        ignoreOrder:true
+        ignoreOrder: true,
       }),
       new webpack.EnvironmentPlugin(Object.keys(process.env)),
       isDevelopment && new ReactRefreshWebpackPlugin(),
@@ -418,7 +373,7 @@ export const getWebpackAppConfig = async () => {
     module: {
       rules: [
         {
-          test: /\.(scss|css)$/,
+          test: /\.css$/,
           use: [
             MiniCssExtractPlugin.loader,
             {
@@ -431,10 +386,12 @@ export const getWebpackAppConfig = async () => {
                   getLocalIdent: getLocalIdent,
                   auto: (resourcePath: string) => {
                     //make sure this only applies to .module.css files, and not to tailwind
-                    return /\.module\.css$/i.test(resourcePath) && !/tailwind/i.test(resourcePath);
-                  }
+                    return (
+                      /\.module\.css$/i.test(resourcePath) &&
+                      !/tailwind/i.test(resourcePath)
+                    );
+                  },
                 },
-
               },
             },
             {
@@ -459,16 +416,16 @@ export const getWebpackAppConfig = async () => {
                     module: 'esnext',
                     moduleResolution: 'node',
                     sourceMap: isDevelopment,
-                    plugins: [{ 'name': 'typescript-plugin-css-modules' }],
+                    plugins: [{name: 'typescript-plugin-css-modules'}],
                   },
                 }),
               options: {
                 ...(isDevelopment
                   ? {
-                    getCustomTransformers: () => ({
-                      before: [ReactRefreshTypeScript()],
-                    }),
-                  }
+                      getCustomTransformers: () => ({
+                        before: [ReactRefreshTypeScript()],
+                      }),
+                    }
                   : {}),
                 transpileOnly: isProduction,
               },
@@ -496,12 +453,12 @@ export const getWebpackAppConfig = async () => {
       modules: false,
     },
     resolve: {
-      extensions: ['.tsx','.ts','.js','.css','.scss','.json'],
+      extensions: ['.tsx', '.ts', '.js', '.css', '.json'],
       alias: config.alias || {},
       // traceResolution: true
     },
     //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
     //see also https://webpack.js.org/configuration/other-options/#cache
-    cache: { type: 'memory' },
+    cache: {type: 'memory'},
   };
 };

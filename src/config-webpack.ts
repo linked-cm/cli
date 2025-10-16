@@ -1,27 +1,22 @@
+import * as colors from 'colors';
+import {AdjustedModuleConfig} from './interfaces';
 import DeclarationPlugin from './plugins/declaration-plugin';
 import externaliseModules from './plugins/externalise-modules';
 import WatchRunPlugin from './plugins/watch-run';
-import {
-  generateScopedName,
-  getLinkedTailwindColors,
-  getPackageJSON,
-  warn,
-} from './utils';
-import {AdjustedModuleConfig} from './interfaces';
-import * as colors from 'colors';
+import {generateScopedName, getPackageJSON, warn} from './utils';
 // console.log('Webpack '+require('webpack/package.json').version);
 // console.log('ts-loader '+require('ts-loader/package.json').version);
 
 import fs from 'fs';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
-import webpack from 'webpack';
 import path from 'path';
+import webpack from 'webpack';
 // const WebpackLicencePlugin = require('webpack-license-plugin');
 // const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
-import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
-import TerserPlugin from 'terser-webpack-plugin';
-import { exec } from 'child_process';
+import {exec} from 'child_process';
 import CopyPlugin from 'copy-webpack-plugin';
+import TerserPlugin from 'terser-webpack-plugin';
+import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
 // import tailwindPlugin from 'tailwindcss/plugin';
 
 declare var __dirname: string;
@@ -83,9 +78,9 @@ export function generateWebpackConfig(
     process.exit();
   }
 
-  let tsConfig = JSON.parse(fs.readFileSync(configFile,'utf8'));
+  let tsConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
 
-  var plugins:any[] = [
+  var plugins: any[] = [
     // new webpack.DefinePlugin({
     //   'process.env.BROWSER': JSON.stringify(true),
     //   'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
@@ -110,7 +105,7 @@ export function generateWebpackConfig(
     new CopyPlugin({
       patterns: [
         {
-          from: 'src/**/*.scss',
+          from: 'src/**/*.css',
           to({context, absoluteFilename}) {
             // console.log(chalk.magenta(context),chalk.magenta(absoluteFilename),process.cwd());
             //turn absolute path into the right lib path (lib is NOT in webpack output path, so need to use '../')
@@ -178,38 +173,10 @@ export function generateWebpackConfig(
 
   let postcssPlugins = [];
   if (!config.cssMode) {
-    config.cssMode = 'mixed';
+    config.cssMode = 'postcss';
   }
-  if (
-    config.cssMode === 'scss-modules' ||
-    config.cssMode === 'scss' ||
-    config.cssMode === 'mixed'
-  ) {
-    postcssPlugins = postcssPlugins.concat([
-      'postcss-preset-env',
-      // productionMode && 'cssnano',
-    ]);
-    //we once had:
-    // 'postcss-import': {},
-    // // 'postcss-cssnext': {},
-    // 'postcss-nested': {},
-    // // "postcss-scss": {}, //<-- only add this back if the build gets stuck on //comments in scss files, but I dont think that will be the case anymore
 
-    if (config.cssMode === 'scss-modules' || config.cssMode === 'mixed') {
-      postcssPlugins.push([
-        'postcss-modules',
-        {
-          generateScopedName: generateScopedName.bind(null, config.prod, true),
-          globalModulePaths: [
-            /tailwind/,
-            /tailwindcss/,
-            config.cssGlobalModulePaths,
-          ].filter(Boolean),
-        },
-      ]);
-    }
-  }
-  if (config.cssMode === 'tailwind' || config.cssMode === 'mixed') {
+  if (config.cssMode === 'tailwind') {
     let lincdPackagePaths;
     //IF this package is including sources from another lincd package in its bundle (usually not the case)
     if (config.internals) {
@@ -221,40 +188,43 @@ export function generateWebpackConfig(
         return path + '/lib/**/*.{js,mjs}';
       });
     }
-    // console.log(chalk.blueBright('tailwind content: ')+chalk.magenta(['./frontend/src/**/*.{tsx,ts}',...lincdPackagePaths]));
+
     postcssPlugins.push([
-      'tailwindcss',
+      '@tailwindcss/postcss',
       {
-        content: ['./src/**/*.{tsx,ts}', ...lincdPackagePaths],
-        safelist: productionMode
-          ? {}
-          : {
-              //in development mode we allow all classes here, so that you can easily develop
-              pattern: /./,
-              variants: ['sm', 'md', 'lg', 'xl', '2xl'],
-            },
-        theme: {
-          extend: {
-            colors: getLinkedTailwindColors(),
-          },
+        content: {
+          files: ['./src/**/*.{tsx,ts}', ...lincdPackagePaths],
         },
-        plugins: [
-          // tailwindPlugin(function ({addBase, config}) {
-            //we can use LINCD CSS variables for default font color, size etc.
-            // addBase({
-            //   'h1': { fontSize: config('theme.fontSize.2xl') },
-            //   'h2': { fontSize: config('theme.fontSize.xl') },
-            //   'h3': { fontSize: config('theme.fontSize.lg') },
-            // })
-          // }),
-        ],
+        plugins: [],
       },
     ]);
+  } else {
+    // postcss mode: use postcss-nested to enable nesting of css + CSS Modules
+    postcssPlugins.push(
+      ['postcss-import', {}],
+      [
+        'postcss-preset-env',
+        {
+          features: {'nesting-rules': true},
+        },
+      ],
+      [
+        'postcss-modules',
+        {
+          generateScopedName: generateScopedName.bind(null, config.prod, true),
+          globalModulePaths: [
+            /tailwind/,
+            /tailwindcss/,
+            config.cssGlobalModulePaths,
+          ].filter(Boolean),
+        },
+      ],
+    );
   }
 
   let rules: any[] = [
     {
-      test: /\.(scss|css)$/,
+      test: /\.css$/,
       use: [
         MiniCssExtractPlugin.loader,
         {
@@ -270,10 +240,6 @@ export function generateWebpackConfig(
               plugins: postcssPlugins,
             },
           },
-        },
-        {
-          loader: 'sass-loader',
-          options: {sourceMap: true},
         },
       ],
     },
@@ -350,29 +316,26 @@ export function generateWebpackConfig(
     //however this means that for internalised modules THE SOURCE CODE NEEDS TO BE AVAILABLE. This is currently NOT the case with how we publish modules to yarn
     //so that means internalised modules need to be LOCALLY AVAILABLE with yarn workspaces
     plugins.push(
-      new webpack.NormalModuleReplacementPlugin(
-        /lincd\/lib\//,
-        (resource) => {
-          let moduleName = resource.request.match(/lincd\/lib\//)[1];
-          if (config.internalsources.indexOf(moduleName) !== -1) {
-            console.log(
-              colors.magenta(
-                'internal sources + ES5: Replacing /lib/ with /src/  for source-internalised module ' +
-                  moduleName,
-              ),
-            );
-            resource.request = resource.request.replace('/lib/', '/src/');
-            console.log(
-              colors.magenta('internal sources + ES5: ' + resource.request),
-            );
-            console.log(
-              colors.red(
-                "WARNING: Make sure you have the TYPESCRIPT SOURCE FILES of the modules listed as 'internal' AVAILABLE ON YOUR LOCAL MACHINE. So if you check in node_modules/your-internalised-module - that should be a symbolic link and you will find a 'src' folder with typescript files there.",
-              ),
-            );
-          }
-        },
-      ),
+      new webpack.NormalModuleReplacementPlugin(/lincd\/lib\//, (resource) => {
+        let moduleName = resource.request.match(/lincd\/lib\//)[1];
+        if (config.internalsources.indexOf(moduleName) !== -1) {
+          console.log(
+            colors.magenta(
+              'internal sources + ES5: Replacing /lib/ with /src/  for source-internalised module ' +
+                moduleName,
+            ),
+          );
+          resource.request = resource.request.replace('/lib/', '/src/');
+          console.log(
+            colors.magenta('internal sources + ES5: ' + resource.request),
+          );
+          console.log(
+            colors.red(
+              "WARNING: Make sure you have the TYPESCRIPT SOURCE FILES of the modules listed as 'internal' AVAILABLE ON YOUR LOCAL MACHINE. So if you check in node_modules/your-internalised-module - that should be a symbolic link and you will find a 'src' folder with typescript files there.",
+            ),
+          );
+        }
+      }),
     );
   }
 
@@ -380,8 +343,8 @@ export function generateWebpackConfig(
     entry: config.entry
       ? config.entry
       : tsConfig.files
-      ? tsConfig.files
-      : './src/index.ts',
+        ? tsConfig.files
+        : './src/index.ts',
     output: {
       filename:
         (config.filename ? config.filename : cleanModuleName) +
@@ -426,7 +389,7 @@ export function generateWebpackConfig(
     },
     watch: watch,
     watchOptions: {
-      ignored: ['**/*.d.ts', '**/*.js.map', '**/*.scss.json'],
+      ignored: ['**/*.d.ts', '**/*.js.map', '**/*.css.json'],
       aggregateTimeout: 500,
     },
     module: {

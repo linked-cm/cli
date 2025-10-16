@@ -1,13 +1,13 @@
 import chalk from 'chalk';
-import { exec, ExecOptions } from 'child_process';
+import {exec, ExecOptions} from 'child_process';
 import * as fs from 'fs';
-import { PackageDetails } from 'interfaces';
-import { builtinModules } from 'module';
+import {PackageDetails} from 'interfaces';
+import {builtinModules} from 'module';
 import * as path from 'path';
 import ts from 'typescript';
 
 import * as crypto from 'crypto';
-import { findNearestPackageJsonSync } from 'find-nearest-package-json';
+import {findNearestPackageJsonSync} from 'find-nearest-package-json';
 import * as glob from 'glob';
 
 var gruntConfig;
@@ -40,7 +40,7 @@ export var getFileImports = async function (filePath) {
         )
           importing.push(moduleName);
       } else ts.forEachChild(node, delintNode);
-    }
+    };
     const sourceFile = tsHost.getSourceFile(
       filePath,
       ts.ScriptTarget.Latest,
@@ -50,7 +50,7 @@ export var getFileImports = async function (filePath) {
     );
     //check if its a directory, then we wanr that we can't parse it
     let stat = fs.lstatSync(filePath);
-    if(stat.isDirectory()) {
+    if (stat.isDirectory()) {
       return importing;
     }
 
@@ -60,12 +60,10 @@ export var getFileImports = async function (filePath) {
     }
     delintNode(sourceFile);
     return importing;
-  } catch(err) {
+  } catch (err) {
     console.warn(`Error parsing file ${filePath}: ${err}`);
     return [];
   }
-
-
 };
 
 /**
@@ -78,8 +76,11 @@ export var isInvalidLINCDImport = function (
   importPath: string,
   curFileDepth: number,
 ) {
-  return importPath.includes('lincd') && (importPath.includes('/src/') || importPath.includes('/lib/'));
-}
+  return (
+    importPath.includes('lincd') &&
+    (importPath.includes('/src/') || importPath.includes('/lib/'))
+  );
+};
 export var isImportOutsideOfPackage = function (
   importPath: string,
   curFileDepth: number,
@@ -118,15 +119,15 @@ export var isValidLINCDImport = function (
 
 export var isImportWithMissingExtension = function (importPath: string) {
   //if  a relative import then it needs an extension
-  if(importPath.startsWith('../') || importPath.startsWith('./')) {
+  if (importPath.startsWith('../') || importPath.startsWith('./')) {
     //check if the last part of the import after the last slash has a file extension
-    if(importPath.split('/').pop().split('.').length < 2) {
+    if (importPath.split('/').pop().split('.').length < 2) {
       //if it doesn't have an extension, then it's missing, so return true
       return true;
     }
   }
   return false;
-}
+};
 
 export var getPackageJSON = function (root = process.cwd(), error = true) {
   let packagePath = path.join(root, 'package.json');
@@ -253,7 +254,7 @@ export var getLINCDDependencies = function (
     let lincdItself = lincdPackagePaths.find(([packageName]) => {
       return packageName === 'lincd';
     });
-    if(lincdItself) {
+    if (lincdItself) {
       sortedPackagePaths.push(lincdItself);
       addedPackages = new Set(['lincd']);
     }
@@ -298,9 +299,9 @@ export const getLastBuildTime = (packagePath) => {
 };
 
 export const getLastModifiedSourceTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(src|data|scss|modules)/**/*', {
+  return getLastModifiedFile(packagePath + '/@(src|data|css|modules)/**/*', {
     ignore: [
-      packagePath + '/**/*.scss.json',
+      packagePath + '/**/*.css.json',
       packagePath + '/**/*.d.ts',
       packagePath + '/**/node_modules/**/*',
       packagePath + '/**/lib/**/*',
@@ -493,11 +494,7 @@ export function execPromise(
   });
 }
 
-export function generateScopedNameProduction(
-  cssClassName,
-  filepath,
-  css?,
-) {
+export function generateScopedNameProduction(cssClassName, filepath, css?) {
   //for app development we can use short unique hashes
   //but for webpack bundles of lincd modules, we need to ensure unique class names across bundles of many packages
   //generate a short unique hash based on cssClassName and filepath
@@ -507,16 +504,14 @@ export function generateScopedNameProduction(
     .digest('hex')
     .substring(0, 6);
   return hash;
-
 }
-export function generateScopedName(
-  cssClassName,
-  filepath,
-  css?,
-) {
+export function generateScopedName(cssClassName, filepath, css?) {
   // return cssClassName;
-  var filename = path.basename(filepath).replace(/\.(module\.)?(css|scss)/,'');
-  let resolved = path.resolve(filepath).replace(/[\w\-_\/]+\/file\:/,'');
+  var filename = path
+    .basename(filepath)
+    .replace(/\.module\.css$/, '')
+    .replace(/\.css$/, '');
+  let resolved = path.resolve(filepath).replace(/[\w\-_\/]+\/file\:/, '');
   let nearestPackageJson = findNearestPackageJsonSync(resolved);
   let packageName = nearestPackageJson
     ? nearestPackageJson.data.name
@@ -632,19 +627,22 @@ export function getLinkedTailwindColors() {
  * @param dir The directory to get files from
  * @returns A promise that resolves to an array of file paths
  */
-export async function getFiles(dir: string,filenameFilter?:string): Promise<string[]> {
+export async function getFiles(
+  dir: string,
+  filenameFilter?: string,
+): Promise<string[]> {
   const entries = await fs.promises.readdir(dir, {withFileTypes: true});
   let files = await Promise.all(
     entries.map((entry) => {
       const res = path.resolve(dir, entry.name);
-      return entry.isDirectory() ? getFiles(res,filenameFilter) : res;
+      return entry.isDirectory() ? getFiles(res, filenameFilter) : res;
     }),
   );
   //flatten the array of arrays into a single array
   let flatFiles = flatten(files) as string[];
-  if(filenameFilter) {
+  if (filenameFilter) {
     //filter the files to only include those that match the filenameFilter
-    flatFiles = flatFiles.filter(file => file.includes(filenameFilter));
+    flatFiles = flatFiles.filter((file) => file.includes(filenameFilter));
   }
   return flatFiles;
 }
