@@ -1541,16 +1541,21 @@ export const runMethod = async (
     let lincdConfig = (
       await import(path.join(process.cwd(), 'lincd.config.js'))
     ).default;
+
+    // Set default loadAppComponent if not provided
+    if (!lincdConfig.server) {
+      lincdConfig.server = {};
+    }
+    if (!lincdConfig.server.loadAppComponent) {
+      lincdConfig.server.loadAppComponent = async () =>
+        (await import(path.join(process.cwd(), 'src', 'App'))).default;
+    }
+
     //@ts-ignore
     const ServerClass = (await import('lincd-server/shapes/LincdServer'))
       .LincdServer;
     await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
-    let server = new ServerClass({
-      loadAppComponent: async () =>
-        (await import(path.join(process.cwd(), 'src', 'App'))).default,
-      ...lincdConfig.server,
-      cssMode: lincdConfig.cssMode,
-    });
+    let server = new ServerClass(lincdConfig);
     //init the server
     console.log('Initializing server...');
     server.initOnly().then(() => {
@@ -1657,21 +1662,25 @@ export const startServer = async (
   }
   await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
 
-  let appPromise;
-  if (process.env.NODE_ENV !== 'development') {
-    appPromise = (await import(path.join(process.cwd(), 'lib', 'App.js')))
-      .default;
-  } else {
-    appPromise = (await import(path.join(process.cwd(), 'src', 'App.tsx')))
-      .default;
+  // Set default loadAppComponent if not provided
+  if (!lincdConfig.server) {
+    lincdConfig.server = {};
   }
-  let server = new ServerClass({
-    loadAppComponent: async () => {
+  if (!lincdConfig.server.loadAppComponent) {
+    let appPromise;
+    if (process.env.NODE_ENV !== 'development') {
+      appPromise = (await import(path.join(process.cwd(), 'lib', 'App.js')))
+        .default;
+    } else {
+      appPromise = (await import(path.join(process.cwd(), 'src', 'App.tsx')))
+        .default;
+    }
+    lincdConfig.server.loadAppComponent = async () => {
       return appPromise;
-    },
-    ...lincdConfig.server,
-    cssMode: lincdConfig.cssMode,
-  });
+    };
+  }
+
+  let server = new ServerClass(lincdConfig);
   //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
   let args = process.argv.slice(2);
   //if --initOnly is passed, only initialize the server and don't start it

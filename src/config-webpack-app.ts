@@ -491,6 +491,8 @@ export const getWebpackAppConfig = async () => {
     },
     //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
     //see also https://webpack.js.org/configuration/other-options/#cache
-    cache: config.webpack?.cache ? {type: 'filesystem'} : {type: 'memory'},
+    cache: config.webpack?.cache
+      ? {type: 'filesystem' as 'filesystem'}
+      : {type: 'memory' as 'memory'},
   };
 };
