@@ -199,24 +199,13 @@ export function generateWebpackConfig(
       },
     ]);
   } else {
-    // postcss mode: use postcss-nested to enable nesting of css + CSS Modules
+    // postcss mode: use postcss-nested to enable nesting of css
     postcssPlugins.push(
       ['postcss-import', {}],
       [
         'postcss-preset-env',
         {
           features: {'nesting-rules': true},
-        },
-      ],
-      [
-        'postcss-modules',
-        {
-          generateScopedName: generateScopedName.bind(null, config.prod, true),
-          globalModulePaths: [
-            /tailwind/,
-            /tailwindcss/,
-            config.cssGlobalModulePaths,
-          ].filter(Boolean),
         },
       ],
     );
@@ -231,6 +220,20 @@ export function generateWebpackConfig(
           loader: 'css-loader',
           options: {
             url: false,
+            importLoaders: 1,
+            modules: {
+              mode: 'local',
+              auto: (resourcePath: string) => {
+                //make sure this only applies to .module.css files, and not to tailwind
+                return (
+                  /\.module\.css$/i.test(resourcePath) &&
+                  !/tailwind/i.test(resourcePath)
+                );
+              },
+              getLocalIdent: (context, localIdentName, localName) => {
+                return generateScopedName(localName, context.resourcePath);
+              },
+            },
           },
         },
         {
