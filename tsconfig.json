@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
     "skipLibCheck": true,
     "baseUrl": "./src",
     "module": "esnext",

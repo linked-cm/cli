@@ -1548,7 +1548,8 @@ export const runMethod = async (
     let server = new ServerClass({
       loadAppComponent: async () =>
         (await import(path.join(process.cwd(), 'src', 'App'))).default,
-      ...lincdConfig,
+      ...lincdConfig.server,
+      cssMode: lincdConfig.cssMode,
     });
     //init the server
     console.log('Initializing server...');
@@ -1668,7 +1669,8 @@ export const startServer = async (
     loadAppComponent: async () => {
       return appPromise;
     },
-    ...lincdConfig,
+    ...lincdConfig.server,
+    cssMode: lincdConfig.cssMode,
   });
   //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
   let args = process.argv.slice(2);

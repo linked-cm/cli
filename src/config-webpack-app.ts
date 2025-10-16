@@ -7,6 +7,7 @@ import ReactRefreshTypeScript from 'react-refresh-typescript';
 import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
+import {LincdConfig} from './interfaces.js';
 import {generateScopedName, getLINCDDependencies} from './utils.js';
 
 import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
@@ -94,27 +95,57 @@ function getLocalIdent(context, currentFormat, name) {
   return generateScopedName(name, context.resourcePath);
 }
 
-export const getLincdConfig = async () => {
+export const getLincdConfig = async (): Promise<LincdConfig> => {
   const lincdConfigPathJs = path.resolve(process.cwd(), 'lincd.config.js');
   const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
 
   //default config
-  let config: any = {
+  let config: LincdConfig = {
     //postcss is default
-    cssMode: cssModes[1],
-    analyse: false,
+    cssMode: cssModes[1] as 'tailwind' | 'postcss',
+    webpack: {
+      cache: true,
+      analyse: false,
+    },
+    server: {},
   };
-  //overwriting config from package.json.lincdApp or lincd.config.js(on) file
+
+  // Load from package.json or config files
+  let loaded: any;
   if (typeof packageJson.lincdApp === 'object') {
-    //overwrite default with anything that's defined in lincdApp in package.json
-    config = {...config, ...packageJson.lincdApp};
+    loaded = packageJson.lincdApp;
   } else if (fs.existsSync(lincdConfigPathJs)) {
     let lincdConfig = await import(lincdConfigPathJs);
-    config = {...config, ...lincdConfig.default};
+    loaded = lincdConfig.default;
   } else if (fs.existsSync(lincdConfigPathJson)) {
-    let lincdConfig = JSON.parse(fs.readFileSync(lincdConfigPathJson, 'utf-8'));
-    config = {...config, ...lincdConfig};
+    loaded = JSON.parse(fs.readFileSync(lincdConfigPathJson, 'utf-8'));
   }
+
+  // Backward compatibility: migrate flat structure to nested
+  if (loaded) {
+    config.cssMode = loaded.cssMode ?? config.cssMode;
+
+    // Move webpack properties
+    config.webpack = {
+      cache: loaded.webpack?.cache ?? loaded.cacheWebpack ?? true,
+      analyse: loaded.webpack?.analyse ?? loaded.analyse,
+      plugins: loaded.webpack?.plugins ?? loaded.plugins,
+      externals: loaded.webpack?.externals ?? loaded.externals,
+      alias: loaded.webpack?.alias ?? loaded.alias,
+      cssGlobalModulePaths:
+        loaded.webpack?.cssGlobalModulePaths ?? loaded.cssGlobalModulePaths,
+    };
+
+    // Move server properties
+    config.server = {
+      multiCore: loaded.server?.multiCore ?? loaded.multiCore,
+      cachePaths: loaded.server?.cachePaths ?? loaded.cachePaths,
+      cacheTimeout: loaded.server?.cacheTimeout ?? loaded.cacheTimeout,
+      loadAppComponent:
+        loaded.server?.loadAppComponent ?? loaded.loadAppComponent,
+    };
+  }
+
   if (!cssModes.includes(config.cssMode)) {
     console.warn(
       'Invalid value for property cssMode. Should be one of: ' +
@@ -122,6 +153,7 @@ export const getLincdConfig = async () => {
     );
     process.exit();
   }
+
   return config;
 };
 
@@ -337,7 +369,7 @@ export const getWebpackAppConfig = async () => {
             : './src/index.tsx'),
       ),
     ].filter(Boolean),
-    watch: isDevelopment || config.analyse,
+    watch: isDevelopment || config.webpack?.analyse,
     output: {
       path: path.resolve(
         process.cwd(),
@@ -366,10 +398,10 @@ export const getWebpackAppConfig = async () => {
       new webpack.EnvironmentPlugin(Object.keys(process.env)),
       isDevelopment && new ReactRefreshWebpackPlugin(),
       isDevelopment && new webpack.HotModuleReplacementPlugin(),
-      config.analyse && new BundleAnalyzerPlugin(),
-      ...(Array.isArray(config.plugins) ? config.plugins : []),
+      config.webpack?.analyse && new BundleAnalyzerPlugin(),
+      ...(Array.isArray(config.webpack?.plugins) ? config.webpack.plugins : []),
     ].filter(Boolean),
-    externals: config.externals || {},
+    externals: config.webpack?.externals || {},
     module: {
       rules: [
         {
@@ -454,11 +486,11 @@ export const getWebpackAppConfig = async () => {
     },
     resolve: {
       extensions: ['.tsx', '.ts', '.js', '.css', '.json'],
-      alias: config.alias || {},
+      alias: config.webpack?.alias || {},
       // traceResolution: true
     },
     //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
     //see also https://webpack.js.org/configuration/other-options/#cache
-    cache: {type: 'memory'},
+    cache: config.webpack?.cache ? {type: 'filesystem'} : {type: 'memory'},
   };
 };

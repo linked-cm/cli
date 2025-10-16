@@ -8,3 +8,9 @@ import {generateWebpackConfig} from './config-webpack';
 
 export {generateWebpackConfig};
 export * from './utils';
+export {defineConfig} from './defineConfig';
+export type {
+  LincdConfig,
+  LincdWebpackConfig,
+  LincdServerConfig,
+} from './interfaces';
