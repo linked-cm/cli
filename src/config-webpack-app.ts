@@ -8,12 +8,10 @@ import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
 import {LincdConfig} from './interfaces.js';
-import {generateScopedName, getLINCDDependencies} from './utils.js';
+import {generateScopedName} from './utils.js';
 
 import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
 import postcssUrl from 'postcss-url';
-//@ts-ignore
-// import { addLincdSourcesPlugin } from './plugins/lincd-tailwind-sources';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -176,159 +174,9 @@ export const getWebpackAppConfig = async () => {
   let postcssPlugins = [];
 
   if (config.cssMode === 'tailwind') {
-    //make sure that tailwind classes from any LINCD packages that are listed in package.json:dependencies are included
-    let lincdPackagePaths: any = getLINCDDependencies(packageJson);
-    lincdPackagePaths = lincdPackagePaths.map(([packageName, packagePath]) => {
-      return packagePath + '/lib/**/*.{js,mjs}';
-    });
-
-    postcssPlugins.push([
-      '@tailwindcss/postcss',
-      {
-        content: {
-          files: [
-            (process.env.SOURCE_PATH || './src/') + '**/*.{js}',
-            // ...lincdPackagePaths,
-          ],
-        },
-        // config: {
-        //   content: {
-        //     files:[
-        //       (process.env.SOURCE_PATH || './src/') + '**/*.{tsx,ts}',
-        //       ...lincdPackagePaths,
-        //     ]
-        //   },
-        //   // plugins:[
-        //   //   addLincdSourcesPlugin(),
-        //   // ]
-        // },
-        // content: [
-        //   (process.env.SOURCE_PATH || './src/') + '**/*.{tsx,ts}',
-        //   ...lincdPackagePaths,
-        // ],
-        // safelist: isProduction
-        //   ? {}
-        //   : {
-        //     //in development mode we allow all classes here, so that you can easily develop
-        //     pattern: /./,
-        //     variants: ['sm','md','lg','xl','2xl'],
-        //   },
-        // features: {
-        //   themeVariables: {
-        //     generateAll: true,
-        //   },
-        // },
-        // theme: {
-        //   extend: {
-        //     colors: getLinkedTailwindColors(),
-        //   },
-        // },
-        plugins: [
-          // plugin(function({ addBase, theme }) {
-          //add styles to the base styles
-          //this replicates the preflight settings of tailwind v4, but without the destructive/strict #/# selectors
-          //   addBase({
-          //     // Reset all elements except common inline tags and semantic containers
-          //     '*:not(code):not(pre):not(kbd):not(samp):not(mark):not(q):not(ins):not(del):not(span):not(a):not(b):not(i):not(em):not(u):not(s):not(small):not(strong):not(sub):not(sup), ::before, ::after': {
-          //       boxSizing: 'border-box',
-          //       margin: '0',
-          //       padding: '0',
-          //       borderWidth: '0',
-          //       borderStyle: 'solid',
-          //       borderColor: 'currentColor',
-          //     },
-          //     html: {
-          //       lineHeight: '1.5',
-          //       textSizeAdjust: '100%',
-          //       WebkitTextSizeAdjust: '100%',
-          //       MozTextSizeAdjust: '100%',
-          //       fontFamily: 'system-ui, sans-serif',
-          //     },
-          //     body: {
-          //       margin: '0',
-          //       lineHeight: 'inherit',
-          //       backgroundColor: 'white',
-          //     },
-          //     hr: {
-          //       height: '0',
-          //       color: 'inherit',
-          //       borderTopWidth: '1px',
-          //     },
-          //     abbr: {
-          //       textDecoration: 'underline dotted',
-          //     },
-          //     'b, strong': {
-          //       fontWeight: 'bolder',
-          //     },
-          //     'code, kbd, samp, pre': {
-          //       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          //       fontSize: '1em',
-          //     },
-          //     small: {
-          //       fontSize: '80%',
-          //     },
-          //     'sub, sup': {
-          //       fontSize: '75%',
-          //       lineHeight: '0',
-          //       position: 'relative',
-          //       verticalAlign: 'baseline',
-          //     },
-          //     sub: { bottom: '-0.25em' },
-          //     sup: { top: '-0.5em' },
-          //     table: {
-          //       textIndent: '0',
-          //       borderColor: 'inherit',
-          //       borderCollapse: 'collapse',
-          //     },
-          //     'button, input, optgroup, select, textarea': {
-          //       font: 'inherit',
-          //       color: 'inherit',
-          //       margin: '0',
-          //       padding: '0',
-          //       lineHeight: 'inherit',
-          //       backgroundColor: 'transparent',
-          //       borderColor: 'inherit',
-          //     },
-          //     'button, select': {
-          //       textTransform: 'none',
-          //     },
-          //     'button, [type="button"], [type="reset"], [type="submit"]': {
-          //       appearance: 'button',
-          //       WebkitAppearance: 'button',
-          //     },
-          //     '::-moz-focus-inner': {
-          //       borderStyle: 'none',
-          //       padding: '0',
-          //     },
-          //     ':-moz-focusring': {
-          //       outline: 'auto',
-          //     },
-          //     ':-moz-ui-invalid': {
-          //       boxShadow: 'none',
-          //     },
-          //     fieldset: {
-          //       margin: '0',
-          //       padding: '0',
-          //       border: '0',
-          //     },
-          //     legend: {
-          //       padding: '0',
-          //     },
-          //   });
-          // }),
-        ],
-        // plugins: [
-        // tailwindPlugin(function({ addBase,config }) {
-        //   //we can use LINCD CSS variables for default font color, size etc.
-        //   // addBase({
-        //   //   'h1': { fontSize: config('theme.fontSize.2xl') },
-        //   //   'h2': { fontSize: config('theme.fontSize.xl') },
-        //   //   'h3': { fontSize: config('theme.fontSize.lg') },
-        //   // })
-        // }),
-        // ],
-      },
-    ]);
+    // Tailwind v4 is configured via CSS directives (@config, @import, @theme)
+    // See theme.css for the main configuration
+    postcssPlugins.push(['@tailwindcss/postcss', {}]);
   } else {
     // postcss mode: use postcss-nested to enable nesting of css + CSS Modules
     postcssPlugins.push(

@@ -10,6 +10,7 @@
       "import": "./lib/esm/index.js",
       "require": "./lib/cjs/index.js"
     },
+    "./*.css": "./lib/esm/*.css",
     "./*.js": {
       "types": "./lib/esm/*.d.ts",
       "import": "./lib/esm/*.js",
@@ -30,10 +31,11 @@
   },
   "scripts": {
     "prepublishOnly": "npm exec build",
-    "build": "rimraf ./lib && yarn build-esm && yarn build-cjs && yarn dual-package",
+    "build": "rimraf ./lib && yarn build-esm && yarn build-cjs && yarn copy-to-lib && yarn dual-package",
     "build-cjs": "echo \"compiling CJS\" && yarn tsc -p tsconfig-cjs.json",
     "build-esm": "echo \"compiling ESM\" && yarn tsc -p tsconfig-esm.json",
     "dual-package": "echo 'adding package.json to each lib folder for dual output support' && yarn tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json",
+    "copy-to-lib": "echo '💫 Copying CSS assets to lib folder' && yarn copyfiles -u 1 'src/**/*.css' lib/esm && yarn copyfiles -u 1 'src/**/*.css' lib/cjs",
     "dev": "yarn tsc -p tsconfig-esm.json -w",
     "dev-cjs": "yarn tsc -p tsconfig-cjs.json -w",
     "postinstall": "husky install",
