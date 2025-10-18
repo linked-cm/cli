@@ -331,6 +331,15 @@ export const getWebpackAppConfig = async () => {
           },
         }),
       ],
+      splitChunks: {
+        cacheGroups: {
+          // Prevent CSS from being split into separate shared chunks
+          // Keep all CSS for a lazy-loaded route together in one file
+          // This prevents FOUC when lazy routes need multiple CSS chunks
+          defaultVendors: false,
+          default: false,
+        },
+      },
     },
     stats: {
       chunks: false,
