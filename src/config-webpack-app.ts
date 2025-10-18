@@ -7,6 +7,7 @@ import ReactRefreshTypeScript from 'react-refresh-typescript';
 import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
+import {WebpackManifestPlugin} from 'webpack-manifest-plugin';
 import {LincdConfig} from './interfaces.js';
 import {generateScopedName} from './utils.js';
 
@@ -247,6 +248,12 @@ export const getWebpackAppConfig = async () => {
       isDevelopment && new ReactRefreshWebpackPlugin(),
       isDevelopment && new webpack.HotModuleReplacementPlugin(),
       config.webpack?.analyse && new BundleAnalyzerPlugin(),
+      new WebpackManifestPlugin({
+        fileName: 'manifest.json',
+        publicPath: ASSET_PATH,
+        writeToFileEmit: true,
+        filter: (file) => /\.(js|css)$/i.test(file.name),
+      }),
       ...(Array.isArray(config.webpack?.plugins) ? config.webpack.plugins : []),
     ].filter(Boolean),
     externals: config.webpack?.externals || {},

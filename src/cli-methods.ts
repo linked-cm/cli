@@ -1550,6 +1550,11 @@ export const runMethod = async (
       lincdConfig.server.loadAppComponent = async () =>
         (await import(path.join(process.cwd(), 'src', 'App'))).default;
     }
+    // Set default loadRoutes if not provided
+    if (!lincdConfig.server.loadRoutes) {
+      lincdConfig.server.loadRoutes = async () =>
+        await import(path.join(process.cwd(), 'src', 'routes.tsx'));
+    }
 
     //@ts-ignore
     const ServerClass = (await import('lincd-server/shapes/LincdServer'))
@@ -1677,6 +1682,17 @@ export const startServer = async (
     }
     lincdConfig.server.loadAppComponent = async () => {
       return appPromise;
+    };
+  }
+
+  // Set default loadRoutes if not provided
+  if (!lincdConfig.server.loadRoutes) {
+    lincdConfig.server.loadRoutes = async () => {
+      if (process.env.NODE_ENV !== 'development') {
+        return await import(path.join(process.cwd(), 'lib', 'routes.js'));
+      } else {
+        return await import(path.join(process.cwd(), 'src', 'routes.tsx'));
+      }
     };
   }
 

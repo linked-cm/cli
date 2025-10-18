@@ -106,6 +106,13 @@ export interface LincdServerConfig {
    * Must be a function to support hot module reloading
    */
   loadAppComponent?: () => any;
+
+  /**
+   * Function that loads the app routes configuration (for SSR preloading)
+   * Must be a function to support hot module reloading
+   * Should return a RoutesModule from 'lincd-server'
+   */
+  loadRoutes?: () => Promise<any>;
 }
 
 /**
