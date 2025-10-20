@@ -100,8 +100,8 @@ export const getLincdConfig = async (): Promise<LincdConfig> => {
 
   //default config
   let config: LincdConfig = {
-    //postcss is default
-    cssMode: cssModes[1] as 'tailwind' | 'postcss',
+    //tailwind is default
+    cssMode: cssModes[0] as 'tailwind' | 'postcss',
     webpack: {
       cache: true,
       analyse: false,

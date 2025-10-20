@@ -173,7 +173,7 @@ export function generateWebpackConfig(
 
   let postcssPlugins = [];
   if (!config.cssMode) {
-    config.cssMode = 'postcss';
+    config.cssMode = 'tailwind';
   }
 
   if (config.cssMode === 'tailwind') {
@@ -192,10 +192,12 @@ export function generateWebpackConfig(
     postcssPlugins.push([
       '@tailwindcss/postcss',
       {
-        content: {
-          files: ['./src/**/*.{tsx,ts}', ...lincdPackagePaths],
-        },
-        plugins: [],
+        //Tailwind v4 has very limited options for postcss
+        //use @ directives instead
+        // content: {
+        //   files: ['./src/**/*.{tsx,ts}', ...lincdPackagePaths],
+        // },
+        // plugins: [],
       },
     ]);
   } else {
