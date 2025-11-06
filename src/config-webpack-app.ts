@@ -162,13 +162,17 @@ export const getWebpackAppConfig = async () => {
   const accessURL = LinkedFileStorage.accessURL;
 
   // set up the public path for the app
-  // This should match the use of express.static() in LincdServer.tsx, which makes the build files available through a URL
-  const publicPath = '/public';
+  // for Capacitor apps (APP_ENV is set), use /bundles/ since Capacitor's webDir strips /public (see: capacitor.config.ts)
+  // for web server builds, use /public/bundles/ to match express.static()
+  const isCapacitorBuild = process.env.APP_ENV !== undefined;
+  const publicPath = isCapacitorBuild ? '' : '/public';
   const bundlesPath = publicPath + '/bundles/';
 
   // ASSET_PATH is used load the assets from the correct path
-  const ASSET_PATH =
-    process.env.ASSET_PATH || accessURL ? accessURL + bundlesPath : bundlesPath;
+  // if ASSET_PATH is set in environment (app builds), use it directly
+  // otherwise, use CDN URL + bundlesPath for production, or bundlesPath for development
+  const ASSET_PATH = process.env.ASSET_PATH || 
+    (accessURL ? accessURL + bundlesPath : bundlesPath);
 
   let config = await getLincdConfig();
 
@@ -351,6 +355,10 @@ export const getWebpackAppConfig = async () => {
     resolve: {
       extensions: ['.tsx', '.ts', '.js', '.css', '.json'],
       alias: config.webpack?.alias || {},
+      extensionAlias: {
+        '.js': ['.tsx', '.ts', '.js'],
+        '.jsx': ['.tsx', '.jsx'],
+      },
       // traceResolution: true
     },
     //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
