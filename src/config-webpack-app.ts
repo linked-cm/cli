@@ -267,7 +267,7 @@ export const getWebpackAppConfig = async () => {
               loader: 'css-loader',
               options: {
                 url: false,
-                importLoaders: 1,
+                importLoaders: 2,
                 modules: {
                   mode: 'local',
                   getLocalIdent: getLocalIdent,
