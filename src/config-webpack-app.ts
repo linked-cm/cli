@@ -195,16 +195,54 @@ export const getWebpackAppConfig = async () => {
     );
   }
 
-  //Add plugin which converts URLs in CSS to the correct FULL absolute path
+  /**
+   * Rewrite CSS asset URLs for the web bundle while keeping native (Capacitor) paths intact.
+   *
+   * Examples that will now work transparently in CSS:
+   *   url('/images/foo.svg')         -> web: https://cdn/app/public/images/foo.svg
+   *                                 -> native: /images/foo.svg (served from bundled webDir)
+   *   url('./images/bar.png')       -> web: https://cdn/app/public/images/bar.png
+   *   url('/public/images/baz.png') -> web: https://cdn/app/public/images/baz.png
+   *
+   * Data-URIs and absolute http(s) URLs pass through untouched.
+   */
   postcssPlugins.push([
     postcssUrl({
-      url: (asset) => {
-        //TODO: for assets of packages, we want to detect the package path and resolve through node_modules/package-name/...something/assets
-        if (!asset.url.startsWith('data:')) {
-          // console.log('Transform CSS URL:'+asset.url);
-          return `${accessURL}${publicPath}${asset.url}`;
+      url: ({url}) => {
+        if (!url || url.startsWith('data:')) {
+          return url;
         }
-        return asset.url;
+
+        // remove wrapping quotes added by postcss
+        let cleanedUrl = url.replace(/^['"]|['"]$/g, '').trim();
+
+        // skip absolute http(s) references
+        if (/^https?:\/\//i.test(cleanedUrl)) {
+          return cleanedUrl;
+        }
+
+        // remove leading ./ to normalise relative imports
+        if (cleanedUrl.startsWith('./')) {
+          cleanedUrl = cleanedUrl.slice(1);
+        }
+
+        // ensure a single leading slash
+        if (!cleanedUrl.startsWith('/')) {
+          cleanedUrl = `/${cleanedUrl}`;
+        }
+
+        // collapse optional /public prefix - CSS can freely use /images/... now
+        if (cleanedUrl.startsWith('/public/')) {
+          cleanedUrl = cleanedUrl.replace('/public/', '/');
+        }
+
+        // For Capacitor builds we keep the relative path (assets are bundled locally)
+        if (isCapacitorBuild) {
+          return cleanedUrl;
+        }
+
+        const baseUrl = (accessURL || '').replace(/\/$/, '');
+        return `${baseUrl}${publicPath}${cleanedUrl}`;
       },
     }),
   ]);
