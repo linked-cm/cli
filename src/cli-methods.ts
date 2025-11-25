@@ -1710,6 +1710,7 @@ export const buildApp = async () => {
   await buildFrontend();
   await buildBackend();
   console.log(chalk.magenta(`✅ ${process.env.NODE_ENV} app build finished`));
+  process.exit(0);
 };
 export const buildFrontend = async () => {
   await ensureEnvironmentLoaded();
