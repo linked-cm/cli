@@ -3,7 +3,7 @@
 import { BackendProvider } from 'lincd-server-utils/utils/BackendProvider';
 
 export class Backend extends BackendProvider {
-  constructor(server) {
-    super(server);
+  constructor(server, lincdServer) {
+    super(server, lincdServer);
   }
 }

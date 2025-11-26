@@ -1,5 +1,5 @@
 export default {
-  cssMode: 'mixed',
+  cssMode: 'tailwind',
   cacheWebpack: true,
   analyse: false,
 };

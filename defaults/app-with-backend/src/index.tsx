@@ -1,9 +1,10 @@
+import { AppContextProvider } from 'lincd-server-utils/components/AppContext';
 import { initFrontend } from 'lincd-server-utils/utils/Frontend';
+import React from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import React from 'react';
-import { AppContextProvider } from 'lincd-server-utils/components/AppContext';
+import { preloadMatchedRoute } from './utils/preloadRoutes';
 
 //import the storage & file configuration for the frontend
 import './config-frontend';
@@ -12,7 +13,10 @@ import './config-frontend';
 window['$RefreshReg$'] = () => {};
 window['$RefreshSig$'] = () => () => {};
 
-initFrontend().then(() => {
+initFrontend().then(async () => {
+  // Preload matched route before hydration to avoid Suspense mismatch
+  await preloadMatchedRoute();
+
   hydrateRoot(
     document,
     <React.StrictMode>
