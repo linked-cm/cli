@@ -18,7 +18,7 @@ initFrontend().then(async () => {
   await preloadMatchedRoute();
 
   hydrateRoot(
-    document,
+    document.getElementById('root'), // Target the #root div for hydration
     <React.StrictMode>
       <BrowserRouter>
         <AppContextProvider

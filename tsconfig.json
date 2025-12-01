@@ -12,5 +12,6 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["./src/**/*.ts","./src/**/*.cts","./src/**/*.mts"],
-  "files": ["./src/index.ts", "./src/cli.ts"]
+  "files": ["./src/index.ts", "./src/cli.ts"],
+  "exclude": ["./lib", "./node_modules"]
 }

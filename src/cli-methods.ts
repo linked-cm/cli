@@ -4,6 +4,7 @@ import depcheck from 'depcheck';
 import {getEnvFile} from 'env-cmd/dist/get-env-vars.js';
 import fs from 'fs-extra';
 import path, {dirname} from 'path';
+import {createInterface} from 'readline';
 import {
   debugInfo,
   execp,
@@ -21,8 +22,8 @@ import {
 import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
 import {statSync} from 'fs';
-import {PackageDetails} from 'interfaces';
 import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
+import {PackageDetails} from './interfaces';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;
 // const config = require('lincd-server/site.webpack.config');
@@ -39,11 +40,68 @@ let dirname__ =
       dirname(import.meta.url).replace('file:/', '');
 
 var variables = {};
+/**
+ * Prompt user for input
+ */
+function promptUser(question: string): Promise<string> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(chalk.cyan(question), (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
 export const createApp = async (name, basePath = process.cwd()) => {
+  // If no name provided, prompt for folder name first
   if (!name) {
-    console.warn('Please provide a name as the first argument');
+    console.log(chalk.blue('\n📁 Folder name for your app:\n'));
+    const folderNameInput = await promptUser('Folder name (e.g., "my-app"): ');
+    if (!folderNameInput || !folderNameInput.trim()) {
+      console.warn(chalk.red('Folder name is required. Aborting.'));
+      return;
+    }
+    name = folderNameInput.trim();
   }
+
   let {hyphenName, camelCaseName, underscoreName} = setNameVariables(name);
+
+  // Prompt user for app configuration
+  console.log(chalk.blue('\n📝 Please provide the following information:\n'));
+  console.log(
+    chalk.gray('(Press Enter to use defaults based on folder name)\n'),
+  );
+
+  const defaultAppName = name
+    .split(/[-_\s]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+  const defaultAppPrefix = underscoreName;
+  const defaultAppDomain = hyphenName + '.com';
+
+  const appNameInput = await promptUser(
+    `App Name (display name) [${chalk.gray(defaultAppName)}]: `,
+  );
+  const appPrefixInput = await promptUser(
+    `App Prefix (short code for data files, e.g., "myapp") [${chalk.gray(defaultAppPrefix)}]: `,
+  );
+  const appDomainInput = await promptUser(
+    `App Domain [${chalk.gray(defaultAppDomain)}]: `,
+  );
+
+  const appName = appNameInput || defaultAppName;
+  const appPrefix = appPrefixInput || defaultAppPrefix;
+  const appDomain = appDomainInput || defaultAppDomain;
+
+  // Set new variables for app configuration
+  setVariable('app_name', appName);
+  setVariable('app_prefix', appPrefix);
+  setVariable('app_domain', appDomain);
 
   let targetFolder = path.join(basePath, hyphenName);
   if (!fs.existsSync(targetFolder)) {
@@ -71,7 +129,7 @@ export const createApp = async (name, basePath = process.cwd()) => {
 
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
-  log("Creating new LINCD application '" + name + "'");
+  log("Creating new LINCD application '" + appName + "'");
 
   //replace variables in some copied files
   await replaceVariablesInFolder(targetFolder);
@@ -197,9 +255,14 @@ export function runOnPackagesGroupedByDependencies(
   ) => (pkg: PackageDetails) => Promise<any>,
   onStackEnd,
   sync = false,
-) {
+): Promise<void> {
   let dependencies: Map<PackageDetails, PackageDetails[]> = new Map();
 
+  let res, rej;
+  const deferredPromise = new Promise<void>((resolve, reject) => {
+    res = resolve;
+    rej = reject;
+  });
   //get dependencies of each package
   let leastDependentPackage;
   lincdPackages.forEach((pkg) => {
@@ -231,37 +294,40 @@ export function runOnPackagesGroupedByDependencies(
     }
   });
 
-  let startStack: PackageDetails[] = [leastDependentPackage];
+  let startStack: PackageDetails[] = leastDependentPackage
+    ? [leastDependentPackage]
+    : [];
 
-  const runPackage = (runFunction, pck) => {
-    return runFunction(pck)
-      .catch((errorObj) => {
-        if (errorObj.error) {
-          let {error, stdout, stderr} = errorObj;
-          warn(
-            'Uncaught exception whilst running parallel function on ' +
-              pck.packageName,
-            error?.message ? error.message : error?.toString(),
-            // stdout,
-            // stderr,
-          );
-        } else {
-          warn(
-            'Uncaught exception whilst running parallel function on ' +
-              pck.packageName,
-            errorObj?.toString(),
-            // stdout,
-            // stderr,
-          );
-          process.exit();
-        }
-        // warn(chalk.red(pck.packageName+' failed:'));
-        // console.log(stdout);
-      })
-      .then((res) => {
-        done.add(pck);
-        return res;
-      });
+  const runPackage = async (runFunction, pck) => {
+    try {
+      const result = await runFunction(pck);
+      done.add(pck);
+      return result;
+    } catch (errorObj) {
+      if (errorObj.error) {
+        let {error, stdout, stderr} = errorObj;
+        warn(
+          'Uncaught exception whilst running parallel function on ' +
+            pck.packageName,
+          error?.message ? error.message : error?.toString(),
+          // stdout,
+          // stderr,
+        );
+      } else {
+        warn(
+          'Uncaught exception whilst running parallel function on ' +
+            pck.packageName,
+          errorObj?.toString(),
+          // stdout,
+          // stderr,
+        );
+        process.exit();
+      }
+      // warn(chalk.red(pck.packageName+' failed:'));
+      // console.log(stdout);
+      done.add(pck);
+      return undefined;
+    }
   };
 
   let done: Set<PackageDetails> = new Set();
@@ -387,11 +453,21 @@ export function runOnPackagesGroupedByDependencies(
       return runStack(stack);
     } else {
       onStackEnd(dependencies, results.filter(Boolean));
+      res();
     }
   };
 
   //starts the process
-  runStack(startStack);
+  if (startStack.length === 0) {
+    // No packages to build, resolve immediately
+    onStackEnd(dependencies, []);
+    res();
+  } else {
+    runStack(startStack).catch((err) => {
+      rej(err);
+    });
+  }
+  return deferredPromise;
 }
 
 function hasDependency(pkg, childPkg, dependencies, depth = 1) {
@@ -1097,25 +1173,22 @@ const replaceVariablesInFiles = function (...files: string[]) {
     }),
   );
 };
-const replaceVariablesInFolder = function (folder: string) {
+const replaceVariablesInFolder = async function (
+  folder: string,
+): Promise<void> {
   //get all files in folder, including files that start with a dot
-
-  (glob as any)(
-    folder + '/**/*',
-    {dot: true, nodir: true},
-    async function (err, files) {
-      if (err) {
-        console.log('Error', err);
-      } else {
-        // console.log(files);
-        await Promise.all(
-          files.map((file) => {
-            return replaceVariablesInFile(file);
-          }),
-        );
-      }
-    },
-  );
+  try {
+    const files = await glob(folder + '/**/*', {dot: true, nodir: true});
+    console.log('Replacing variables in files', files.join(', '));
+    await Promise.all(
+      files.map((file) => {
+        return replaceVariablesInFile(file);
+      }),
+    );
+  } catch (err) {
+    console.log('Error', err);
+    throw err;
+  }
 };
 
 const replaceVariablesInFilesWithRoot = function (
@@ -1156,7 +1229,7 @@ const ensureFolderExists = function (...folders: string[]) {
 };
 
 export const setNameVariables = function (name) {
-  let hyphenName = name.replace(/[-_\s]+/g, '-');
+  let hyphenName = name.toLowerCase().replace(/[-_\s]+/g, '-');
   let camelCaseName = camelCase(name); //some-package --> someModule
   let underscoreName = name.replace(/[-\s]+/g, '_');
   let plainName = name.replace(/[-\s]+/g, '');

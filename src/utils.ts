@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import {exec, ExecOptions} from 'child_process';
 import * as fs from 'fs';
-import {PackageDetails} from 'interfaces';
 import {builtinModules} from 'module';
 import * as path from 'path';
 import ts from 'typescript';
+import {PackageDetails} from './interfaces';
 
 import * as crypto from 'crypto';
 import {findNearestPackageJsonSync} from 'find-nearest-package-json';
