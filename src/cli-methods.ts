@@ -963,10 +963,11 @@ function getLocalLincdModules(rootPath = './'): PackageDetails[] {
 }
 
 export function getLincdPackages(rootPath = process.cwd()): PackageDetails[] {
-  let pack = getPackageJSON();
+  let pack = getPackageJSON(rootPath);
   if (!pack || !pack.workspaces) {
+    const originalRoot = rootPath;
     for (let i = 0; i <= 3; i++) {
-      rootPath = path.join(process.cwd(), ...Array(i).fill('..'));
+      rootPath = path.join(originalRoot, ...Array(i).fill('..'));
 
       pack = getPackageJSON(rootPath);
       if (pack && pack.workspaces) {
@@ -1501,10 +1502,11 @@ export const depCheckStaged = async () => {
   });
 };
 export const depCheck = async (packagePath: string = process.cwd()) => {
+  // log('Checking depencies of ' + chalk.cyan(packagePath));
   return new Promise((resolve, reject) => {
     depcheck(packagePath, {}, (results) => {
       if (results.missing) {
-        let lincdPackages = getLocalLincdModules();
+        let lincdPackages = getLocalLincdModules(packagePath);
         let missing = Object.keys(results.missing);
         //filter out missing types, if it builds we're not too concerned about that at the moment?
         //especially things like @types/react, @types/react-dom, @types/node (they are added elsewhere?)
@@ -1557,7 +1559,7 @@ export const depCheck = async (packagePath: string = process.cwd()) => {
   });
 };
 export const ensureEnvironmentLoaded = async () => {
-  if (!process.env.NODE_ENV) {
+  if (!process.env.ENV_VARS_LOADED) {
     //load env-cmd for development environment
     let {GetEnvVars} = await import('env-cmd');
     let envCmdrcPath = path.join(process.cwd(), '.env-cmdrc.json');
@@ -1601,8 +1603,33 @@ export const ensureEnvironmentLoaded = async () => {
       process.env = {...process.env, ...vars.development};
       console.log('No environment specified, using development');
     }
+    process.env.ENV_VARS_LOADED = 'true';
   }
 };
+export const runScript = async (
+  scriptName: string,
+  options: {spawn: boolean},
+) => {
+  //if spawn is not defined, default to true
+  const spawn = options.spawn !== undefined ? options.spawn : true;
+
+  await ensureEnvironmentLoaded();
+  if (spawn) {
+    await startServer(true);
+  }
+
+  log('Running script ' + scriptName);
+  const scriptPath = path.join(process.cwd(), 'scripts', scriptName);
+  const script = await import(scriptPath);
+  await script.default().catch((error) => {
+    log('Script ' + scriptName + ' finished with errors');
+    logError(error);
+    process.exit(1);
+  });
+  log('Script ' + scriptName + ' finished');
+  process.exit(0);
+};
+
 export const runMethod = async (
   packageName: string,
   method: string,
@@ -2329,6 +2356,26 @@ export const buildPackage = async (
   packagePath = process.cwd(),
   logResults: boolean = true,
 ) => {
+  // Ensure packagePath points to a directory containing package.json; if not, go up until we find one
+  let currentPath = packagePath;
+  while (!fs.existsSync(path.join(currentPath, 'package.json'))) {
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      // Reached root and didn't find package.json. Optionally, handle this error.
+      console.error(
+        'No package.json found in ' +
+          packagePath +
+          ' or any parent directories',
+      );
+      return false;
+    }
+    currentPath = parentPath;
+  }
+  if (currentPath !== packagePath) {
+    // console.log('Building package from ' + chalk.cyan(currentPath));
+    packagePath = currentPath;
+  }
+
   let spinner: Ora;
   if (logResults) {
     //TODO: replace with listr so we can show multiple processes at once
@@ -2460,6 +2507,7 @@ export const buildPackage = async (
     } else {
       console.log(chalk.red(packagePath.split('/').pop(), ' - Build failed:'));
       console.log(err);
+      return msg;
     }
     console.log(msg);
   });
@@ -2870,19 +2918,21 @@ export var buildUpdated = async function (
             return chalk.blue(pkg.packageName + ' should be build');
           }
           log('Building ' + pkg.packageName);
-          return buildPackage(
-            null,
-            null,
-            path.join(process.cwd(), pkg.path),
-            false,
-          )
+          const pathToBuild = pkg.path.startsWith('.')
+            ? path.join(process.cwd(), pkg.path)
+            : pkg.path;
+          //if the path is relative,
+          // log('path: ' + pathToBuild);
+          return buildPackage(null, null, pathToBuild, false)
             .then((res) => {
               //empty string or true is success
               //false is success with warnings
               //any other string is the build error text
               //undefined result means it failed
-              if (typeof res === 'undefined') {
-                logError('Failed to build ' + pkg.packageName);
+              if (typeof res === 'undefined' || typeof res === 'string') {
+                logError(
+                  'Failed to build ' + pkg.packageName + '. ' + res ? res : '',
+                );
                 process.exit(1);
               } else {
                 debugInfo(chalk.green(pkg.packageName + ' successfully built'));
@@ -2890,8 +2940,10 @@ export var buildUpdated = async function (
               }
             })
             .catch((err) => {
-              logError('Failed to build ' + pkg.packageName);
-              console.error(err);
+              logError(
+                'Failed to build ' + pkg.packageName + '. ' + err.message,
+              );
+              //console.error(err);
               process.exit(1);
             });
         }

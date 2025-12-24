@@ -11,7 +11,8 @@ import {
   buildApp,
   buildPackage,
   buildUpdated,
-  checkImports,compilePackage,
+  checkImports,
+  compilePackage,
   createApp,
   createComponent,
   createOntology,
@@ -23,17 +24,21 @@ import {
   developPackage,
   executeCommandForEachPackage,
   executeCommandForPackage,
-  getLincdPackages,getScriptDir,
+  getLincdPackages,
+  getScriptDir,
   publishPackage,
   publishUpdated,
-  register,runMethod,
-  startServer,upgradePackages,
+  register,
+  runMethod,
+  runScript,
+  startServer,
+  upgradePackages,
 } from './cli-methods.js';
 // import {buildMetadata} from './metadata';
-import 'require-extensions';
 import {program} from 'commander';
 import fs from 'fs-extra';
-import path, { dirname } from 'path';
+import path from 'path';
+import 'require-extensions';
 
 program
   .command('create-app')
@@ -61,14 +66,39 @@ program
 program
   .command('call')
   .action((packageName, method, options) => {
-    return runMethod(packageName,method,{ spawn: options.spawn });
+    return runMethod(packageName, method, {spawn: options.spawn});
   })
-  .option('--spawn', 'Start a new server instance instead of using an existing one')
+  .option(
+    '--spawn',
+    'Start a new server instance instead of using an existing one',
+  )
   .option('--env', 'The node environment to use. Default is "development"')
   .description(
     'Start the LINCD node.js server but without http server. Instead it immediately calls the specified method of the specified package and exits afterwards',
-  ).argument('<package>', 'the package of the backend provider that contains this method')
+  )
+  .argument(
+    '<package>',
+    'the package of the backend provider that contains this method',
+  )
   .argument('<method>', 'the name of the method you want to call');
+
+program
+  .command('script')
+  .action((scriptName, options) => {
+    return runScript(scriptName, {spawn: options.spawn});
+  })
+  .option(
+    '--spawn',
+    'Start a new server instance instead of using an existing one',
+  )
+  .option('--env', 'The node environment to use. Default is "development"')
+  .description(
+    'Start the LINCD node.js server but without http server. Instead it immediately runs the specified script and exits afterwards',
+  )
+  .argument(
+    '<scriptName>',
+    'the name of the script file inside the /scripts folder',
+  );
 
 program
   .command('create-package')
@@ -174,13 +204,13 @@ program
   .command('info')
   .action(() => {
     let localDir = getScriptDir();
-    let packageJsonPath =path.join(localDir,  'package.json')
+    let packageJsonPath = path.join(localDir, 'package.json');
     try {
-      var ownPackage = JSON.parse(
-        fs.readFileSync(packageJsonPath, 'utf8'),
-      );
+      var ownPackage = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     } catch (e) {
-      console.warn('Could not read package.json at '+packageJsonPath+': '+e);
+      console.warn(
+        'Could not read package.json at ' + packageJsonPath + ': ' + e,
+      );
       process.exit();
     }
     console.log(ownPackage.version);
@@ -192,13 +222,19 @@ program
 
 program
   .command('build [target] [target2]', {isDefault: true})
-  .action((target, target2) => {
-    buildPackage(target, target2);
-  });
+  .action((target, target2, options) => {
+    buildPackage(target, target2, process.cwd(), !options?.silent);
+  })
+  .option('--silent', 'No output to console unless errors occur');
 
-program.command('compile-only').action(() => {
-  compilePackage();
-}).description('Compile the package without other build steps. Run this command from the package folder');
+program
+  .command('compile-only')
+  .action(() => {
+    compilePackage();
+  })
+  .description(
+    'Compile the package without other build steps. Run this command from the package folder',
+  );
 program.command('build-metadata').action(() => {
   console.log('Needs to be reimplemented');
   // buildMetadata();

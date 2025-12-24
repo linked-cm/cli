@@ -130,6 +130,8 @@ export var isImportWithMissingExtension = function (importPath: string) {
 };
 
 export var getPackageJSON = function (root = process.cwd(), error = true) {
+  // console.log('Getting package.json from ' + chalk.cyan(root));
+  //log stack trace
   let packagePath = path.join(root, 'package.json');
   if (fs.existsSync(packagePath)) {
     return JSON.parse(fs.readFileSync(packagePath, 'utf8'));
