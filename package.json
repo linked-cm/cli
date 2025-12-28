@@ -1,6 +1,6 @@
 {
   "name": "lincd-cli",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Command line tools for the lincd.js library",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
@@ -30,7 +30,6 @@
     }
   },
   "scripts": {
-    "prepublishOnly": "npm exec build",
     "build": "rimraf ./lib && yarn build-esm && yarn build-cjs && yarn copy-to-lib && yarn dual-package",
     "build-cjs": "echo \"compiling CJS\" && rimraf ./lib/cjs && yarn tsc -p tsconfig-cjs.json",
     "build-esm": "echo \"compiling ESM\" && rimraf ./lib/esm && yarn tsc -p tsconfig-esm.json",
@@ -39,7 +38,7 @@
     "dev": "yarn tsc -p tsconfig-esm.json -w",
     "dev-cjs": "yarn tsc -p tsconfig-cjs.json -w",
     "postinstall": "husky install",
-    "prepack": "yarn build && pinst --disable && yarn version patch",
+    "prepack": "yarn build && pinst --disable",
     "postpack": "pinst --enable",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
