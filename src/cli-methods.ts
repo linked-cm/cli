@@ -641,7 +641,7 @@ export function buildAll(options) {
 
       console.log(
         chalk.magenta(
-          `Found ${originalPackageCount} total LINCD packages, building only ${filteredPackages.size} that are relevant to this app`,
+          `Found ${filteredPackages.size} total LINCD packages in use by this app`,
         ),
       );
 
@@ -2356,8 +2356,11 @@ export const buildPackage = async (
   packagePath = process.cwd(),
   logResults: boolean = true,
 ) => {
-  // Ensure packagePath points to a directory containing package.json; if not, go up until we find one
-  let currentPath = packagePath;
+  // Ensure packagePath is absolute and points to a directory containing package.json; if not, go up until we find one
+  // First, resolve to absolute path
+  let currentPath = path.isAbsolute(packagePath) 
+    ? packagePath 
+    : path.resolve(process.cwd(), packagePath);
   while (!fs.existsSync(path.join(currentPath, 'package.json'))) {
     const parentPath = path.dirname(currentPath);
     if (parentPath === currentPath) {
@@ -2371,10 +2374,8 @@ export const buildPackage = async (
     }
     currentPath = parentPath;
   }
-  if (currentPath !== packagePath) {
-    // console.log('Building package from ' + chalk.cyan(currentPath));
-    packagePath = currentPath;
-  }
+  // Always use the resolved absolute path
+  packagePath = currentPath;
 
   let spinner: Ora;
   if (logResults) {
