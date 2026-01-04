@@ -2506,8 +2506,8 @@ export const buildPackage = async (
         // text: 'Build failed',
       });
     } else {
-      console.log(chalk.red(packagePath.split('/').pop(), ' - Build failed:'));
-      console.log(err);
+      console.error(chalk.red(packagePath.split('/').pop(), ' - Build failed:'));
+      console.error(err);
       return msg;
     }
     console.log(msg);
