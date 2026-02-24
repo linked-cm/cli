@@ -1576,6 +1576,9 @@ export const ensureEnvironmentLoaded = async () => {
     });
     let environments = Object.keys(vars);
 
+    // Snapshot the original shell environment so it always takes highest priority
+    let shellEnv = {...process.env};
+
     //if _main is present, load it first
     if (environments.includes('_main')) {
       process.env = {...process.env, ...vars._main};
@@ -1603,6 +1606,8 @@ export const ensureEnvironmentLoaded = async () => {
       process.env = {...process.env, ...vars.development};
       console.log('No environment specified, using development');
     }
+    // Re-apply original shell env vars so they always win over .env-cmdrc.json
+    process.env = {...process.env, ...shellEnv};
     process.env.ENV_VARS_LOADED = 'true';
   }
 };
