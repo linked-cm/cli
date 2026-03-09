@@ -42,8 +42,13 @@ import 'require-extensions';
 
 program
   .command('create-app')
-  .action((name) => {
-    return createApp(name);
+  .action((name, options) => {
+    return createApp(name, process.cwd(), {
+      appName: options.appName,
+      appPrefix: options.appPrefix,
+      appDomain: options.appDomain,
+      skipInstall: options.skipInstall,
+    });
   })
   .description(
     'Creates a new folder with all the required files for a LINCD app',
@@ -51,7 +56,11 @@ program
   .argument(
     '<name>',
     'the name of your LINCD app. To use spaces, wrap the name in double quotes.',
-  );
+  )
+  .option('--app-name <name>', 'Display name for the app (skip interactive prompt)')
+  .option('--app-prefix <prefix>', 'Short code prefix for data files (skip interactive prompt)')
+  .option('--app-domain <domain>', 'Domain for the app (skip interactive prompt)')
+  .option('--skip-install', 'Skip running yarn/npm install after scaffolding');
 
 program
   .command('start')
