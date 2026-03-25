@@ -22,7 +22,7 @@ import {
 import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
 import {statSync} from 'fs';
-import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
+import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
 import {PackageDetails} from './interfaces';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;

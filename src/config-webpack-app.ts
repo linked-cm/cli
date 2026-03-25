@@ -11,7 +11,7 @@ import {WebpackManifestPlugin} from 'webpack-manifest-plugin';
 import {LincdConfig} from './interfaces.js';
 import {generateScopedName} from './utils.js';
 
-import {LinkedFileStorage} from 'lincd/utils/LinkedFileStorage';
+import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
 import postcssUrl from 'postcss-url';
 
 const isProduction = process.env.NODE_ENV === 'production';
