@@ -174,9 +174,9 @@ export function warn(...messages) {
     // console.log(chalk.red(message));
   });
 }
-export function logError(...messages) {
-  messages.forEach((message) => {
-    console.error(chalk.redBright('Error: ') + message);
+export function logError(...errors) {
+  errors.forEach((error:Error) => {
+    console.error(chalk.redBright('Error: ') + error);
   });
 }
 export function developPackage(target, mode) {

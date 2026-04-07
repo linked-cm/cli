@@ -71,6 +71,7 @@
     "lincd-cli": "lib/esm/cli.js"
   },
   "dependencies": {
+    "@_linked/core": "^2.2.1",
     "@babel/cli": "^7.23.9",
     "@babel/core": "^7.24.0",
     "@babel/plugin-proposal-decorators": "^7.24.0",
@@ -110,7 +111,6 @@
     "grunt-ts": "^6.0.0-beta.22",
     "grunt-webpack": "^6.0.0",
     "license-info-webpack-plugin": "^3.0.0",
-    "@_linked/core": "^2.2.1",
     "load-grunt-tasks": "^5.1.0",
     "mini-css-extract-plugin": "^2.8.1",
     "node-hook": "^1.0.0",

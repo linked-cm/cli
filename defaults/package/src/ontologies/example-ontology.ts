@@ -11,11 +11,11 @@ import * as _this from './${hyphen_name}.js';
 export var loadData = () => {
   if (typeof module !== 'undefined' && typeof exports !== 'undefined') {
     // CommonJS import
-    return import('../data/${hyphen_name}.json').then((data) => JSONLD.parse(data));
+    return import('../data/${hyphen_name}.json');
   } else {
     // ESM import
     //@ts-ignore
-    return import('../data/${hyphen_name}.json',{ with: { type: "json" } }).then((data) => JSONLD.parse(data.defauilt));
+    return import('../data/${hyphen_name}.json',{ with: { type: "json" } }).then((data) => data.defauilt);
   }
 };
 
