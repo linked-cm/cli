@@ -57,7 +57,7 @@ function promptUser(question: string): Promise<string> {
   });
 }
 
-export const createApp = async (name, basePath = process.cwd()) => {
+export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean} = {}) => {
   // If no name provided, prompt for folder name first
   if (!name) {
     console.log(chalk.blue('\n📁 Folder name for your app:\n'));
@@ -71,12 +71,6 @@ export const createApp = async (name, basePath = process.cwd()) => {
 
   let {hyphenName, camelCaseName, underscoreName} = setNameVariables(name);
 
-  // Prompt user for app configuration
-  console.log(chalk.blue('\n📝 Please provide the following information:\n'));
-  console.log(
-    chalk.gray('(Press Enter to use defaults based on folder name)\n'),
-  );
-
   const defaultAppName = name
     .split(/[-_\s]+/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -84,19 +78,36 @@ export const createApp = async (name, basePath = process.cwd()) => {
   const defaultAppPrefix = underscoreName;
   const defaultAppDomain = hyphenName + '.com';
 
-  const appNameInput = await promptUser(
-    `App Name (display name) [${chalk.gray(defaultAppName)}]: `,
-  );
-  const appPrefixInput = await promptUser(
-    `App Prefix (short code for data files, e.g., "myapp") [${chalk.gray(defaultAppPrefix)}]: `,
-  );
-  const appDomainInput = await promptUser(
-    `App Domain [${chalk.gray(defaultAppDomain)}]: `,
-  );
+  let appName: string;
+  let appPrefix: string;
+  let appDomain: string;
 
-  const appName = appNameInput || defaultAppName;
-  const appPrefix = appPrefixInput || defaultAppPrefix;
-  const appDomain = appDomainInput || defaultAppDomain;
+  // If any options provided, skip interactive prompts
+  if (options.appName || options.appPrefix || options.appDomain) {
+    appName = options.appName || defaultAppName;
+    appPrefix = options.appPrefix || defaultAppPrefix;
+    appDomain = options.appDomain || defaultAppDomain;
+  } else {
+    // Prompt user for app configuration
+    console.log(chalk.blue('\n📝 Please provide the following information:\n'));
+    console.log(
+      chalk.gray('(Press Enter to use defaults based on folder name)\n'),
+    );
+
+    const appNameInput = await promptUser(
+      `App Name (display name) [${chalk.gray(defaultAppName)}]: `,
+    );
+    const appPrefixInput = await promptUser(
+      `App Prefix (short code for data files, e.g., "myapp") [${chalk.gray(defaultAppPrefix)}]: `,
+    );
+    const appDomainInput = await promptUser(
+      `App Domain [${chalk.gray(defaultAppDomain)}]: `,
+    );
+
+    appName = appNameInput || defaultAppName;
+    appPrefix = appPrefixInput || defaultAppPrefix;
+    appDomain = appDomainInput || defaultAppDomain;
+  }
 
   // Set new variables for app configuration
   setVariable('app_name', appName);
@@ -134,20 +145,22 @@ export const createApp = async (name, basePath = process.cwd()) => {
   //replace variables in some copied files
   await replaceVariablesInFolder(targetFolder);
 
-  let hasYarn = await hasYarnInstalled();
-  let installCommand = hasYarn
-    ? 'export NODE_OPTIONS="--no-network-family-autoselection" && yarn install'
-    : 'npm install';
+  if (!options.skipInstall) {
+    let hasYarn = await hasYarnInstalled();
+    let installCommand = hasYarn
+      ? 'export NODE_OPTIONS="--no-network-family-autoselection" && yarn install'
+      : 'npm install';
 
-  await execp(`cd ${hyphenName} && ${installCommand}`, true).catch((err) => {
-    console.warn('Could not install dependencies or start application');
-  });
+    await execp(`cd ${hyphenName} && ${installCommand}`, true).catch((err) => {
+      console.warn('Could not install dependencies or start application');
+    });
+  }
 
   log(
     `Your LINCD App is ready at ${chalk.blueBright(targetFolder)}`,
     `To start, run\n${chalk.blueBright(
       `cd ${hyphenName}`,
-    )} and then ${chalk.blueBright((hasYarn ? 'yarn' : 'npm') + ' start')}`,
+    )} and then ${chalk.blueBright('yarn start')}`,
   );
 };
 

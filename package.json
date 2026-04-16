@@ -10,6 +10,7 @@
       "import": "./lib/esm/index.js",
       "require": "./lib/cjs/index.js"
     },
+    "./preflight.css": "./preflight.css",
     "./*.css": "./lib/esm/*.css",
     "./*.js": {
       "types": "./lib/esm/*.d.ts",
