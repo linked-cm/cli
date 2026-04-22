@@ -389,20 +389,6 @@ export var getModulePackageJSON = function (module_name, work_dir?) {
 
   return [package_json, module_dir];
 };
-export var getGruntConfig = function (root = process.cwd(), error = true) {
-  let gruntFile = path.join(root, 'Gruntfile.js');
-  if (fs.existsSync(gruntFile)) {
-    return require(gruntFile)();
-  } else if (root === process.cwd()) {
-    if (error) {
-      console.warn(
-        'Could not find Gruntfile.js. Make sure you run this command from the root of a lincd module or a lincd yarn workspace',
-      );
-      process.exit();
-    }
-  }
-};
-
 export function execp(
   cmd,
   log: boolean = false,
