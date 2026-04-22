@@ -111,7 +111,9 @@ export const getLincdConfig = async (): Promise<LincdConfig> => {
 
   // Load from package.json or config files
   let loaded: any;
-  if (typeof packageJson.lincdApp === 'object') {
+  if (typeof packageJson.linkedApp === 'object') {
+    loaded = packageJson.linkedApp;
+  } else if (typeof packageJson.lincdApp === 'object') {
     loaded = packageJson.lincdApp;
   } else if (fs.existsSync(lincdConfigPathJs)) {
     let lincdConfig = await import(lincdConfigPathJs);

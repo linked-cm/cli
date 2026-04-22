@@ -251,7 +251,7 @@ function checkPackagePath(rootPath, packagePath, res) {
     //some packages are not true lincd packages, but we still want them to be re-built automatically. This is what lincd_util is for
     if (pack && pack.workspaces) {
       checkWorkspaces(packagePath, pack.workspaces, res);
-    } else if (pack && pack.lincd === true) {
+    } else if (pack && (pack.linkedPackage === true || pack.lincd === true)) {
       res.push({
         path: packagePath,
         packageName: pack.name,
@@ -532,7 +532,7 @@ function findAppRoot(startPath = process.cwd()): string | null {
       candidateRoots.push({
         path: currentPath,
         hasWorkspaces: !!packageJson.workspaces,
-        isLincd: packageJson.lincd === true,
+        isLincd: packageJson.linkedPackage === true || packageJson.lincd === true,
       });
     }
 

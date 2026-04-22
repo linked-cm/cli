@@ -11,24 +11,24 @@
     "url": ""
   },
   "version": "1.0.0",
-  "lincd": true,
-  "main": "lib/index.js",
-  "types": "dist/${output_file_name}.d.ts",
+  "linkedPackage": true,
+  "main": "lib/cjs/index.js",
+  "module": "lib/esm/index.js",
+  "types": "lib/esm/index.d.ts",
   "license": "ISC",
   "scripts": {
-    "start": "npm exec lincd dev",
-    "build": "npm exec lincd build",
-    "prepublishOnly": "npm exec lincd build production",
-    "postpublish": "npm exec lincd register"
+    "build": "rimraf ./lib && yarn build-esm && yarn build-cjs && yarn dual-package",
+    "build-cjs": "tsc -p tsconfig-cjs.json",
+    "build-esm": "tsc -p tsconfig-esm.json",
+    "dual-package": "tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json",
+    "dev": "tsc -p tsconfig-esm.json -w"
   },
   "keywords": [
-    "lincd",
+    "linked",
     "linked data",
-    "interoperable",
     "semantic web",
     "web3"
   ],
-  "module": "lib/esm/index.js",
   "exports": {
     ".": {
       "types": "./lib/esm/index.d.ts",
@@ -54,12 +54,13 @@
     }
   },
   "dependencies": {
-    "lincd": "^1.0",
-    "lincd-jsonld": "^1.0"
+    "@_linked/core": "^2.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.14",
-    "lincd-cli": "^1.2",
-    "tsconfig-to-dual-package": "^1.2.0"
+    "@_linked/cli": "^1.2",
+    "rimraf": "^5.0.7",
+    "tsconfig-to-dual-package": "^1.2.0",
+    "typescript": "^5.7.3"
   }
 }
