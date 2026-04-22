@@ -16,3 +16,4 @@ export type {
 
 export {buildPackageByPath} from './commands/build-package';
 export {safeYarn} from './commands/safe-yarn';
+export {setupPublish} from './commands/setup-publish';

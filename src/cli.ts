@@ -340,6 +340,28 @@ program
   });
 
 program
+  .command('setup-publish')
+  .description(
+    'Set up a single-branch changesets publish workflow in the current package repo. Writes GitHub Actions workflows, changesets config, .gitignore entries, and patches package.json.',
+  )
+  .option(
+    '--configure-github',
+    'Also configure GitHub branch protection on main (requires gh CLI installed and authenticated).',
+  )
+  .option(
+    '--scope <scope>',
+    'Which NPM secret to reference in the publish workflow: "core" uses NPM_AUTH_TOKEN, "community" uses NPM_AUTH_TOKEN_CM. Defaults to "core".',
+    'core',
+  )
+  .action(async (options) => {
+    const {setupPublish} = await import('./commands/setup-publish.js');
+    await setupPublish({
+      configureGithub: !!options.configureGithub,
+      scope: options.scope === 'community' ? 'community' : 'core',
+    });
+  });
+
+program
   .command('all [action] [filter] [filter-value]')
   .action((command, filter, filterValue) => {
     executeCommandForEachPackage(
