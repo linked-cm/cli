@@ -67,6 +67,9 @@
   },
   "license": "MPL-2.0",
   "linkedPackage": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "lincd": "lib/esm/cli-deprecated.js",
     "lincd-cli": "lib/esm/cli-deprecated.js",
