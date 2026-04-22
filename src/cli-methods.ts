@@ -282,7 +282,7 @@ export function runOnPackagesGroupedByDependencies(
     var pack = getPackageJSON(pkg.path);
     if (pack) {
       //get lincd related dependencies and get the actual package details from the package map by removing '@dacore/' from the package name
-      let packageDependencies = Object.keys(pack.dependencies)
+      let packageDependencies = Object.keys(pack.dependencies || {})
         .filter((dependency) => lincdPackages.has(dependency))
         .map((dependency) => {
           return lincdPackages.has(dependency)
