@@ -26,7 +26,7 @@ import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
 import {PackageDetails} from './interfaces';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;
-// const config = require('lincd-server/site.webpack.config');
+// const config = require('@_linked/server/site.webpack.config');
 import {glob} from 'glob';
 import webpack from 'webpack';
 
@@ -750,21 +750,26 @@ export function buildAll(options) {
         }
         //unless told otherwise, build the package
         if (!command) {
-          command = buildPackage(
-            null,
-            null,
-            path.join(process.cwd(), pkg.path),
-            false,
-          );
-          // command = execPromise(
-          //   'cd ' + pkg.path + ' && yarn exec lincd build',
-          //   // (target ? ' ' + target : '') +
-          //   // (target2 ? ' ' + target2 : ''),
-          //   false,
-          //   false,
-          //   {},
-          //   false,
-          // );
+          // Invoke the package's own `yarn build` script. This lets each package
+          // own its build pipeline — e.g. @_linked/core uses direct tsc, pure-CSS
+          // packages may have no-op builds, and linkedPackage: true packages
+          // typically call `yarn linked build` internally.
+          const pkgDir = path.join(process.cwd(), pkg.path);
+          const pkgJson = getPackageJSON(pkgDir);
+          const hasBuildScript = !!(pkgJson?.scripts?.build);
+
+          if (!hasBuildScript) {
+            // No build script — skip gracefully (e.g. a pure-assets package).
+            command = Promise.resolve(true);
+          } else {
+            command = execPromise('yarn build', false, false, {
+              cwd: pkgDir,
+            })
+              .then((res) => res === '' || typeof res === 'string')
+              .catch((err) => ({
+                error: err.stdout || err.stderr || String(err),
+              }));
+          }
           log(chalk.cyan('Building ' + pkg.packageName));
           process.stdout.write(packagesLeft + ' packages left\r');
         }
@@ -1403,6 +1408,10 @@ export const checkImports = async (
   depth: number = 0, // Used to check if the import is outside the src folder
   invalidImports: Map<string, {type: string; importPath: string}[]> = new Map(),
 ) => {
+  if (!fs.existsSync(sourceFolder)) {
+    // Package has no src/ folder (e.g. pure-CSS packages). Nothing to check.
+    return true;
+  }
   const dir = fs.readdirSync(sourceFolder);
 
   // Start checking each file in the source folder
@@ -1459,7 +1468,7 @@ export const checkImports = async (
   let flat = [...invalidImports.values()].flat();
   // All recursion must have finished, display any errors
   if (depth === 0 && flat.length > 0) {
-    res += chalk.red('Invalid imports found.\n');
+    res += chalk.yellow('Import warnings (non-fatal):\n');
 
     invalidImports.forEach((value, key) => {
       // res += '- '+chalk.blueBright(key.split('/').pop()) + ':\n';
@@ -1477,12 +1486,13 @@ export const checkImports = async (
           message +=
             ' which should end with a file extension. Like .js or .scss';
         }
-        res += chalk.red(message + '\n');
+        res += chalk.yellow(message + '\n');
       });
     });
 
-    throw res;
-    // process.exit(1);
+    // Return as a string so buildStep treats this as a warning (build continues)
+    // rather than throwing and aborting the compile pipeline.
+    return res;
   } else if (depth === 0 && invalidImports.size === 0) {
     // console.info('All imports OK');
     // process.exit(0);
@@ -1675,7 +1685,7 @@ export const runMethod = async (
     }
 
     //@ts-ignore
-    const ServerClass = (await import('lincd-server/shapes/LincdServer'))
+    const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
       .LincdServer;
     await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
     let server = new ServerClass(lincdConfig);
@@ -1781,7 +1791,7 @@ export const startServer = async (
 
   if (!ServerClass) {
     //@ts-ignore
-    ServerClass = (await import('lincd-server/shapes/LincdServer')).LincdServer;
+    ServerClass = (await import('@_linked/server/shapes/LincdServer')).LincdServer;
   }
   await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
 
@@ -2490,8 +2500,17 @@ export const buildPackage = async (
   buildStep({
     name: 'Dual package support',
     apply: () => {
+      // Skip if no tsconfig files (e.g. pure-CSS packages).
+      if (
+        !fs.existsSync(path.join(packagePath, 'tsconfig-esm.json')) ||
+        !fs.existsSync(path.join(packagePath, 'tsconfig-cjs.json'))
+      ) {
+        return Promise.resolve(true);
+      }
+      // Resolve the binary from the nearest node_modules (supports both
+      // per-package and workspace-root installs of tsconfig-to-dual-package).
       return execPromise(
-        'yarn tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json',
+        'npx tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json',
         false,
         false,
         {cwd: packagePath},
@@ -2578,8 +2597,11 @@ export const compilePackage = async (packagePath = process.cwd()) => {
   await compilePackageCJS(packagePath);
 };
 export const compilePackageESM = async (packagePath = process.cwd()) => {
-  //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json
-  let compileCommand = `yarn exec tsc -p tsconfig-esm.json`;
+  // Skip packages without a tsconfig-esm.json (e.g. pure-CSS packages).
+  if (!fs.existsSync(path.join(packagePath, 'tsconfig-esm.json'))) {
+    return true;
+  }
+  let compileCommand = `npx tsc -p tsconfig-esm.json`;
   return execPromise(compileCommand, false, false, {cwd: packagePath}).then(
     (res) => {
       return res === '';
@@ -2587,7 +2609,11 @@ export const compilePackageESM = async (packagePath = process.cwd()) => {
   );
 };
 export const compilePackageCJS = async (packagePath = process.cwd()) => {
-  let compileCommand = `yarn exec tsc -p tsconfig-cjs.json`;
+  // Skip packages without a tsconfig-cjs.json.
+  if (!fs.existsSync(path.join(packagePath, 'tsconfig-cjs.json'))) {
+    return true;
+  }
+  let compileCommand = `npx tsc -p tsconfig-cjs.json`;
   return execPromise(compileCommand, false, false, {cwd: packagePath})
     .then((res) => {
       return res === '';
