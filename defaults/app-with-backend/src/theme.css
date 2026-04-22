@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 /*apply tailwind config, which ensures that all LINCD components are considered "content" for tailwind */
-@config "../node_modules/lincd-cli/lib/esm/tailwind.config.js";
+@config "../node_modules/@_linked/cli/lib/esm/tailwind.config.js";
 
 /*Use this to generate ALL css variables */
 /*@theme static {*/

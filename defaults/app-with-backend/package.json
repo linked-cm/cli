@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "lincdApp": true,
+  "linkedApp": true,
   "author": {
     "name": "",
     "url": "",
@@ -17,12 +17,13 @@
   "main": "scripts/start-server.js",
   "license": "MIT",
   "scripts": {
-    "start": "node --import ./node_modules/lincd-cli/lib/esm/loaders/register.js node_modules/.bin/lincd-cli start --env development",
-    "build": "yarn lincd build-app --env production",
+    "setup": "cp mrgit-template.json mrgit.json && mrgit sync && yarn install",
+    "start": "node --import ./node_modules/@_linked/cli/lib/esm/loaders/register.js node_modules/.bin/linked start --env development",
+    "build": "yarn linked build-app --env production",
     "prepare": "husky",
     "prepack": "pinst --disable",
     "postpack": "pinst --enable",
-    "server:prod": "yarn lincd start --env production",
+    "server:prod": "yarn linked start --env production",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "yarn lint --fix",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
@@ -41,7 +42,7 @@
     "packages/*"
   ],
   "keywords": [
-    "lincd",
+    "linked",
     "linked code",
     "linked data",
     "structured data",
@@ -50,10 +51,10 @@
     "web3"
   ],
   "dependencies": {
-    "lincd": "~1.0",
-    "lincd-auth": "~1.0",
-    "lincd-server": "~1.0",
-    "lincd-server-utils": "~1.0",
+    "@_linked/core": "^2.0",
+    "@_linked/auth": "~1.0",
+    "@_linked/server": "~1.0",
+    "@_linked/server-utils": "~1.0",
     "react": "^18.2",
     "react-dom": "^18.2",
     "react-error-boundary": "^3.1.3",
@@ -73,7 +74,7 @@
     "eslint-plugin-react": "latest",
     "eslint-plugin-react-hooks": "^4.6.0",
     "husky": "^8.0.0",
-    "lincd-cli": "^1.2.1",
+    "@_linked/cli": "^1.2",
     "nodemon": "^2.0.22",
     "pinst": "^3.0.0",
     "pm2": "^5.3.0",
