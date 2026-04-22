@@ -148,7 +148,9 @@
     "husky": "^9.0.11",
     "optimize-css-assets-webpack-plugin": "^6.0.1",
     "pinst": "^3.0.0",
-    "prettier": "^3.2.5"
+    "prettier": "^3.2.5",
+    "@changesets/cli": "^2.29.8",
+    "@changesets/changelog-github": "^0.5.2"
   },
   "peerDepencencies": {},
   "type": "module"

@@ -2,3 +2,14 @@ node_modules
 .idea
 lib
 .yarnrc.yml
+
+node_modules/
+lib/
+yarn.lock
+*.log
+.DS_Store
+
+# Compiled artifacts should only live in lib/, never under src/
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
