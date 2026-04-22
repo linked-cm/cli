@@ -15,6 +15,12 @@ export async function safeYarn(args: string[]): Promise<void> {
   const mrgitPath = path.join(process.cwd(), 'mrgit.json');
   const yarnCmd = `yarn ${args.join(' ')}`;
 
+  if (process.env.LINKED_YARN_DRY_RUN) {
+    console.log(chalk.cyan(`[dry-run] would execute: ${yarnCmd}`));
+    console.log(chalk.cyan(`[dry-run] received args: ${JSON.stringify(args)}`));
+    return;
+  }
+
   if (!fs.existsSync(mrgitPath)) {
     await execp(yarnCmd, true, false);
     return;
