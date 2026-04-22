@@ -342,11 +342,15 @@ program
 program
   .command('setup-publish')
   .description(
-    'Set up a single-branch changesets publish workflow in the current package repo. Writes GitHub Actions workflows, changesets config, .gitignore entries, and patches package.json.',
+    'Set up a changesets publish workflow in the current package repo. Writes GitHub Actions workflows, changesets config, .gitignore entries, and patches package.json.',
   )
   .option(
     '--configure-github',
     'Also configure GitHub branch protection on main (requires gh CLI installed and authenticated).',
+  )
+  .option(
+    '--dual-branch',
+    'Use dual-branch (main + dev) flow with @next prereleases on dev. Default is single-branch (main only).',
   )
   .option(
     '--scope <scope>',
@@ -357,6 +361,7 @@ program
     const {setupPublish} = await import('./commands/setup-publish.js');
     await setupPublish({
       configureGithub: !!options.configureGithub,
+      dualBranch: !!options.dualBranch,
       scope: options.scope === 'community' ? 'community' : 'core',
     });
   });

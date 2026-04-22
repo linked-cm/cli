@@ -12,11 +12,12 @@ const dirname__ =
 // defaults/setup-publish/ lives at packages/cli/defaults/setup-publish/
 // This file compiles to lib/{esm,cjs}/commands/setup-publish.js — go up three
 // levels to reach the package root, then into defaults/setup-publish.
-const TEMPLATE_DIR = path.resolve(dirname__, '..', '..', '..', 'defaults', 'setup-publish');
+const TEMPLATE_ROOT = path.resolve(dirname__, '..', '..', '..', 'defaults', 'setup-publish');
 
 export type SetupPublishOptions = {
   configureGithub?: boolean;
   scope?: 'core' | 'community'; // which NPM secret name to use
+  dualBranch?: boolean; // main + dev with `@next` prereleases on dev
 };
 
 /**
@@ -38,8 +39,11 @@ export async function setupPublish(opts: SetupPublishOptions = {}): Promise<void
   const cwd = process.cwd();
   const scope = opts.scope || 'core';
   const npmSecretName = scope === 'community' ? 'NPM_AUTH_TOKEN_CM' : 'NPM_AUTH_TOKEN';
+  const templateDir = opts.dualBranch
+    ? path.join(TEMPLATE_ROOT, 'dual-branch')
+    : TEMPLATE_ROOT;
 
-  console.log(chalk.magenta('Setting up single-branch publish workflow...'));
+  console.log(chalk.magenta(`Setting up ${opts.dualBranch ? 'dual-branch (main + dev)' : 'single-branch (main only)'} publish workflow...`));
   console.log(`  target: ${cwd}`);
   console.log(`  npm secret: ${npmSecretName} (${scope})`);
 
@@ -56,10 +60,10 @@ export async function setupPublish(opts: SetupPublishOptions = {}): Promise<void
   console.log('');
 
   // 1. Workflow files (with {{NPM_SECRET_NAME}} substitution in publish.yml)
-  await copyWorkflows(cwd, npmSecretName);
+  await copyWorkflows(cwd, npmSecretName, templateDir);
 
   // 2. Changesets config + README
-  await copyChangesetConfig(cwd, repoSlug);
+  await copyChangesetConfig(cwd, repoSlug, templateDir);
 
   // 3. Initial changeset
   await writeInitialChangeset(cwd, pkgJson.name);
@@ -104,8 +108,8 @@ async function resolveRepoSlug(cwd: string, pkgJson: any): Promise<string> {
   return 'OWNER/REPO';
 }
 
-async function copyWorkflows(cwd: string, npmSecretName: string): Promise<void> {
-  const srcDir = path.join(TEMPLATE_DIR, 'github', 'workflows');
+async function copyWorkflows(cwd: string, npmSecretName: string, templateDir: string): Promise<void> {
+  const srcDir = path.join(templateDir, 'github', 'workflows');
   const dstDir = path.join(cwd, '.github', 'workflows');
   fs.mkdirpSync(dstDir);
 
@@ -117,8 +121,8 @@ async function copyWorkflows(cwd: string, npmSecretName: string): Promise<void> 
   }
 }
 
-async function copyChangesetConfig(cwd: string, repoSlug: string): Promise<void> {
-  const srcDir = path.join(TEMPLATE_DIR, 'changeset');
+async function copyChangesetConfig(cwd: string, repoSlug: string, templateDir: string): Promise<void> {
+  const srcDir = path.join(templateDir, 'changeset');
   const dstDir = path.join(cwd, '.changeset');
   fs.mkdirpSync(dstDir);
 
@@ -152,10 +156,10 @@ async function updateGitignore(cwd: string): Promise<void> {
     '*.log',
     '.DS_Store',
     '',
-    '# Compiled artifacts should only live in lib/, never under src/',
-    'src/**/*.js',
-    'src/**/*.js.map',
+    '# Compiled artifacts from tsc should live in lib/, never under src/.',
+    '# (.js alone is NOT ignored — some packages have legit .js test helpers/config.)',
     'src/**/*.d.ts',
+    'src/**/*.js.map',
   ];
   const existing = fs.existsSync(gitignorePath)
     ? fs.readFileSync(gitignorePath, 'utf8').split('\n')
@@ -181,9 +185,18 @@ async function patchPackageJson(pkgJsonPath: string, pkgJson: any): Promise<void
   if (!pkgJson.publishConfig) {
     pkgJson.publishConfig = {access: 'public'};
     modified = true;
-  } else if (pkgJson.publishConfig.access !== 'public') {
-    pkgJson.publishConfig.access = 'public';
-    modified = true;
+  } else {
+    if (pkgJson.publishConfig.access !== 'public') {
+      pkgJson.publishConfig.access = 'public';
+      modified = true;
+    }
+    // Strip provenance: true — it requires OIDC (id-token: write permission +
+    // npm Trusted Publisher config), which conflicts with our NPM_AUTH_TOKEN
+    // flow. Users who want provenance should use OIDC separately.
+    if (pkgJson.publishConfig.provenance) {
+      delete pkgJson.publishConfig.provenance;
+      modified = true;
+    }
   }
 
   pkgJson.devDependencies = pkgJson.devDependencies || {};
@@ -205,10 +218,8 @@ async function patchPackageJson(pkgJsonPath: string, pkgJson: any): Promise<void
 }
 
 async function ensureLockfile(cwd: string): Promise<void> {
-  if (fs.existsSync(path.join(cwd, 'package-lock.json'))) {
-    console.log(chalk.gray('  · package-lock.json already exists'));
-    return;
-  }
+  // Always regenerate — package.json has just been patched (new devDeps etc.),
+  // so any existing lockfile is stale.
   console.log(chalk.magenta('  Running npm install --package-lock-only...'));
 
   // When running inside a yarn workspace (e.g. CN's packages/* layout), npm
@@ -217,21 +228,30 @@ async function ensureLockfile(cwd: string): Promise<void> {
   // the lockfile in isolation, and copying it back.
   const os = await import('os');
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'linked-setup-'));
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'linked-setup-cache-'));
   try {
     const pkgJsonPath = path.join(cwd, 'package.json');
     fs.copyFileSync(pkgJsonPath, path.join(tmpBase, 'package.json'));
-    await execp('npm install --legacy-peer-deps --package-lock-only', false, true, {cwd: tmpBase});
+    await execp(
+      `npm install --legacy-peer-deps --package-lock-only --cache ${cacheDir}`,
+      false,
+      true,
+      {cwd: tmpBase},
+    );
     const lockPath = path.join(tmpBase, 'package-lock.json');
     if (fs.existsSync(lockPath)) {
       fs.copyFileSync(lockPath, path.join(cwd, 'package-lock.json'));
       console.log(chalk.green('  ✓') + ' package-lock.json');
     } else {
-      console.warn(chalk.yellow('  ⚠ npm install did not produce a package-lock.json. Run it manually.'));
+      console.warn(chalk.yellow('  ⚠ npm install did not produce a package-lock.json — likely because a dependency is not yet published on npm.'));
+      console.warn(chalk.yellow('    Regenerate manually once all deps are published: `npm install --package-lock-only`.'));
     }
   } catch (err) {
-    console.warn(chalk.yellow('  ⚠ Failed to generate package-lock.json automatically. Run `npm install --package-lock-only` in a clean checkout of this repo.'));
+    console.warn(chalk.yellow('  ⚠ Failed to generate package-lock.json — likely because a dependency is not yet published on npm.'));
+    console.warn(chalk.yellow('    Regenerate manually once all deps are published: `npm install --package-lock-only`.'));
   } finally {
     fs.removeSync(tmpBase);
+    fs.removeSync(cacheDir);
   }
 }
 
