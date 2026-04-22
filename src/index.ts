@@ -13,3 +13,6 @@ export type {
   LincdWebpackConfig,
   LincdServerConfig,
 } from './interfaces';
+
+export {buildPackageByPath} from './commands/build-package';
+export {safeYarn} from './commands/safe-yarn';

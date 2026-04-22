@@ -299,6 +299,47 @@ program
   .option('--from <char>', 'start from a specific package');
 
 program
+  .command('build-workspace')
+  .description(
+    'Build all linked packages in the current workspace in dependency order',
+  )
+  .option('-u, --updated', 'Only build updated packages')
+  .option(
+    '--use-git',
+    'Use git commit timestamps to determine which packages need updating',
+  )
+  .action(async (options) => {
+    if (options.updated) {
+      return buildUpdated(1, undefined, undefined, !!options.useGit);
+    }
+    return buildAll(options);
+  });
+
+program
+  .command('build-package <filepath>')
+  .description(
+    'Given a file path, find its package.json and rebuild that package. Use for editor save hooks.',
+  )
+  .action(async (filepath) => {
+    const {buildPackageByPath} = await import(
+      './commands/build-package.js'
+    );
+    return buildPackageByPath(filepath);
+  });
+
+program
+  .command('yarn')
+  .description(
+    "Run yarn at the workspace root while preserving nested repositories' yarn.lock files. Forwards all extra args to yarn.",
+  )
+  .allowUnknownOption(true)
+  .action(async () => {
+    const yarnArgs = program.args.slice(1); // drop 'yarn' itself
+    const {safeYarn} = await import('./commands/safe-yarn.js');
+    return safeYarn(yarnArgs);
+  });
+
+program
   .command('all [action] [filter] [filter-value]')
   .action((command, filter, filterValue) => {
     executeCommandForEachPackage(
