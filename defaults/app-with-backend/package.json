@@ -17,7 +17,7 @@
   "main": "scripts/start-server.js",
   "license": "MIT",
   "scripts": {
-    "setup": "cp mrgit-template.json mrgit.json && mrgit sync && yarn install",
+    "setup": "cp mrgit-template.json mrgit.json && yarn install && yarn mrgit sync && yarn install",
     "start": "node --import ./node_modules/@_linked/cli/lib/esm/loaders/register.js node_modules/.bin/linked start --env development",
     "build": "yarn linked build-app --env production",
     "prepare": "husky",
@@ -75,6 +75,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "husky": "^8.0.0",
     "@_linked/cli": "^1.2",
+    "mrgit": "latest",
     "nodemon": "^2.0.22",
     "pinst": "^3.0.0",
     "pm2": "^5.3.0",
