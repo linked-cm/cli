@@ -47,7 +47,9 @@ export async function buildPackageByPath(filePath: string): Promise<void> {
         }
       }
 
-      const command = `cd ${currentPath} && ${yarnBin} linked build`;
+      // Use `yarn exec` so we invoke the `linked` binary rather than a script.
+      // Inner packages don't have a "linked" script in package.json.
+      const command = `cd ${currentPath} && ${yarnBin} exec linked build`;
       await execp(command, true, false);
       return;
     }
