@@ -17,11 +17,10 @@
   "types": "lib/esm/index.d.ts",
   "license": "ISC",
   "scripts": {
-    "build": "rimraf ./lib && yarn build-esm && yarn build-cjs && yarn dual-package",
-    "build-cjs": "tsc -p tsconfig-cjs.json",
-    "build-esm": "tsc -p tsconfig-esm.json",
-    "dual-package": "tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json",
-    "dev": "tsc -p tsconfig-esm.json -w"
+    "start": "yarn linked dev",
+    "build": "yarn linked build",
+    "prepublishOnly": "yarn linked build production",
+    "postpublish": "yarn linked register"
   },
   "keywords": [
     "linked",
@@ -59,7 +58,6 @@
   "devDependencies": {
     "@types/node": "^22.13.14",
     "@_linked/cli": "^1.2",
-    "rimraf": "^5.0.7",
     "tsconfig-to-dual-package": "^1.2.0",
     "typescript": "^5.7.3"
   }
