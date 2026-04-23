@@ -359,7 +359,7 @@ program
   )
   .option(
     '--grant-team <slug>',
-    'GitHub team slug to grant push access (e.g. "semantu-devs"). Requires gh CLI.',
+    'GitHub team slug to grant push access on the repo. Requires gh CLI.',
   )
   .action(async (options) => {
     const {setupPublish} = await import('./commands/setup-publish.js');
