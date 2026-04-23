@@ -1,7 +1,5 @@
-module.exports = {
-  cssMode: 'scss-modules',
-  cacheWebpack:true,
-  cssGlobalModulePaths:[/global-overwrites.scss/],
-  analyse:false,
-
+export default {
+  cssMode: 'tailwind',
+  cacheWebpack: true,
+  analyse: false,
 };

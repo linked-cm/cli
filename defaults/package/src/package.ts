@@ -1,4 +1,13 @@
-import {linkedPackage} from 'lincd/lib/utils/Module';
+import {linkedPackage} from 'lincd/utils/Package';
 
-export const {linkedComponent, linkedComponentClass, linkedShape, linkedUtil, linkedOntology, registerPackageModule, registerPackageExport, packageExports, packageName} =
-  linkedPackage('${package_name}');
+export const {
+  linkedComponent,
+  linkedShape,
+  linkedUtil,
+  linkedOntology,
+  registerPackageExport,
+  packageExports,
+  packageName,
+  getPackageShape
+
+} = linkedPackage('${package_name}');

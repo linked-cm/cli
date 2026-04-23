@@ -1,36 +1,49 @@
-import React, {lazy, Suspense} from 'react';
-import {Route, Routes} from 'react-router-dom';
-import {Spinner} from './components/Spinner';
-import {RequireAuth} from 'lincd-auth/lib/components/RequireAuth';
+import { RequireAuth } from 'lincd-auth/components/RequireAuth';
+import type { RoutesConfig } from 'lincd-server/types/RouteConfig';
+import React, { lazy, Suspense } from 'react';
+import { Route, Routes } from 'react-router-dom';
+import { Spinner } from './components/Spinner';
 import PageNotFound from './pages/PageNotFound';
+import { lazyWithPreload } from './utils/lazyWithPreload';
 
-//In React 18 you can use 'lazy' to import pages only when you need them.
-//This will cause webpack to create multiple bundles, and the right bundles are automatically loaded
-interface RouteObj {
-  path: string;
-  component?: React.LazyExoticComponent<() => JSX.Element>;
-  render?: () => JSX.Element;
-  requireAuth?: boolean;
-  excludeFromMenu?: boolean;
-  label?: string;
-}
-export const ROUTES: {[key: string]: RouteObj} = {
-  index: {
+// Create preloadable lazy components for direct-entry routes
+const HomePage = lazyWithPreload(
+  () => import(/* webpackChunkName: "home" */ './pages/Home')
+);
+
+const SigninPage = lazyWithPreload(
+  () => import(/* webpackChunkName: "signin" */ './pages/Signin')
+);
+
+// Export preloadable components for server-side preloading
+export const PRELOADABLE_ROUTES = {
+  home: HomePage,
+  signin: SigninPage,
+};
+
+
+export const ROUTES: RoutesConfig = {
+  home: {
     path: '/',
-    component: lazy(() => import('./pages/Home' /* webpackPrefetch: true */)),
+    component: HomePage.Component,
     label: 'Home',
+    preloadChunks: ['home'],
   },
   page1: {
     path: '/page1',
-    component: lazy(() => import('./pages/Page1' /* webpackPrefetch: true */)),
+    component: lazy(
+      () => import(/* webpackChunkName: "page1" */ './pages/Page1')
+    ),
     label: 'Protected page',
     requireAuth: true,
+    preloadChunks: ['page1'],
   },
   signin: {
     path: '/signin',
-    component: lazy(() => import('./pages/Signin' /* webpackPrefetch: true */)),
+    component: SigninPage.Component,
     label: 'Sign In',
     excludeFromMenu: true,
+    preloadChunks: ['signin'],
   },
 };
 
@@ -44,7 +57,7 @@ export default function AppRoutes() {
         //if a route is marked as requireAuth, wrap it in the RequireAuth component and pass the signinRoute
         const AuthGuard = route.requireAuth ? RequireAuth : React.Fragment;
         const authProps = route.requireAuth
-          ? {signinRoute: ROUTES.signin.path}
+          ? { signinRoute: ROUTES.signin.path }
           : {};
 
         // define a render function that determines what to render based on the component and route.render

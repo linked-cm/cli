@@ -1,4 +1,12 @@
-node_modules
-.idea
-lib
+node_modules/
+lib/
+yarn.lock
 .yarnrc.yml
+.idea
+*.log
+.DS_Store
+
+# tsc sourcemap output — always in lib/, never src/.
+# (.d.ts not gitignored — hand-written type declarations like
+# src/plugins/colors.d.ts are legit sources.)
+src/**/*.js.map

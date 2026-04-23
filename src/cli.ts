@@ -1,6 +1,10 @@
-#!/usr/bin/env node
-import babelRegister from '@babel/register';
-babelRegister({extensions: ['.ts', '.tsx']});
+#!/usr/bin/env tsx
+//The line above calls the TSX typescript executer as runtime, which extends node.js and supports running typescript
+// see: https://www.npmjs.com/package/tsx
+
+// import babelRegister from '@babel/register';
+// babelRegister({extensions: ['.ts', '.tsx']});
+
 import {
   addCapacitor,
   buildAll,
@@ -8,6 +12,7 @@ import {
   buildPackage,
   buildUpdated,
   checkImports,
+  compilePackage,
   createApp,
   createComponent,
   createOntology,
@@ -20,22 +25,30 @@ import {
   executeCommandForEachPackage,
   executeCommandForPackage,
   getLincdPackages,
+  getScriptDir,
   publishPackage,
   publishUpdated,
   register,
+  runMethod,
+  runScript,
   startServer,
-} from './cli-methods';
-import {buildMetadata} from './metadata';
-require('require-extensions');
-
-var program = require('commander');
-var fs = require('fs-extra');
-var path = require('path');
+  upgradePackages,
+} from './cli-methods.js';
+// import {buildMetadata} from './metadata';
+import {program} from 'commander';
+import fs from 'fs-extra';
+import path from 'path';
+import 'require-extensions';
 
 program
   .command('create-app')
-  .action((name) => {
-    return createApp(name);
+  .action((name, options) => {
+    return createApp(name, process.cwd(), {
+      appName: options.appName,
+      appPrefix: options.appPrefix,
+      appDomain: options.appDomain,
+      skipInstall: options.skipInstall,
+    });
   })
   .description(
     'Creates a new folder with all the required files for a LINCD app',
@@ -43,7 +56,11 @@ program
   .argument(
     '<name>',
     'the name of your LINCD app. To use spaces, wrap the name in double quotes.',
-  );
+  )
+  .option('--app-name <name>', 'Display name for the app (skip interactive prompt)')
+  .option('--app-prefix <prefix>', 'Short code prefix for data files (skip interactive prompt)')
+  .option('--app-domain <domain>', 'Domain for the app (skip interactive prompt)')
+  .option('--skip-install', 'Skip running yarn/npm install after scaffolding');
 
 program
   .command('start')
@@ -53,6 +70,43 @@ program
   .option('--env', 'The node environment to use. Default is "development"')
   .description(
     'Start the LINCD node.js server. Use --initOnly to start the backend without http server',
+  );
+
+program
+  .command('call')
+  .action((packageName, method, options) => {
+    return runMethod(packageName, method, {spawn: options.spawn});
+  })
+  .option(
+    '--spawn',
+    'Start a new server instance instead of using an existing one',
+  )
+  .option('--env', 'The node environment to use. Default is "development"')
+  .description(
+    'Start the LINCD node.js server but without http server. Instead it immediately calls the specified method of the specified package and exits afterwards',
+  )
+  .argument(
+    '<package>',
+    'the package of the backend provider that contains this method',
+  )
+  .argument('<method>', 'the name of the method you want to call');
+
+program
+  .command('script')
+  .action((scriptName, options) => {
+    return runScript(scriptName, {spawn: options.spawn});
+  })
+  .option(
+    '--spawn',
+    'Start a new server instance instead of using an existing one',
+  )
+  .option('--env', 'The node environment to use. Default is "development"')
+  .description(
+    'Start the LINCD node.js server but without http server. Instead it immediately runs the specified script and exits afterwards',
+  )
+  .argument(
+    '<scriptName>',
+    'the name of the script file inside the /scripts folder',
   );
 
 program
@@ -70,6 +124,15 @@ program
   .argument(
     '[uri_base]',
     'The base URL used for data of this package. Leave blank to use the URL of your package on lincd.org after you register it',
+  );
+
+program
+  .command('upgrade-packages')
+  .action(() => {
+    return upgradePackages();
+  })
+  .description(
+    'Upgrade all lincd packages in the workspace to ESM/CJS dual packages',
   );
 
 program
@@ -149,11 +212,18 @@ program
 program
   .command('info')
   .action(() => {
-    var ownPackage = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'),
-    );
+    let localDir = getScriptDir();
+    let packageJsonPath = path.join(localDir, 'package.json');
+    try {
+      var ownPackage = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    } catch (e) {
+      console.warn(
+        'Could not read package.json at ' + packageJsonPath + ': ' + e,
+      );
+      process.exit();
+    }
     console.log(ownPackage.version);
-    console.log('Running from: ' + __dirname);
+    console.log('Running from: ' + localDir);
   })
   .description(
     "Log the version of this tool and the path that it's running from",
@@ -161,12 +231,22 @@ program
 
 program
   .command('build [target] [target2]', {isDefault: true})
-  .action((target, target2) => {
-    buildPackage(target, target2);
-  });
+  .action((target, target2, options) => {
+    buildPackage(target, target2, process.cwd(), !options?.silent);
+  })
+  .option('--silent', 'No output to console unless errors occur');
 
+program
+  .command('compile-only')
+  .action(() => {
+    compilePackage();
+  })
+  .description(
+    'Compile the package without other build steps. Run this command from the package folder',
+  );
 program.command('build-metadata').action(() => {
-  buildMetadata();
+  console.log('Needs to be reimplemented');
+  // buildMetadata();
 });
 program
   .command('build-app')
@@ -182,7 +262,7 @@ program.command('publish-updated').action(() => {
   return publishUpdated();
 });
 program.command('publish [version]').action((version) => {
-  return publishPackage(null, false, null, version);
+  publishPackage(null, false, null, version);
 });
 
 program.command('status').action(() => {
@@ -219,6 +299,74 @@ program
   .option('--from <char>', 'start from a specific package');
 
 program
+  .command('build-workspace')
+  .description(
+    'Build all linked packages in the current workspace in dependency order',
+  )
+  .option('-u, --updated', 'Only build updated packages')
+  .option(
+    '--use-git',
+    'Use git commit timestamps to determine which packages need updating',
+  )
+  .action(async (options) => {
+    if (options.updated) {
+      return buildUpdated(1, undefined, undefined, !!options.useGit);
+    }
+    return buildAll(options);
+  });
+
+program
+  .command('build-package <filepath>')
+  .description(
+    'Given a file path, find its package.json and rebuild that package. Use for editor save hooks.',
+  )
+  .action(async (filepath) => {
+    const {buildPackageByPath} = await import(
+      './commands/build-package.js'
+    );
+    return buildPackageByPath(filepath);
+  });
+
+program
+  .command('yarn')
+  .description(
+    "Run yarn at the workspace root while preserving nested repositories' yarn.lock files. Forwards all extra args to yarn.",
+  )
+  .allowUnknownOption(true)
+  .action(async () => {
+    const yarnArgs = program.args.slice(1); // drop 'yarn' itself
+    const {safeYarn} = await import('./commands/safe-yarn.js');
+    return safeYarn(yarnArgs);
+  });
+
+program
+  .command('setup-publish')
+  .description(
+    'Set up a changesets publish workflow in the current package repo. Writes GitHub Actions workflows, changesets config, .gitignore entries, and patches package.json.',
+  )
+  .option(
+    '--configure-github',
+    'Also configure GitHub branch protection on main (requires gh CLI installed and authenticated).',
+  )
+  .option(
+    '--dual-branch',
+    'Use dual-branch (main + dev) flow with @next prereleases on dev. Default is single-branch (main only).',
+  )
+  .option(
+    '--scope <scope>',
+    'Which NPM secret to reference in the publish workflow: "core" uses NPM_AUTH_TOKEN, "community" uses NPM_AUTH_TOKEN_CM. Defaults to "core".',
+    'core',
+  )
+  .action(async (options) => {
+    const {setupPublish} = await import('./commands/setup-publish.js');
+    await setupPublish({
+      configureGithub: !!options.configureGithub,
+      dualBranch: !!options.dualBranch,
+      scope: options.scope === 'community' ? 'community' : 'core',
+    });
+  });
+
+program
   .command('all [action] [filter] [filter-value]')
   .action((command, filter, filterValue) => {
     executeCommandForEachPackage(
@@ -252,12 +400,18 @@ program
     let fullCommand = command
       ? command +
         ' ' +
-        ' ' +
         args
           .slice(0, 3)
           .filter((a) => a && true)
           .join(' ')
       : null;
+
+    //TODO: call
+    // let pkgName = process.argv[1];
+    // console.log(pkgName);
+    // let restArgs = process.argv.slice(2)
+    // program.parse([],{from:'user'});
+    // program.parse(['--port', '80'], { from: 'user' })
 
     executeCommandForPackage(name, fullCommand);
   })

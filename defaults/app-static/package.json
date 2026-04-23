@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "app": "env-cmd -e _main,production,app-main node scripts/build.js && npx cap sync",
+    "app-local-ios": "env-cmd -e _main,development,app-main,app-local-ios node scripts/build.js && npx cap sync",
+    "app-local-android": "env-cmd -e _main,development,app-main,app-local-android node scripts/build.js && npx cap sync",
+    "app-staging": "env-cmd -e _main,staging,app-main,app-staging node scripts/build.js && npx cap sync"
+  }
+}

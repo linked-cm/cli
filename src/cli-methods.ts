@@ -1,9 +1,10 @@
 import chalk from 'chalk';
 import {exec} from 'child_process';
 import depcheck from 'depcheck';
-import {getEnvFile} from 'env-cmd/dist/get-env-vars';
+import {getEnvFile} from 'env-cmd/dist/get-env-vars.js';
 import fs from 'fs-extra';
-import path from 'path';
+import path, {dirname} from 'path';
+import {createInterface} from 'readline';
 import {
   debugInfo,
   execp,
@@ -12,29 +13,106 @@ import {
   getFiles,
   getLastCommitTime,
   getPackageJSON,
-  isValidLINCDImport,
+  isImportOutsideOfPackage,
+  isImportWithMissingExtension,
+  isInvalidLINCDImport,
   needsRebuilding,
-} from './utils';
+} from './utils.js';
 
-import {statSync} from 'fs';
-import {PackageDetails} from 'interfaces';
+import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
-import {GetEnvVars} from 'env-cmd';
-import {LinkedFileStorage} from 'lincd/lib/utils/LinkedFileStorage';
-// const config = require('lincd-server/site.webpack.config');
+import {statSync} from 'fs';
+import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
+import {PackageDetails} from './interfaces';
+// import pkg from 'lincd/utils/LinkedFileStorage';
+// const { LinkedFileStorage } = pkg;
+// const config = require('@_linked/server/site.webpack.config');
+import {glob} from 'glob';
+import webpack from 'webpack';
 
-var glob = require('glob');
+import ora, {Ora} from 'ora';
+import stagedGitFiles from 'staged-git-files';
+
+let dirname__ =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : //@ts-ignore
+      dirname(import.meta.url).replace('file:/', '');
+
 var variables = {};
-var open = require('open');
-var stagedGitFiles = require('staged-git-files');
+/**
+ * Prompt user for input
+ */
+function promptUser(question: string): Promise<string> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-const webpack = require('webpack');
+  return new Promise((resolve) => {
+    rl.question(chalk.cyan(question), (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
-export const createApp = async (name, basePath = process.cwd()) => {
+export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean} = {}) => {
+  // If no name provided, prompt for folder name first
   if (!name) {
-    console.warn('Please provide a name as the first argument');
+    console.log(chalk.blue('\n📁 Folder name for your app:\n'));
+    const folderNameInput = await promptUser('Folder name (e.g., "my-app"): ');
+    if (!folderNameInput || !folderNameInput.trim()) {
+      console.warn(chalk.red('Folder name is required. Aborting.'));
+      return;
+    }
+    name = folderNameInput.trim();
   }
+
   let {hyphenName, camelCaseName, underscoreName} = setNameVariables(name);
+
+  const defaultAppName = name
+    .split(/[-_\s]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+  const defaultAppPrefix = underscoreName;
+  const defaultAppDomain = hyphenName + '.com';
+
+  let appName: string;
+  let appPrefix: string;
+  let appDomain: string;
+
+  // If any options provided, skip interactive prompts
+  if (options.appName || options.appPrefix || options.appDomain) {
+    appName = options.appName || defaultAppName;
+    appPrefix = options.appPrefix || defaultAppPrefix;
+    appDomain = options.appDomain || defaultAppDomain;
+  } else {
+    // Prompt user for app configuration
+    console.log(chalk.blue('\n📝 Please provide the following information:\n'));
+    console.log(
+      chalk.gray('(Press Enter to use defaults based on folder name)\n'),
+    );
+
+    const appNameInput = await promptUser(
+      `App Name (display name) [${chalk.gray(defaultAppName)}]: `,
+    );
+    const appPrefixInput = await promptUser(
+      `App Prefix (short code for data files, e.g., "myapp") [${chalk.gray(defaultAppPrefix)}]: `,
+    );
+    const appDomainInput = await promptUser(
+      `App Domain [${chalk.gray(defaultAppDomain)}]: `,
+    );
+
+    appName = appNameInput || defaultAppName;
+    appPrefix = appPrefixInput || defaultAppPrefix;
+    appDomain = appDomainInput || defaultAppDomain;
+  }
+
+  // Set new variables for app configuration
+  setVariable('app_name', appName);
+  setVariable('app_prefix', appPrefix);
+  setVariable('app_domain', appDomain);
 
   let targetFolder = path.join(basePath, hyphenName);
   if (!fs.existsSync(targetFolder)) {
@@ -42,7 +120,7 @@ export const createApp = async (name, basePath = process.cwd()) => {
   }
 
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'app-with-backend'),
+    path.join(dirname__, '..', '..', 'defaults', 'app-with-backend'),
     targetFolder,
   );
   //make sure the data folder exists (even though its empty).. copying empty folders does not work with fs.copySync
@@ -62,25 +140,27 @@ export const createApp = async (name, basePath = process.cwd()) => {
 
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
-  log("Creating new LINCD application '" + name + "'");
+  log("Creating new LINCD application '" + appName + "'");
 
   //replace variables in some copied files
   await replaceVariablesInFolder(targetFolder);
 
-  let hasYarn = await hasYarnInstalled();
-  let installCommand = hasYarn
-    ? 'export NODE_OPTIONS="--no-network-family-autoselection" && yarn install'
-    : 'npm install';
+  if (!options.skipInstall) {
+    let hasYarn = await hasYarnInstalled();
+    let installCommand = hasYarn
+      ? 'export NODE_OPTIONS="--no-network-family-autoselection" && yarn install'
+      : 'npm install';
 
-  await execp(`cd ${hyphenName} && ${installCommand}`, true).catch((err) => {
-    console.warn('Could not install dependencies or start application');
-  });
+    await execp(`cd ${hyphenName} && ${installCommand}`, true).catch((err) => {
+      console.warn('Could not install dependencies or start application');
+    });
+  }
 
   log(
     `Your LINCD App is ready at ${chalk.blueBright(targetFolder)}`,
     `To start, run\n${chalk.blueBright(
       `cd ${hyphenName}`,
-    )} and then ${chalk.blueBright((hasYarn ? 'yarn' : 'npm') + ' start')}`,
+    )} and then ${chalk.blueBright('yarn start')}`,
   );
 };
 
@@ -103,11 +183,15 @@ function progressUpdate(message) {
 
 export function warn(...messages) {
   messages.forEach((message) => {
-    console.log(chalk.magenta('Warning: ') + message);
+    console.warn(chalk.redBright('Warning: ') + message);
     // console.log(chalk.red(message));
   });
 }
-
+export function logError(...errors) {
+  errors.forEach((error:Error) => {
+    console.error(chalk.redBright('Error: ') + error);
+  });
+}
 export function developPackage(target, mode) {
   if (!target) target = 'es6';
   if (mode !== 'production') mode = '';
@@ -167,7 +251,7 @@ function checkPackagePath(rootPath, packagePath, res) {
     //some packages are not true lincd packages, but we still want them to be re-built automatically. This is what lincd_util is for
     if (pack && pack.workspaces) {
       checkWorkspaces(packagePath, pack.workspaces, res);
-    } else if (pack && pack.lincd === true) {
+    } else if (pack && (pack.linkedPackage === true || pack.lincd === true)) {
       res.push({
         path: packagePath,
         packageName: pack.name,
@@ -176,7 +260,7 @@ function checkPackagePath(rootPath, packagePath, res) {
   }
 }
 
-function runOnPackagesGroupedByDependencies(
+export function runOnPackagesGroupedByDependencies(
   lincdPackages,
   onBuildStack: (
     packageGroup,
@@ -184,16 +268,21 @@ function runOnPackagesGroupedByDependencies(
   ) => (pkg: PackageDetails) => Promise<any>,
   onStackEnd,
   sync = false,
-) {
+): Promise<void> {
   let dependencies: Map<PackageDetails, PackageDetails[]> = new Map();
 
+  let res, rej;
+  const deferredPromise = new Promise<void>((resolve, reject) => {
+    res = resolve;
+    rej = reject;
+  });
   //get dependencies of each package
   let leastDependentPackage;
   lincdPackages.forEach((pkg) => {
     var pack = getPackageJSON(pkg.path);
     if (pack) {
       //get lincd related dependencies and get the actual package details from the package map by removing '@dacore/' from the package name
-      let packageDependencies = Object.keys(pack.dependencies)
+      let packageDependencies = Object.keys(pack.dependencies || {})
         .filter((dependency) => lincdPackages.has(dependency))
         .map((dependency) => {
           return lincdPackages.has(dependency)
@@ -218,23 +307,40 @@ function runOnPackagesGroupedByDependencies(
     }
   });
 
-  let startStack: PackageDetails[] = [leastDependentPackage];
+  let startStack: PackageDetails[] = leastDependentPackage
+    ? [leastDependentPackage]
+    : [];
 
-  const runPackage = (runFunction, pck) => {
-    return runFunction(pck)
-      .catch(({error, stdout, stderr}) => {
+  const runPackage = async (runFunction, pck) => {
+    try {
+      const result = await runFunction(pck);
+      done.add(pck);
+      return result;
+    } catch (errorObj) {
+      if (errorObj.error) {
+        let {error, stdout, stderr} = errorObj;
         warn(
           'Uncaught exception whilst running parallel function on ' +
             pck.packageName,
-          error.message,
+          error?.message ? error.message : error?.toString(),
+          // stdout,
+          // stderr,
         );
-        // warn(chalk.red(pck.packageName+' failed:'));
-        // console.log(stdout);
-      })
-      .then((res) => {
-        done.add(pck);
-        return res;
-      });
+      } else {
+        warn(
+          'Uncaught exception whilst running parallel function on ' +
+            pck.packageName,
+          errorObj?.toString(),
+          // stdout,
+          // stderr,
+        );
+        process.exit();
+      }
+      // warn(chalk.red(pck.packageName+' failed:'));
+      // console.log(stdout);
+      done.add(pck);
+      return undefined;
+    }
   };
 
   let done: Set<PackageDetails> = new Set();
@@ -360,11 +466,21 @@ function runOnPackagesGroupedByDependencies(
       return runStack(stack);
     } else {
       onStackEnd(dependencies, results.filter(Boolean));
+      res();
     }
   };
 
   //starts the process
-  runStack(startStack);
+  if (startStack.length === 0) {
+    // No packages to build, resolve immediately
+    onStackEnd(dependencies, []);
+    res();
+  } else {
+    runStack(startStack).catch((err) => {
+      rej(err);
+    });
+  }
+  return deferredPromise;
 }
 
 function hasDependency(pkg, childPkg, dependencies, depth = 1) {
@@ -394,11 +510,169 @@ function hasDependency(pkg, childPkg, dependencies, depth = 1) {
   return false;
 }
 
+/**
+ * Finds the topmost package.json that could be an APP_ROOT
+ * Returns null if no app root is found (standalone repo case)
+ */
+function findAppRoot(startPath = process.cwd()): string | null {
+  let currentPath = startPath;
+  let candidateRoots: Array<{
+    path: string;
+    hasWorkspaces: boolean;
+    isLincd: boolean;
+  }> = [];
+
+  // Walk up the directory tree
+  for (let i = 0; i < 10; i++) {
+    const packageJsonPath = path.join(currentPath, 'package.json');
+
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+      candidateRoots.push({
+        path: currentPath,
+        hasWorkspaces: !!packageJson.workspaces,
+        isLincd: packageJson.linkedPackage === true || packageJson.lincd === true,
+      });
+    }
+
+    const parentPath = path.join(currentPath, '..');
+    // If we've reached the root or haven't moved up
+    if (parentPath === currentPath) {
+      break;
+    }
+    currentPath = parentPath;
+  }
+
+  // Find the topmost package.json that has workspaces
+  // Prefer non-lincd packages (app roots) over lincd packages
+  let appRoot = null;
+  for (let i = candidateRoots.length - 1; i >= 0; i--) {
+    const candidate = candidateRoots[i];
+    if (candidate.hasWorkspaces && !candidate.isLincd) {
+      appRoot = candidate.path;
+      break;
+    }
+  }
+
+  // If no non-lincd workspace found, use the topmost workspace
+  if (!appRoot) {
+    for (let i = candidateRoots.length - 1; i >= 0; i--) {
+      if (candidateRoots[i].hasWorkspaces) {
+        appRoot = candidateRoots[i].path;
+        break;
+      }
+    }
+  }
+
+  return appRoot;
+}
+
+/**
+ * Filters packages to only include those in the dependency tree of the app root
+ */
+function filterPackagesByDependencyTree(
+  allPackages: Map<string, PackageDetails>,
+  appRootPath: string,
+): Map<string, PackageDetails> {
+  const appPackageJson = getPackageJSON(appRootPath);
+  if (!appPackageJson) {
+    return allPackages;
+  }
+
+  const relevantPackages = new Map<string, PackageDetails>();
+  const packagesToCheck = new Set<string>();
+
+  // Start with direct dependencies from app root
+  if (appPackageJson.dependencies) {
+    Object.keys(appPackageJson.dependencies).forEach((dep) => {
+      if (allPackages.has(dep)) {
+        packagesToCheck.add(dep);
+      }
+    });
+  }
+
+  // Recursively add dependencies
+  const processedPackages = new Set<string>();
+
+  while (packagesToCheck.size > 0) {
+    const packageName = Array.from(packagesToCheck)[0];
+    packagesToCheck.delete(packageName);
+
+    if (processedPackages.has(packageName)) {
+      continue;
+    }
+
+    processedPackages.add(packageName);
+    const packageDetails = allPackages.get(packageName);
+
+    if (packageDetails) {
+      relevantPackages.set(packageName, packageDetails);
+
+      // Get this package's dependencies
+      const packageJson = getPackageJSON(packageDetails.path);
+      if (packageJson && packageJson.dependencies) {
+        Object.keys(packageJson.dependencies).forEach((dep) => {
+          if (allPackages.has(dep) && !processedPackages.has(dep)) {
+            packagesToCheck.add(dep);
+          }
+        });
+      }
+    }
+  }
+
+  return relevantPackages;
+}
+
 export function buildAll(options) {
   console.log(
     'Building all LINCD packages of this repository in order of dependencies',
   );
   let lincdPackages = getLocalLincdPackageMap();
+  const originalPackageCount = lincdPackages.size;
+
+  // Check if we're in an app context and filter packages accordingly
+  const appRoot = findAppRoot();
+
+  if (appRoot) {
+    const appPackageJson = getPackageJSON(appRoot);
+    // Check if this is an app (not a lincd package itself) with lincd dependencies
+    const isAppWithLincdDeps =
+      appPackageJson &&
+      appPackageJson.lincd !== true &&
+      appPackageJson.dependencies &&
+      Object.keys(appPackageJson.dependencies).some((dep) =>
+        lincdPackages.has(dep),
+      );
+
+    if (isAppWithLincdDeps) {
+      debugInfo(chalk.blue(`Found app root at: ${appRoot}`));
+      const filteredPackages = filterPackagesByDependencyTree(
+        lincdPackages,
+        appRoot,
+      );
+
+      console.log(
+        chalk.magenta(
+          `Found ${filteredPackages.size} total LINCD packages in use by this app`,
+        ),
+      );
+
+      lincdPackages = filteredPackages;
+    } else {
+      debugInfo(
+        chalk.blue(
+          `Building all ${originalPackageCount} packages from workspace`,
+        ),
+      );
+    }
+  } else {
+    debugInfo(
+      chalk.blue(
+        `No workspace root found, building all ${originalPackageCount} packages`,
+      ),
+    );
+  }
 
   let startFrom: string;
   //by default start building
@@ -476,64 +750,141 @@ export function buildAll(options) {
         }
         //unless told otherwise, build the package
         if (!command) {
-          command = execPromise(
-            'cd ' + pkg.path + ' && yarn exec lincd build',
-            // (target ? ' ' + target : '') +
-            // (target2 ? ' ' + target2 : ''),
-            false,
-            false,
-            {},
-            false,
-          );
+          // Invoke the package's own `yarn build` script. This lets each package
+          // own its build pipeline — e.g. @_linked/core uses direct tsc, pure-CSS
+          // packages may have no-op builds, and linkedPackage: true packages
+          // typically call `yarn linked build` internally.
+          const pkgDir = path.join(process.cwd(), pkg.path);
+          const pkgJson = getPackageJSON(pkgDir);
+          const hasBuildScript = !!(pkgJson?.scripts?.build);
+
+          if (!hasBuildScript) {
+            // No build script — skip gracefully (e.g. a pure-assets package).
+            command = Promise.resolve(true);
+          } else {
+            command = execPromise('yarn build', false, false, {
+              cwd: pkgDir,
+            })
+              .then((res) => res === '' || typeof res === 'string')
+              .catch((err) => ({
+                error: err.stdout || err.stderr || String(err),
+              }));
+          }
           log(chalk.cyan('Building ' + pkg.packageName));
           process.stdout.write(packagesLeft + ' packages left\r');
         }
 
         return command
-          .catch(({error, stdout, stderr}) => {
-            //this prints out the webpack output, including the build errors
-            warn('Failed to build ' + pkg.packageName);
-            console.log(stdout);
-            failedModules.push(pkg.packageName);
-            let dependentModules = getDependentPackages(dependencies, pkg);
-            if (dependentModules.length > 0) {
-              printBuildResults(failedModules, done);
-              console.log(
-                chalk.magenta(
+          .then((res) => {
+            //empty string or true is success
+            //false is success with warnings
+            //any other string is the build error text
+            //undefined result means it failed
+            // if (res !== '' && res !== true && res !== false) {
+            if (typeof res === 'undefined') {
+              failedModules.push(pkg.packageName);
+              let dependentModules = getDependentPackages(dependencies, pkg);
+              if (dependentModules.length > 0) {
+                printBuildResults(failedModules, done);
+                console.log(
                   'Stopping build process because an error occurred whilst building ' +
                     pkg.packageName +
                     ', which ' +
                     dependentModules.length +
                     ' other packages depend on.',
-                ),
-              ); //"+dependentModules.map(d => d.packageName).join(", ")));
-              console.log(
-                chalk.cyanBright('tip ') +
+                ); //"+dependentModules.map(d => d.packageName).join(", ")));
+                log(
                   'Run ' +
-                  chalk.green(`lincd build-all --from=${pkg.packageName}`) +
-                  ' to build only the remaining packages',
-              ); //"+dependentModules.map(d => d.packageName).join(", ")));
-              process.exit(1);
-            }
-          })
-          .then((res) => {
-            if (!skipping) {
-              log(chalk.green('Built ' + pkg.packageName));
-            }
-            done.add(pkg);
-
-            packagesLeft--;
-            // log(chalk.magenta(packagesLeft + ' packages left'));
-            process.stdout.write(packagesLeft + ' packages left\r');
-            if (packagesLeft == 0) {
-              printBuildResults(failedModules, done);
-              if (failedModules.length > 0) {
+                    chalk.greenBright(
+                      `lincd build-all --from=${pkg.packageName}`,
+                    ) +
+                    ' to build only the remaining packages',
+                ); //"+dependentModules.map(d => d.packageName).join(", ")));
                 process.exit(1);
               }
-            }
+            } else {
+              if (!skipping) {
+                log(
+                  chalk.green('Built ' + pkg.packageName) +
+                    (res === false ? chalk.redBright(' (with warnings)') : ''),
+                );
+              }
+              done.add(pkg);
 
-            return res;
+              packagesLeft--;
+              // log(chalk.magenta(packagesLeft + ' packages left'));
+              process.stdout.write(packagesLeft + ' packages left\r');
+              if (packagesLeft == 0) {
+                printBuildResults(failedModules, done);
+                if (failedModules.length > 0) {
+                  process.exit(1);
+                }
+              }
+
+              return res;
+            }
+          })
+          .catch(({error, stdout, stderr}) => {
+            logError(chalk.red('Failed to build ' + pkg.packageName));
+            console.log(stdout);
+            process.exit(1);
+            // let dependentModules = getDependentP
           });
+        //undefined result means it failed
+        /*if (typeof res === 'undefined')
+        {
+          // .catch(({ error,stdout,stderr }) => {
+          //this prints out the webpack output, including the build errors
+          // warn('Failed to build ' + pkg.packageName);
+          // console.log(stdout);
+          failedModules.push(pkg.packageName);
+          let dependentModules = getDependentPackages(dependencies,pkg);
+          if (dependentModules.length > 0)
+          {
+            printBuildResults(failedModules,done);
+            console.log(
+              'Stopping build process because an error occurred whilst building ' +
+              pkg.packageName +
+              ', which ' +
+              dependentModules.length +
+              ' other packages depend on.',
+            ); //"+dependentModules.map(d => d.packageName).join(", ")));
+            log(
+              'Run ' +
+              chalk.greenBright(`lincd build-all --from=${pkg.packageName}`) +
+              ' to build only the remaining packages',
+            ); //"+dependentModules.map(d => d.packageName).join(", ")));
+            process.exit(1);
+          }
+        }
+        else //true is successful build, false is successful but with warnings
+        {
+          //successful build
+          // })
+          //   .then((res) => {
+          if (!skipping)
+          {
+            log(chalk.green('Built ' + pkg.packageName)+(res === false ? chalk.redBright(' (with warnings)') : ''));
+          }
+          done.add(pkg);
+
+          packagesLeft--;
+          // log(chalk.magenta(packagesLeft + ' packages left'));
+          process.stdout.write(packagesLeft + ' packages left\r');
+          if (packagesLeft == 0)
+          {
+            printBuildResults(failedModules,done);
+            if (failedModules.length > 0)
+            {
+              process.exit(1);
+            }
+          }
+
+          return res;
+        }*/
+        // }).catch(err => {
+        //   console.log(err);
+        // })
       };
     },
     (dependencies) => {
@@ -630,10 +981,11 @@ function getLocalLincdModules(rootPath = './'): PackageDetails[] {
 }
 
 export function getLincdPackages(rootPath = process.cwd()): PackageDetails[] {
-  let pack = getPackageJSON();
+  let pack = getPackageJSON(rootPath);
   if (!pack || !pack.workspaces) {
+    const originalRoot = rootPath;
     for (let i = 0; i <= 3; i++) {
-      rootPath = path.join(process.cwd(), ...Array(i).fill('..'));
+      rootPath = path.join(originalRoot, ...Array(i).fill('..'));
 
       pack = getPackageJSON(rootPath);
       if (pack && pack.workspaces) {
@@ -723,7 +1075,8 @@ export const createOntology = async (
   let targetFile = path.join(targetFolder, hyphenName + '.ts');
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -749,7 +1102,8 @@ export const createOntology = async (
   );
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -761,7 +1115,8 @@ export const createOntology = async (
   );
   fs.copySync(
     path.join(
-      __dirname,
+      dirname__,
+      '..',
       '..',
       'defaults',
       'package',
@@ -786,16 +1141,21 @@ export const createOntology = async (
   if (!sourceFolder.includes('frontend')) {
     //then also add an import to index
     let indexPath = addLineToIndex(
-      `import './ontologies/${hyphenName}';`,
+      `import './ontologies/${hyphenName}.js';`,
       'ontologies',
     );
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
-const addLineToIndex = function (line, insertMatchString: string) {
+const addLineToIndex = function (
+  line,
+  insertMatchString: string,
+  root: string = process.cwd(),
+  insertAtStart: boolean = false,
+) {
   //import ontology in index
   let indexPath = ['index.ts', 'index.tsx']
-    .map((f) => path.join('src', f))
+    .map((f) => path.join(root, 'src', f))
     .find((indexFileName) => {
       return fs.existsSync(indexFileName);
     });
@@ -804,8 +1164,9 @@ const addLineToIndex = function (line, insertMatchString: string) {
     let lines = indexContents.split(/\n/g);
     let newContents;
     for (var key in lines) {
+      //if the match string is found
       if (lines[key].indexOf(insertMatchString) !== -1) {
-        //remove lines after this line and insert new line in its place
+        //add the new line after this line
         lines[key] += `\n${line}`;
         newContents = lines.join('\n');
         // log("Found at "+key,lines,newContents);
@@ -813,7 +1174,11 @@ const addLineToIndex = function (line, insertMatchString: string) {
       }
     }
     if (!newContents) {
-      newContents = indexContents + `\n${line}`;
+      if (insertAtStart) {
+        newContents = `${line}\n${indexContents}`;
+      } else {
+        newContents = `${indexContents}\n${line}`;
+      }
       // log("Added at end",newContents);
     }
     fs.writeFileSync(indexPath, newContents);
@@ -827,21 +1192,22 @@ const replaceVariablesInFiles = function (...files: string[]) {
     }),
   );
 };
-const replaceVariablesInFolder = function (folder: string) {
+const replaceVariablesInFolder = async function (
+  folder: string,
+): Promise<void> {
   //get all files in folder, including files that start with a dot
-
-  glob(folder + '/**/*', {dot: true, nodir: true}, function (err, files) {
-    if (err) {
-      console.log('Error', err);
-    } else {
-      // console.log(files);
-      return Promise.all(
-        files.map((file) => {
-          return replaceVariablesInFile(file);
-        }),
-      );
-    }
-  });
+  try {
+    const files = await glob(folder + '/**/*', {dot: true, nodir: true});
+    console.log('Replacing variables in files', files.join(', '));
+    await Promise.all(
+      files.map((file) => {
+        return replaceVariablesInFile(file);
+      }),
+    );
+  } catch (err) {
+    console.log('Error', err);
+    throw err;
+  }
 };
 
 const replaceVariablesInFilesWithRoot = function (
@@ -882,7 +1248,7 @@ const ensureFolderExists = function (...folders: string[]) {
 };
 
 export const setNameVariables = function (name) {
-  let hyphenName = name.replace(/[-_\s]+/g, '-');
+  let hyphenName = name.toLowerCase().replace(/[-_\s]+/g, '-');
   let camelCaseName = camelCase(name); //some-package --> someModule
   let underscoreName = name.replace(/[-\s]+/g, '_');
   let plainName = name.replace(/[-\s]+/g, '');
@@ -911,6 +1277,23 @@ function getSourceFolder(basePath = process.cwd()) {
   }
 }
 
+/**
+ * get __dirname for either ESM/CJS
+ */
+export const getScriptDir = () => {
+  return dirname__;
+  // // @ts-ignore
+  // if (typeof __dirname !== 'undefined')
+  // {
+  //   // @ts-ignore
+  //   return __dirname;
+  // }
+  // else
+  // {
+  //   // @ts-ignore
+  //   return dirname(import.meta.url).replace('file:/','');
+  // }
+};
 export const createShape = async (name, basePath = process.cwd()) => {
   let sourceFolder = getSourceFolder(basePath);
   let targetFolder = ensureFolderExists(sourceFolder, 'shapes');
@@ -919,7 +1302,10 @@ export const createShape = async (name, basePath = process.cwd()) => {
   //copy default shape file
   // log("Creating files for shape '" + name + "'");
   let targetFile = path.join(targetFolder, hyphenName + '.ts');
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'shape.ts'), targetFile);
+  fs.copySync(
+    path.join(getScriptDir(), '..', '..', 'defaults', 'shape.ts'),
+    targetFile,
+  );
 
   //replace variables in some of the copied files
   await replaceVariablesInFiles(targetFile);
@@ -932,7 +1318,7 @@ export const createShape = async (name, basePath = process.cwd()) => {
   //if this is NOT a lincd app (but a lincd package)
   let indexPath;
   if (!sourceFolder.includes('frontend')) {
-    indexPath = addLineToIndex(`import './shapes/${hyphenName}';`, 'shapes');
+    indexPath = addLineToIndex(`import './shapes/${hyphenName}.js';`, 'shapes');
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
@@ -945,13 +1331,13 @@ export const createSetComponent = async (name, basePath = process.cwd()) => {
   log("Creating files for set component '" + name + "'");
   let targetFile = path.join(targetFolder, hyphenName + '.tsx');
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'set-component.tsx'),
+    path.join(getScriptDir(), '..', '..', 'defaults', 'set-component.tsx'),
     targetFile,
   );
 
   let targetFile2 = path.join(targetFolder, hyphenName + '.scss');
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'component.scss'),
+    path.join(getScriptDir(), '..', '..', 'defaults', 'component.scss'),
     targetFile2,
   );
 
@@ -959,7 +1345,7 @@ export const createSetComponent = async (name, basePath = process.cwd()) => {
   await replaceVariablesInFiles(targetFile, targetFile2);
 
   let indexPath = addLineToIndex(
-    `import './components/${hyphenName}';`,
+    `import './components/${hyphenName}.js';`,
     'components',
   );
 
@@ -982,13 +1368,13 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   log("Creating files for component '" + name + "'");
   let targetFile = path.join(targetFolder, hyphenName + '.tsx');
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'component.tsx'),
+    path.join(getScriptDir(), '..', 'defaults', 'component.tsx'),
     targetFile,
   );
 
   let targetFile2 = path.join(targetFolder, hyphenName + '.scss');
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'component.scss'),
+    path.join(getScriptDir(), '..', 'defaults', 'component.scss'),
     targetFile2,
   );
 
@@ -1007,7 +1393,7 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   if (!sourceFolder.includes('frontend')) {
     //then also add an import to index
     let indexPath = addLineToIndex(
-      `import './components/${hyphenName}';`,
+      `import './components/${hyphenName}.js';`,
       'components',
     );
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
@@ -1016,12 +1402,16 @@ export const createComponent = async (name, basePath = process.cwd()) => {
 
 //read the source of all ts/tsx files in the src folder
 //if there is an import that imports a lincd package with /src/ in it, then warn
-//if there is an import that imports outside of the src folder, then warn
+//if there is an import that imports something from outside the src folder, then warn
 export const checkImports = async (
   sourceFolder: string = getSourceFolder(),
-  depth: number = 0, // Used to check if the import is outside of the src folder
-  invalidImports: Map<string, string[]> = new Map(),
+  depth: number = 0, // Used to check if the import is outside the src folder
+  invalidImports: Map<string, {type: string; importPath: string}[]> = new Map(),
 ) => {
+  if (!fs.existsSync(sourceFolder)) {
+    // Package has no src/ folder (e.g. pure-CSS packages). Nothing to check.
+    return true;
+  }
   const dir = fs.readdirSync(sourceFolder);
 
   // Start checking each file in the source folder
@@ -1032,56 +1422,81 @@ export const checkImports = async (
     // INFO: For future use - if this part fails, it could be due to user permissions
     //  i.e. the program not having access to check the file metadata
     if (!filename.match(/\.tsx?$/)) {
-      if (statSync(filename).isDirectory()) {
-        await checkImports(filename, depth + 1, invalidImports);
+      try {
+        if (statSync(filename).isDirectory()) {
+          await checkImports(filename, depth + 1, invalidImports);
+        } else {
+          // Ignore all files that aren't one of the following:
+          // - .ts
+          // - .tsx
+          continue;
+        }
+      } catch (e) {
+        console.log(e);
       }
-
-      // Ignore all files that aren't one of the following:
-      // - .ts
-      // - .tsx
-      continue;
     }
 
     const allImports = await getFileImports(filename);
-    const lincdImports = allImports.filter(
-      (i) => i.includes('lincd') || i.includes('..'),
-    );
+    if (!invalidImports.has(filename)) {
+      invalidImports.set(filename, []);
+    }
 
-    lincdImports.forEach((i) => {
-      if (!isValidLINCDImport(i, depth)) {
-        if (!invalidImports.has(filename)) {
-          invalidImports.set(filename, []);
-        }
-
-        invalidImports.get(filename).push(i);
+    allImports.forEach((i) => {
+      if (isImportOutsideOfPackage(i, depth)) {
+        invalidImports.get(filename).push({
+          type: 'outside_package',
+          importPath: i,
+        });
+      }
+      if (isInvalidLINCDImport(i, depth)) {
+        invalidImports.get(filename).push({
+          type: 'lincd',
+          importPath: i,
+        });
+      }
+      if (isImportWithMissingExtension(i)) {
+        invalidImports.get(filename).push({
+          type: 'missing_extension',
+          importPath: i,
+        });
       }
     });
   }
 
+  let res = '';
+  //check if invalidImports has any
+  let flat = [...invalidImports.values()].flat();
   // All recursion must have finished, display any errors
-  if (depth === 0 && invalidImports.size > 0) {
-    console.warn(chalk.red('\n' + 'Invalid imports found.  See fixes below:'));
-    console.warn(
-      chalk.red(
-        " - For relative imports, ensure you don't import outside of the /src/ folder",
-      ),
-    );
-    console.warn(
-      chalk.red(
-        ' - For lincd imports, access the /lib/ folder instead of /src/',
-      ),
-    );
+  if (depth === 0 && flat.length > 0) {
+    res += chalk.yellow('Import warnings (non-fatal):\n');
 
     invalidImports.forEach((value, key) => {
-      console.info(
-        chalk.red('\nFound in file ') + chalk.blue(key) + chalk.red(':'),
-      );
-      value.forEach((i) => console.warn(chalk.red("- '" + i + "'")));
+      // res += '- '+chalk.blueBright(key.split('/').pop()) + ':\n';
+      value.forEach(({type, importPath}) => {
+        let message =
+          key.split('/').pop() + " imports from '" + importPath + "'";
+        if (type === 'outside_package') {
+          message += ' which is outside the package source root';
+        }
+        if (type === 'lincd') {
+          message +=
+            ' which should not contain /src/ or /lib/ in the import path';
+        }
+        if (type === 'missing_extension') {
+          message +=
+            ' which should end with a file extension. Like .js or .scss';
+        }
+        res += chalk.yellow(message + '\n');
+      });
     });
-    process.exit(1);
+
+    // Return as a string so buildStep treats this as a warning (build continues)
+    // rather than throwing and aborting the compile pipeline.
+    return res;
   } else if (depth === 0 && invalidImports.size === 0) {
-    console.info('All imports OK');
-    process.exit(0);
+    // console.info('All imports OK');
+    // process.exit(0);
+    return true;
   }
 };
 
@@ -1109,57 +1524,67 @@ export const depCheckStaged = async () => {
     });
   });
 };
-export const depCheck = async (path: string = process.cwd()) => {
-  depcheck(path, {}, (results) => {
-    if (results.missing) {
-      let lincdPackages = getLocalLincdModules();
-      let missing = Object.keys(results.missing);
-      //filter out missing types, if it builds we're not too concerned about that at the moment?
-      //especially things like @types/react, @types/react-dom, @types/node (they are added elsewhere?)
-      // missing = missing.filter(m => m.indexOf('@types/') === 0);
-      //currently react is not an explicit dependency, but we should add it as a peer dependency
-      missing.splice(missing.indexOf('react'), 1);
+export const depCheck = async (packagePath: string = process.cwd()) => {
+  // log('Checking depencies of ' + chalk.cyan(packagePath));
+  return new Promise((resolve, reject) => {
+    depcheck(packagePath, {}, (results) => {
+      if (results.missing) {
+        let lincdPackages = getLocalLincdModules(packagePath);
+        let missing = Object.keys(results.missing);
+        //filter out missing types, if it builds we're not too concerned about that at the moment?
+        //especially things like @types/react, @types/react-dom, @types/node (they are added elsewhere?)
+        // missing = missing.filter(m => m.indexOf('@types/') === 0);
+        //currently react is not an explicit dependency, but we should add it as a peer dependency
+        missing.splice(missing.indexOf('react'), 1);
 
-      let missingLincdPackages = missing.filter((missingDep) => {
-        return lincdPackages.some((lincdPackage) => {
-          return lincdPackage.packageName === missingDep;
+        let missingLincdPackages = missing.filter((missingDep) => {
+          return lincdPackages.some((lincdPackage) => {
+            return lincdPackage.packageName === missingDep;
+          });
         });
-      });
-      //currently just missing LINCD packages cause a hard failure exit code
-      if (missingLincdPackages.length > 0) {
-        console.warn(
-          chalk.red(
-            path +
-              '\n[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
-              missingLincdPackages.join(',\n- '),
-          ),
-        );
-        process.exit(1);
-      } else if (missing.length > 0) {
-        console.warn(
-          chalk.magenta(
-            path +
-              '\nMissing dependencies (for now a warning, soon an error):\n\t' +
-              missing.join(',\n\t'),
-          ),
-        );
+        //currently just missing LINCD packages cause a hard failure exit code
+        if (missingLincdPackages.length > 0) {
+          reject(
+            chalk.red(
+              packagePath.split('/').pop() +
+                '\n[ERROR] These LINCD packages are imported but they are not listed in package.json:\n- ' +
+                missingLincdPackages
+                  .map((missedKey) => {
+                    const files = results.missing[missedKey];
+                    return `${missedKey} (${files.length} files: ${files.join(', ')})`;
+                  })
+                  .join(',\n- '),
+            ),
+          );
+        } else if (missing.length > 0) {
+          resolve(
+            chalk.redBright(
+              'warning: ' +
+                packagePath.split('/').pop() +
+                ' is missing dependencies:\n  - ' +
+                missing.join('\n  - '),
+            ),
+          );
+        } else {
+          resolve(true);
+        }
       }
-    }
-    // if(Object.keys(results.invalidFiles).length > 0) {
-    //   console.warn(chalk.red("Invalid files:\n")+Object.keys(results.invalidFiles).join(",\n"));
-    // }
-    // if(Object.keys(results.invalidDirs).length > 0) {
-    //   console.warn(chalk.red("Invalid dirs:\n")+results.invalidDirs.toString());
-    // }
-    // if(results.unused) {
-    //   console.warn("Unused dependencies: "+results.missing.join(", "));
-    // }
+      // if(Object.keys(results.invalidFiles).length > 0) {
+      //   console.warn(chalk.red("Invalid files:\n")+Object.keys(results.invalidFiles).join(",\n"));
+      // }
+      // if(Object.keys(results.invalidDirs).length > 0) {
+      //   console.warn(chalk.red("Invalid dirs:\n")+results.invalidDirs.toString());
+      // }
+      // if(results.unused) {
+      //   console.warn("Unused dependencies: "+results.missing.join(", "));
+      // }
+    });
   });
 };
 export const ensureEnvironmentLoaded = async () => {
-  if (!process.env.NODE_ENV) {
+  if (!process.env.ENV_VARS_LOADED) {
     //load env-cmd for development environment
-    let {GetEnvVars} = require('env-cmd');
+    let {GetEnvVars} = await import('env-cmd');
     let envCmdrcPath = path.join(process.cwd(), '.env-cmdrc.json');
     if (!fs.existsSync(envCmdrcPath)) {
       console.warn(
@@ -1173,6 +1598,9 @@ export const ensureEnvironmentLoaded = async () => {
       },
     });
     let environments = Object.keys(vars);
+
+    // Snapshot the original shell environment so it always takes highest priority
+    let shellEnv = {...process.env};
 
     //if _main is present, load it first
     if (environments.includes('_main')) {
@@ -1201,6 +1629,144 @@ export const ensureEnvironmentLoaded = async () => {
       process.env = {...process.env, ...vars.development};
       console.log('No environment specified, using development');
     }
+    // Re-apply original shell env vars so they always win over .env-cmdrc.json
+    process.env = {...process.env, ...shellEnv};
+    process.env.ENV_VARS_LOADED = 'true';
+  }
+};
+export const runScript = async (
+  scriptName: string,
+  options: {spawn: boolean},
+) => {
+  //if spawn is not defined, default to true
+  const spawn = options.spawn !== undefined ? options.spawn : true;
+
+  await ensureEnvironmentLoaded();
+  if (spawn) {
+    await startServer(true);
+  }
+
+  log('Running script ' + scriptName);
+  const scriptPath = path.join(process.cwd(), 'scripts', scriptName);
+  const script = await import(scriptPath);
+  await script.default().catch((error) => {
+    log('Script ' + scriptName + ' finished with errors');
+    logError(error);
+    process.exit(1);
+  });
+  log('Script ' + scriptName + ' finished');
+  process.exit(0);
+};
+
+export const runMethod = async (
+  packageName: string,
+  method: string,
+  options: {spawn: boolean},
+) => {
+  await ensureEnvironmentLoaded();
+
+  if (options.spawn) {
+    let lincdConfig = (
+      await import(path.join(process.cwd(), 'lincd.config.js'))
+    ).default;
+
+    // Set default loadAppComponent if not provided
+    if (!lincdConfig.server) {
+      lincdConfig.server = {};
+    }
+    if (!lincdConfig.server.loadAppComponent) {
+      lincdConfig.server.loadAppComponent = async () =>
+        (await import(path.join(process.cwd(), 'src', 'App'))).default;
+    }
+    // Set default loadRoutes if not provided
+    if (!lincdConfig.server.loadRoutes) {
+      lincdConfig.server.loadRoutes = async () =>
+        await import(path.join(process.cwd(), 'src', 'routes.tsx'));
+    }
+
+    //@ts-ignore
+    const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
+      .LincdServer;
+    await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
+    let server = new ServerClass(lincdConfig);
+    //init the server
+    console.log('Initializing server...');
+    server.initOnly().then(() => {
+      //process the backend method call
+      console.log('Running method ' + method);
+      //mock the request and response objects
+      let request = {
+        body: {},
+        query: {},
+        params: {},
+        headers: {},
+        method: 'POST',
+        url: '/' + packageName + '/' + method,
+      };
+      let response = {
+        status: (statusCode) => {
+          console.log('Response status code:', statusCode);
+          return response;
+        },
+        json: (data) => {
+          console.log('Response data:', data);
+        },
+        send: (data) => {
+          console.log('Response data:', data);
+        },
+      };
+      //TODO; allow sending args
+      server
+        .callBackendMethod(
+          packageName,
+          method,
+          [],
+          request as any,
+          response as any,
+        )
+        .then(() => {
+          console.log('Done');
+          process.exit();
+        });
+    });
+  } else {
+    //reuse the existing running LincdServer instance.
+    //make a HTTP call
+    //'/call/:pkg/:method',
+    fetch(process.env.SITE_ROOT + '/call/' + packageName + '/' + method, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        console.log('Response data:', data);
+        process.exit();
+      })
+      .catch((error) => {
+        if (
+          error.code === 'ECONNREFUSED' ||
+          error.cause?.code === 'ECONNREFUSED'
+        ) {
+          console.error(
+            chalk.red(
+              'Could not connect to the backend server. Is it running?',
+            ),
+          );
+          console.error(
+            `Make sure you ${chalk.magenta('run "yarn start" in a separate process')} before calling this method.`,
+          );
+        } else {
+          console.error('Error during backend call:', error);
+        }
+        process.exit(1);
+      });
   }
 };
 export const startServer = async (
@@ -1209,18 +1775,56 @@ export const startServer = async (
 ) => {
   await ensureEnvironmentLoaded();
 
-  let lincdConfig = require(path.join(process.cwd(), 'lincd.config'));
+  let lincdConfig = (await import(path.join(process.cwd(), 'lincd.config.js')))
+    .default;
+
+  // function scssLoadcall(source, filename) {
+  //   return 'console.log("SCSS CALL: ' + filename + '");\n' + source;
+  //   process.exit();
+  // }
+  // hook.hook('.scss', scssLoadcall);
+  // hook.hook('.css', scssLoadcall);
+  // import.meta.
+  // // hook.hook('*.css', scssLoadcall);
+  // // hook.hook('Body.module.css', scssLoadcall);
+  // hook.hook('.module.css', scssLoadcall);
 
   if (!ServerClass) {
-    ServerClass = require('lincd-server/lib/shapes/LincdServer').LincdServer;
+    //@ts-ignore
+    ServerClass = (await import('@_linked/server/shapes/LincdServer')).LincdServer;
   }
-  require(path.join(process.cwd(), 'scripts', 'storage-config'));
+  await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
 
-  let server = new ServerClass({
-    loadAppComponent: () =>
-      require(path.join(process.cwd(), 'src', 'App')).default,
-    ...lincdConfig,
-  });
+  // Set default loadAppComponent if not provided
+  if (!lincdConfig.server) {
+    lincdConfig.server = {};
+  }
+  if (!lincdConfig.server.loadAppComponent) {
+    let appPromise;
+    if (process.env.NODE_ENV !== 'development') {
+      appPromise = (await import(path.join(process.cwd(), 'lib', 'App.js')))
+        .default;
+    } else {
+      appPromise = (await import(path.join(process.cwd(), 'src', 'App.tsx')))
+        .default;
+    }
+    lincdConfig.server.loadAppComponent = async () => {
+      return appPromise;
+    };
+  }
+
+  // Set default loadRoutes if not provided
+  if (!lincdConfig.server.loadRoutes) {
+    lincdConfig.server.loadRoutes = async () => {
+      if (process.env.NODE_ENV !== 'development') {
+        return await import(path.join(process.cwd(), 'lib', 'routes.js'));
+      } else {
+        return await import(path.join(process.cwd(), 'src', 'routes.tsx'));
+      }
+    };
+  }
+
+  let server = new ServerClass(lincdConfig);
   //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
   let args = process.argv.slice(2);
   //if --initOnly is passed, only initialize the server and don't start it
@@ -1231,17 +1835,24 @@ export const startServer = async (
   }
 };
 export const buildApp = async () => {
+  await buildFrontend();
+  await buildBackend();
+  console.log(chalk.magenta(`✅ ${process.env.NODE_ENV} app build finished`));
+  process.exit(0);
+};
+export const buildFrontend = async () => {
   await ensureEnvironmentLoaded();
-  const webpackAppConfig = require('./config-webpack-app').webpackAppConfig;
+  const webpackAppConfig = await (
+    await import('./config-webpack-app.js')
+  ).getWebpackAppConfig();
 
-  console.log(chalk.magenta(`Building ${process.env.NODE_ENV} app bundles`));
-  return new Promise((resolve, reject) => {
-    webpack(webpackAppConfig, async (err, stats) => {
+  console.log(
+    chalk.magenta(`🛠 Building ${process.env.NODE_ENV} frontend bundles`),
+  );
+  await new Promise((resolve, reject) => {
+    webpack(webpackAppConfig as any, async (err, stats) => {
       if (err) {
         console.error(err.stack || err);
-        if (err.details) {
-          console.error(err.details);
-        }
         process.exit(1);
       }
       const info = stats.toJson();
@@ -1255,10 +1866,9 @@ export const buildApp = async () => {
           stats.toString({
             chunks: false,
             assets: true,
-            entryPoints: false,
+            entrypoints: false,
             modules: false,
             moduleAssets: false,
-            moduleChunks: false,
             colors: true,
           }),
         );
@@ -1274,7 +1884,309 @@ export const buildApp = async () => {
       }
       // process.exit();
     });
+  }).then(async () => {
+    // make sure environment is not development for storage config
+    // and if we want to upload to storage, we need set S3_BUCKET_ENDPOINT
+    if (
+      process.env.NODE_ENV === 'development' ||
+      !process.env.S3_BUCKET_ENDPOINT
+    ) {
+      console.warn(
+        'Upload build to storage skip in development environment or S3_BUCKET_ENDPOINT is not set',
+      );
+      return;
+      // process.exit();
+    }
+
+    if (process.env.APP_ENV) {
+      console.warn('Not uploading to CDN for app builds');
+      return;
+      // process.exit();
+    }
+
+    // load the storage config
+    const storageConfig = await import(
+      path.join(process.cwd(), 'scripts', 'storage-config.js')
+    );
+
+    // check if LincdFileStorage has a default FileStore
+    // if yes: copy all the files in the build folder over with LincdFileStorage
+    if (LinkedFileStorage.getDefaultStore()) {
+      // get public directory
+      const rootDirectory = 'public';
+      const pathDir = path.join(process.cwd(), rootDirectory);
+      if (!fs.existsSync(pathDir)) {
+        console.warn(
+          'No public directory found. Please create a public directory in the root of your project',
+        );
+        return;
+      }
+
+      // get all files in the web directory and then upload them to the storage
+      const files = await getFiles(pathDir);
+      console.log(
+        chalk.magenta(
+          `🕊  Publishing ${files.length} public files to linked file storage`,
+        ),
+      );
+      const clearSpinner = ora({
+        discardStdin: true,
+        text: `Publishing ${files.length} public files`,
+      }).start();
+
+      let counter = 0;
+      const uploads = files.map(async (filePath) => {
+        // read file content
+        const fileContent = await fs.promises.readFile(filePath);
+
+        // replace pathDir with rootDirectory in filePath to get pathname
+        // example: /Users/username/project/www/index.html -> /project/www/index.html
+        const pathname = filePath.replace(pathDir, `/${rootDirectory}`);
+
+        // upload file to storage
+        await LinkedFileStorage.saveFile(pathname, fileContent)
+          .then(() => {
+            clearSpinner.text = `${counter++}/${files.length}: - Published ${pathname} `;
+          })
+          .catch(console.error);
+      });
+
+      const urls = await Promise.all(uploads);
+      clearSpinner.succeed(`${urls.length} files uploaded to storage`);
+    }
   });
+};
+export const buildBackend = async () => {
+  console.log(chalk.magenta(`🛠 Preparing ${process.env.NODE_ENV} backend`));
+  //run tsc in the backend folder
+  await ensureEnvironmentLoaded();
+
+  const sourceFolder = path.join(process.cwd(), 'src');
+  const targetFolder = path.join(process.cwd(), 'lib');
+
+  // Step 1: Clear lib folder
+  const clearSpinner = ora({
+    discardStdin: true,
+    text: 'Clearing lib folder',
+  }).start();
+
+  try {
+    if (fs.existsSync(targetFolder)) {
+      await fs.remove(targetFolder);
+    }
+    clearSpinner.succeed('Lib folder cleared');
+  } catch (e) {
+    console.error(e);
+    clearSpinner.fail('Failed to clear lib folder');
+    return;
+  }
+
+  // Step 2: Compile TS files
+  const compileSpinner = ora({
+    discardStdin: true,
+    text: 'Compiling backend TS files',
+  }).start();
+
+  try {
+    await execPromise(`yarn exec tsc`);
+    compileSpinner.succeed('Backend TS files compiled');
+  } catch (e) {
+    console.error(e);
+    compileSpinner.fail('Failed to compile backend TS files');
+    return;
+  }
+
+  // Step 3: Copy CSS files
+  const copySpinner = ora({
+    discardStdin: true,
+    text: 'Copying CSS files',
+  }).start();
+
+  try {
+    const cssFiles = await getFiles(sourceFolder, '.css');
+    await Promise.all(
+      cssFiles.map((file) => {
+        const targetFile = file.replace(sourceFolder, targetFolder);
+        //ensure the target folder exists
+        const targetDir = path.dirname(targetFile);
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, {recursive: true});
+        }
+        return fs.copyFile(file, targetFile);
+      }),
+    );
+    copySpinner.succeed(`${cssFiles.length} CSS files copied`);
+  } catch (e) {
+    console.error(e);
+    copySpinner.fail('Failed to copy CSS files');
+  }
+  return true;
+};
+
+export const upgradePackages = async () => {
+  await ensureEnvironmentLoaded();
+  // let packages = getLincdPackages();
+  // let packages = getLocalLincdModules();
+  let packages = getLocalLincdPackageMap();
+  let dirname = getScriptDir();
+  const tsConfigCJS = path.join(
+    dirname,
+    '../../defaults/package',
+    'tsconfig-cjs.json',
+  );
+  const tsConfigESM = path.join(
+    dirname,
+    '../../defaults/package',
+    'tsconfig-esm.json',
+  );
+  const typesFile = path.join(
+    dirname,
+    '../../defaults/package/src',
+    'types.d.ts',
+  );
+
+  const tsConfigTemplate = await fs
+    .readJson(path.join(dirname, '../../defaults/package', 'tsconfig.json'))
+    .catch((err) => {
+      console.log(err);
+    });
+  runOnPackagesGroupedByDependencies(
+    packages,
+    (packageGroup, dependencies) => {
+      // packageGroup.forEach((pkg) => {
+      //   console.log(' Upgrading ' + pkg.packageName);
+      console.log('-----');
+      return async (pkg: PackageDetails) => {
+        if (pkg.packageName === 'lincd') return;
+        // await execPromise(`cd ${pkg.path} && yarn upgrade`);
+        console.log('Upgrading ' + pkg.packageName);
+        //
+        // //create a new file src/tsconfig-cjs.json
+        // //copy the contents of tsconfig.json into it
+        // if (!fs.existsSync(path.join(pkg.path,'tsconfig-cjs.json')))
+        // {
+        //   await fs.copy(tsConfigCJS,path.join(pkg.path,'tsconfig-cjs.json'));
+        //   await fs.copy(tsConfigESM,path.join(pkg.path,'tsconfig-esm.json'));
+        //   console.log('Copied new tsconfig to ' + pkg.packageName);
+        // }
+        //
+        // //read tsconfig
+        // await fs.readJson(path.join(pkg.path,'tsconfig.json')).then((tsconfig) => {
+        //   let oldCompilerOpts = tsconfig.compilerOptions;
+        //   tsconfig.compilerOptions = tsConfigTemplate.compilerOptions;
+        //   tsconfig.compilerOptions.types = oldCompilerOpts.types;
+        //   tsconfig.compilerOptions.plugins = [{"name": "typescript-plugin-css-modules"}];
+        //
+        //   console.log('Upgraded tsconfig for ' + pkg.packageName);
+        //   return fs.writeJson(path.join(pkg.path,'tsconfig.json'),tsconfig,{spaces: 2});
+        // });
+        // //import types at the beginning of index.ts
+        // addLineToIndex(`import './types';`,null,pkg.path,true);
+        // //copy over the types file
+        // await fs.copy(typesFile,path.join(pkg.path,'src','types.d.ts'));
+
+        // await fs.readJson(path.join(pkg.path,'package.json')).then((packageJson) => {
+        //   let version = packageJson.version;
+        //   let nextVersion;
+        //   if (version.split('.').shift() === '0')
+        //   {
+        //     nextVersion = getNextMajorVersion(version);
+        //   }
+        //   else
+        //   {
+        //     nextVersion = getNextMinorVersion(version);
+        //   }
+        //   console.log('Upgraded version for ' + pkg.packageName + ' to ' + nextVersion);
+        //
+        //   packageJson.version = nextVersion;
+        //   packageJson.devDependencies['tsconfig-to-dual-package'] = '^1.2.0';
+        //   packageJson.devDependencies['typescript-plugin-css-modules'] = '^5.1.0';
+        //
+        //   packageJson.main = 'lib/cjs/index.js';
+        //   packageJson.module = 'lib/esm/index.js';
+        //   packageJson.exports = {
+        //     '.': {
+        //       'types': './lib/esm/index.d.ts',
+        //       'import': './lib/esm/index.js',
+        //       'require': './lib/cjs/index.js',
+        //     },
+        //     './*': {
+        //       'types': './lib/esm/*.d.ts',
+        //       'import': './lib/esm/*.js',
+        //       'require': './lib/cjs/*.js',
+        //     },
+        //   };
+        //   packageJson.typesVersions = {
+        //     '*': {
+        //       '*': [
+        //         'lib/esm/*',
+        //       ],
+        //     },
+        //   };
+        //
+        //   return fs.writeJson(path.join(pkg.path,'package.json'),packageJson,{ spaces: 2 });
+        // });
+
+        //change .css files and .scss files to .module.css and .module.scss
+        let files = await getFiles(path.join(pkg.path, 'src'));
+        // let tsFiles = files.filter(f => f.match(/\.(ts|tsx)$/));
+        // let cssFiles = files.filter(f => f.match(/\.(css|scss)$/)).filter(f => !f.match(/\.module\.(css|scss)$/));
+        // cssFiles.forEach(cssFile => {
+        //   let cssFileName = path.basename(cssFile);
+        //   let newFile = cssFileName.replace(/\.s?css$/,'.module$&');
+        //   let newFilePath = cssFile.replace(/\.s?css$/,'.module$&');
+        //   let jsonFile = cssFileName.replace(/\.s?css$/,'$&.json');
+        //   fs.renameSync(cssFile,newFilePath);
+        //   console.log('Renaming ' + cssFileName + ' to ' + newFilePath);
+        //   //find other files that import this file and update them
+        //   tsFiles.forEach(tsFile => {
+        //     //read contents of f2
+        //     let contents = fs.readFileSync(tsFile,'utf8');
+        //     //if it imports f
+        //     if (contents.indexOf(cssFileName) !== -1)
+        //     {
+        //       //find the whole line that imports f
+        //       let line = contents.split('\n').find(l => l.indexOf(cssFileName) !== -1);
+        //       // console.log("OLD: "+line);
+        //       let jsonLine = contents.split('\n').find(l => l.indexOf(jsonFile) !== -1);
+        //       // console.log("JSON: "+jsonLine);
+        //       //if not commented out
+        //       if(line.indexOf('//') === -1) {
+        //         let previousImportPath = line.match(/['"](.*)['"]/)[1];
+        //         let newImportPath = previousImportPath.replace(cssFileName,newFile);
+        //         let newContents = contents.replace(line,`import style from '${newImportPath}';`)
+        //           .replace(jsonLine+'\n','');
+        //         // console.log("\n");
+        //         fs.writeFileSync(tsFile,newContents);
+        //         console.log('Updated imports in ' + tsFile);
+        //         // fs.writeFileSync
+        //         // fs.writeFileSync(i,fs.readFileSync(i,'utf8').replace(f,newFile));
+        //       }
+        //     }
+        //   })
+        // });
+        files
+          .filter((f) => f.match(/\.(scss\.json|css\.json)$/))
+          .forEach((cssJsonFile) => {
+            console.log('Removing ' + cssJsonFile);
+            fs.unlinkSync(cssJsonFile);
+          });
+      };
+      // });
+    },
+    () => {
+      console.log('Finished upgrading packages');
+    },
+  );
+
+  // packages.forEach((pkg,key) => {
+  //   console.log(key+' Upgrading ' + pkg.packageName);
+  // execPromise(`cd ${pkg.path} && yarn upgrade`).then(() => {
+  //   console.log('Upgraded ' + pkg.packageName);
+  // }).catch(err => {
+  //   console.warn(err);
+  // })
+  // });
 };
 
 export const createPackage = async (
@@ -1325,7 +2237,10 @@ export const createPackage = async (
     setNameVariables(cleanPackageName);
 
   log("Creating new LINCD package '" + name + "'");
-  fs.copySync(path.join(__dirname, '..', 'defaults', 'package'), targetFolder);
+  fs.copySync(
+    path.join(getScriptDir(), '..', '..', 'defaults', 'package'),
+    targetFolder,
+  );
 
   //replace variables in some of the copied files
   await Promise.all(
@@ -1405,43 +2320,6 @@ var buildFailed = function (output: string) {
     output.indexOf('Command failed') !== -1
   );
 };
-/*program.command('shapes').action(async () => {
-	//we've imported require-extensions from npm so that we can use this
-	//we want to avoid nodejs tripping up over @import commands in css files
-	require.extensions['.scss'] = function (sourcecode, filename) {
-		return {};
-	};
-	require.extensions['.css'] = function (sourcecode, filename) {
-		return {};
-	};
-
-	if (fs.existsSync(process.cwd() + '/package.json')) {
-		var pack = JSON.parse(
-			fs.readFileSync(process.cwd() + '/package.json', 'utf8'),
-		);
-		let packageName = pack.name;
-
-		//just making sure the library is loaded in correct order because circular references are currently happening when importing BlankNode before NamedNode for example
-		// require('lincd');
-		//TODO: replace with actual index file from package.json, or tsconfig
-		let indexExports = require(process.cwd() + '/lib/index.js');
-		if(indexExports.packageExports)
-		{
-			let shapeJSONLD = await getShapesJSONLD(indexExports.packageExports);
-			console.log(indexExports.packageExports);
-			console.log(shapeJSONLD);
-			console.log(chalk.bold(chalk.green(packageName+'/dist/shapes.json')));
-			return fs.writeFile(path.join('dist', 'shapes.json'), shapeJSONLD);
-		}
-		else
-		{
-			console.warn("Invalid LINCD package. Index file should export a packageExports object. See examples.")
-		}
-
-	} else {
-		console.warn('Not a project');
-	}
-});*/
 
 export const register = function (registryURL) {
   if (fs.existsSync(process.cwd() + '/package.json')) {
@@ -1500,124 +2378,251 @@ export const register = function (registryURL) {
   }
 };
 
-/**
- * Function to remove files older than 10 seconds from the 'lib' folder.
- * @param {string} packagePath - The path to the package directory.
- */
-export const removeOldFiles = async (packagePath) => {
-  const libPath = path.join(packagePath, 'lib');
-
-  try {
-    // Read all files in the 'lib' folder asynchronously
-    const files = await fs.readdir(libPath);
-
-    // Iterate through each file
-    for (const file of files) {
-      const filePath = path.join(libPath, file);
-
-      //check if the file is a directory
-      const stats = await fs.stat(filePath);
-      let isDir = stats.isDirectory();
-      if (isDir) {
-        continue;
-      }
-
-      // Check if the file exists before attempting to delete it
-      if (await fs.pathExists(filePath)) {
-        const stats = await fs.stat(filePath);
-        const currentTime = new Date().getTime();
-        const lastModifiedTime = stats.mtime.getTime();
-
-        // Check if the difference between the current time and last modified time is greater than 10 seconds
-        if (currentTime - lastModifiedTime > 120_000) {
-          // Attempt to delete the file
-          await fs.remove(filePath);
-          console.log(`Removed: ${filePath}`);
-        }
-      } else {
-        console.warn(`File ${filePath} does not exist.`);
-      }
-    }
-  } catch (error) {
-    console.error(`Error removing files: ${error.message}`);
-  }
-};
-
-export const buildPackage = (
+export const buildPackage = async (
   target,
   target2,
   packagePath = process.cwd(),
   logResults: boolean = true,
 ) => {
-  if (target == 'production' || target == 'es5' || target == 'es6' || !target) {
-    if (!fs.existsSync(path.join(packagePath, 'Gruntfile.js'))) {
-      console.warn(
-        `No Gruntfile found at ${packagePath}\\Gruntfile.js. Cannot build.`,
+  // Ensure packagePath is absolute and points to a directory containing package.json; if not, go up until we find one
+  // First, resolve to absolute path
+  let currentPath = path.isAbsolute(packagePath) 
+    ? packagePath 
+    : path.resolve(process.cwd(), packagePath);
+  while (!fs.existsSync(path.join(currentPath, 'package.json'))) {
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      // Reached root and didn't find package.json. Optionally, handle this error.
+      console.error(
+        'No package.json found in ' +
+          packagePath +
+          ' or any parent directories',
       );
-      return;
+      return false;
     }
-
-    var nodeEnv = '';
-    if (target == 'production') {
-      if (
-        !(target2 == 'es5' || target2 == 'es6' || typeof target2 == 'undefined')
-      ) {
-        console.warn('unknown second build target. Use es5 or es6', target2);
-        return;
-      }
-
-      var isWindows = /^win/.test(process.platform);
-      if (isWindows) {
-        nodeEnv = 'SET NODE_ENV=production&& ';
-      } else {
-        nodeEnv = "NODE_ENV='production' ";
-      }
-    }
-    if (!target) {
-      target = 'es6';
-    }
-
-    log(
-      'building once: ' +
-        nodeEnv +
-        'grunt build' +
-        (target ? '-' + target : '') +
-        (target2 ? '-' + target2 : '') +
-        ' --color',
-    );
-    let method = logResults ? execp : execPromise;
-
-    //NOTE: we moved SCSS:JSON out of webpack and grunt, into this file
-    //this is the beginning of a transition away from grunt
-    //but for the time being it's perhaps a bit strange that we
-    // let x = postcss([
-    //   postcssModules({
-    //     generateScopedName,
-    //   }),
-    // ]);
-
-    //execute the command to build the method, and provide the current work directory as option
-    return method(
-      nodeEnv +
-        'grunt build' +
-        (target ? '-' + target : '') +
-        (target2 ? '-' + target2 : '') +
-        ' --color',
-      false,
-      false,
-      {cwd: packagePath},
-    )
-      .then(() => {
-        // Once the build is complete, remove old files
-        return removeOldFiles(packagePath);
-      })
-      .catch((err) => {
-        console.error('Error building package:', err);
-        process.exit(1);
-      });
-  } else {
-    console.warn('unknown build target. Use es5, es6, or production.');
+    currentPath = parentPath;
   }
+  // Always use the resolved absolute path
+  packagePath = currentPath;
+
+  let spinner: Ora;
+  if (logResults) {
+    //TODO: replace with listr so we can show multiple processes at once
+    spinner = ora({
+      discardStdin: true,
+      text: 'Compiling ESM',
+    }).start();
+  }
+  let buildProcess: Promise<boolean | string | void> = Promise.resolve(true);
+  let buildStep = (step) => {
+    buildProcess = buildProcess.then((previousResult) => {
+      if (!previousResult) {
+        return false;
+      }
+      if (logResults) {
+        spinner.text = step.name;
+        spinner.start();
+      }
+      return step.apply().then((stepResult) => {
+        //if a build step returns a string,
+        //a warning is shown but the build is still successful with warnings
+        if (typeof stepResult === 'string') {
+          // spinner.text = step.name + ' - ' + stepResult;
+          if (logResults) {
+            spinner.warn(step.name + ' - ' + stepResult);
+            spinner.stop();
+          }
+          //can still continue
+          return true;
+        } else if (stepResult === true || typeof stepResult === 'undefined') {
+          if (logResults) {
+            spinner.succeed();
+          }
+          return previousResult && true;
+        } else if (typeof stepResult === 'object' && stepResult.error) {
+          if (logResults) {
+            spinner.fail(step.name + ' - ' + stepResult.error);
+            spinner.stop();
+          }
+          //failed and should stop
+          return false;
+        }
+      });
+    });
+  };
+
+  buildStep({
+    name: 'Checking imports',
+    apply: () => checkImports(packagePath + '/src'),
+  });
+  buildStep({
+    name: 'Compiling ESM',
+    apply: async () => {
+      return compilePackageESM(packagePath);
+    },
+  });
+  buildStep({
+    name: 'Compiling CJS',
+    apply: async () => {
+      return compilePackageCJS(packagePath);
+    },
+  });
+  buildStep({
+    name: 'Copying files to lib folder',
+    apply: async () => {
+      const files = await glob(packagePath + '/src/**/*.{json,d.ts,css,scss}');
+      return Promise.all(
+        files.map(async (file) => {
+          try {
+            await fs.copy(
+              file,
+              packagePath +
+                '/lib/esm/' +
+                file.replace(packagePath + '/src/', ''),
+            );
+            await fs.copy(
+              file,
+              packagePath +
+                '/lib/cjs/' +
+                file.replace(packagePath + '/src/', ''),
+            );
+            return true;
+          } catch (err) {
+            console.warn(err);
+            return false;
+          }
+        }),
+      ).then((allResults) => {
+        return allResults.every((r) => r === true);
+      });
+    },
+  });
+  buildStep({
+    name: 'Dual package support',
+    apply: () => {
+      // Skip if no tsconfig files (e.g. pure-CSS packages).
+      if (
+        !fs.existsSync(path.join(packagePath, 'tsconfig-esm.json')) ||
+        !fs.existsSync(path.join(packagePath, 'tsconfig-cjs.json'))
+      ) {
+        return Promise.resolve(true);
+      }
+      // Resolve the binary from the nearest node_modules (supports both
+      // per-package and workspace-root installs of tsconfig-to-dual-package).
+      return execPromise(
+        'npx tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json',
+        false,
+        false,
+        {cwd: packagePath},
+      ).then((res) => {
+        return res === '';
+      });
+    },
+  });
+  buildStep({
+    name: 'Removing old files from lib folder',
+    apply: async () => {
+      return removeOldFiles(packagePath);
+    },
+  });
+  buildStep({
+    name: 'Checking dependencies',
+    apply: () => depCheck(packagePath),
+  });
+
+  let success = await buildProcess.catch((err) => {
+    let msg =
+      typeof err === 'string' || err instanceof Error
+        ? err.toString()
+        : err.error && !err.error.toString().includes('Command failed:')
+          ? err.error
+          : err.stdout + '\n' + err.stderr;
+    if (logResults) {
+      spinner.stopAndPersist({
+        symbol: chalk.red('✖'),
+        // text: 'Build failed',
+      });
+    } else {
+      console.error(chalk.red(packagePath.split('/').pop(), ' - Build failed:'));
+      console.error(err);
+      return msg;
+    }
+    console.log(msg);
+  });
+  //will be undefined if there was an error
+  if (typeof success !== 'undefined' && success !== false) {
+    if (logResults) {
+      spinner.stopAndPersist({
+        symbol: chalk.greenBright('✔'),
+        text:
+          success === true
+            ? 'Build successful'
+            : 'Build successful with warnings',
+      });
+    }
+  } else {
+    if (logResults) {
+      spinner.stopAndPersist({
+        symbol: chalk.red('✖'),
+        text: 'Build failed',
+      });
+    }
+  }
+  return success;
+};
+export const compilePackage = async (packagePath = process.cwd()) => {
+  //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json
+  // let cjsConfig = fs.existsSync(path.join(packagePath,'tsconfig-cjs.json'));
+  // let esmConfig = fs.existsSync(path.join(packagePath,'tsconfig-esm.json'));
+  // let compileCJS = `yarn exec tsc -p tsconfig-cjs.json`;
+  // let compileESM = `yarn exec tsc -p tsconfig-esm.json`;
+  // let compileCommand;
+  // if (cjsConfig && esmConfig)
+  // {
+  //   compileCommand = `${compileCJS} && ${compileESM}`;
+  // }
+  // else if (cjsConfig)
+  // {
+  //   compileCommand = compileCJS;
+  // }
+  // else if (esmConfig)
+  // {
+  //   compileCommand = compileESM;
+  // }
+  // else
+  // {
+  //   compileCommand = `yarn exec tsc`;
+  // }
+  await compilePackageESM(packagePath);
+  await compilePackageCJS(packagePath);
+};
+export const compilePackageESM = async (packagePath = process.cwd()) => {
+  // Skip packages without a tsconfig-esm.json (e.g. pure-CSS packages).
+  if (!fs.existsSync(path.join(packagePath, 'tsconfig-esm.json'))) {
+    return true;
+  }
+  let compileCommand = `npx tsc -p tsconfig-esm.json`;
+  return execPromise(compileCommand, false, false, {cwd: packagePath}).then(
+    (res) => {
+      return res === '';
+    },
+  );
+};
+export const compilePackageCJS = async (packagePath = process.cwd()) => {
+  // Skip packages without a tsconfig-cjs.json.
+  if (!fs.existsSync(path.join(packagePath, 'tsconfig-cjs.json'))) {
+    return true;
+  }
+  let compileCommand = `npx tsc -p tsconfig-cjs.json`;
+  return execPromise(compileCommand, false, false, {cwd: packagePath})
+    .then((res) => {
+      return res === '';
+    })
+    .catch((err) => {
+      return {
+        error: err.stdout,
+      };
+    });
 };
 
 export var publishUpdated = function (test: boolean = false) {
@@ -1752,7 +2757,7 @@ export var publishUpdated = function (test: boolean = false) {
           })
           .catch(({error, stdout, stderr}) => {
             if (error) {
-              console.log(error.message);
+              console.error(error.message);
             }
             if (stdout) {
               console.log(stderr);
@@ -1874,7 +2879,7 @@ export var publishPackage = async function (
       );
     })
     .catch(({error, stdout, stderr}) => {
-      console.log(chalk.red('Failed to publish: ' + error.message));
+      logError('Failed to publish: ' + error.message);
       return chalk.red(pkg.packageName + ' failed to publish');
     });
 };
@@ -1899,26 +2904,27 @@ export var buildUpdated = async function (
   let packages = getLocalLincdPackageMap();
 
   // console.log(packages);
-  let jsonldPkgUpdated = await needsRebuilding(
-    packages.get('lincd-jsonld'),
-    useGitForLastModified,
-  );
+  // let jsonldPkgUpdated = await needsRebuilding(
+  //   packages.get('lincd-jsonld'),
+  //   useGitForLastModified,
+  // );
   // let cliPkgUpdated = await needsRebuilding(packages.get('lincd-cli'), useGitForLastModified);
 
   //if either cli or jsonldPkg needs to be rebuilt
   // if (jsonldPkgUpdated || cliPkgUpdated) {
-  if (jsonldPkgUpdated) {
-    await execPromise(
-      'yarn exec tsc && echo "compiled lincd-jsonld"',
-      false,
-      false,
-      {
-        cwd: packages.get('lincd-jsonld').path,
-      },
-      true,
-    );
-    // await execPromise('yarn build-core', false, false, {}, true);
-  }
+  // if (jsonldPkgUpdated)
+  // {
+  //   await execPromise(
+  //     'yarn exec tsc && echo "compiled lincd-jsonld"',
+  //     false,
+  //     false,
+  //     {
+  //       cwd: packages.get('lincd-jsonld').path,
+  //     },
+  //     true,
+  //   );
+  //   // await execPromise('yarn build-core', false, false, {}, true);
+  // }
   let rebuildAllModules = false;
   // if (cliPkgUpdated) {
   //   rebuildAllModules = true;
@@ -1943,9 +2949,10 @@ export var buildUpdated = async function (
           // true,
         );
 
-        if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated) {
-          needRebuild = true;
-        }
+        // if (pkg.packageName === 'lincd-jsonld' && jsonldPkgUpdated)
+        // {
+        //   needRebuild = true;
+        // }
         if (needRebuild || rebuildAllModules) {
           //TODO: when building a pkg, also rebuild all packages that depend on this package.. and iteratively build packages that depend on those packages..
 
@@ -1956,37 +2963,40 @@ export var buildUpdated = async function (
             return chalk.blue(pkg.packageName + ' should be build');
           }
           log('Building ' + pkg.packageName);
-          return execPromise(
-            'cd ' +
-              pkg.path +
-              ' && yarn build' +
-              (target ? ' ' + target : '') +
-              (target2 ? ' ' + target2 : ''),
-          )
+          const pathToBuild = pkg.path.startsWith('.')
+            ? path.join(process.cwd(), pkg.path)
+            : pkg.path;
+          //if the path is relative,
+          // log('path: ' + pathToBuild);
+          return buildPackage(null, null, pathToBuild, false)
             .then((res) => {
-              debugInfo(chalk.green(pkg.packageName + ' successfully built'));
-              return chalk.green(pkg.packageName + ' built');
+              //empty string or true is success
+              //false is success with warnings
+              //any other string is the build error text
+              //undefined result means it failed
+              if (typeof res === 'undefined' || typeof res === 'string') {
+                logError(
+                  'Failed to build ' + pkg.packageName + '. ' + res ? res : '',
+                );
+                process.exit(1);
+              } else {
+                debugInfo(chalk.green(pkg.packageName + ' successfully built'));
+                return chalk.green(pkg.packageName + ' built');
+              }
             })
-            .catch(({error, stdout, stderr}) => {
-              warn(chalk.red('Failed to build ' + pkg.packageName));
-              console.log(stdout);
+            .catch((err) => {
+              logError(
+                'Failed to build ' + pkg.packageName + '. ' + err.message,
+              );
+              //console.error(err);
               process.exit(1);
-              // let dependentModules = getDependentPackages(dependencies, pkg);
-              // if (dependentModules.length > 0) {
-              //   // printBuildResults(failedModules, done);
-              //   warn(chalk.red(pkg.packageName + ' build failed'));
-              //   warn(
-              //     'Stopping build-updated process because ' +
-              //       dependentModules.length +
-              //       ' other packages depend on this package.\n',
-              //   ); //"+dependentModules.map(d => d.packageName).join(", ")));
-              // }
             });
         }
       };
     },
-    (results) => {
+    (dependencies, results) => {
       if (results.length) {
+        log(chalk.green('Changed packages have been rebuilt'));
         log('Summary:');
         log(results.join('\n'));
       } else {
@@ -1999,11 +3009,13 @@ export var buildUpdated = async function (
 };
 
 const printBuildResults = function (failed, done) {
-  log(
-    'Successfully built: ' +
-      chalk.green([...done].map((m) => m.packageName).join(', ')) +
-      '\n',
-  );
+  if (done.size > 0 || done.length > 0) {
+    log(
+      'Successfully built: ' +
+        chalk.green([...done].map((m) => m.packageName).join(', ')) +
+        '\n',
+    );
+  }
   if (failed.length > 0) {
     warn('Failed to build: ' + chalk.red(failed.join(', ')) + '\n');
   }
@@ -2035,10 +3047,7 @@ export var executeCommandForEachPackage = function (
     }
     let seen = false;
     packages = packages.filter((pkg) => {
-      if (
-        !seen &&
-        (pkg.packageName == startFrom || pkg.packageName == startFrom)
-      ) {
+      if (!seen && pkg.packageName.includes(startFrom)) {
         seen = true;
       }
       return seen;
@@ -2079,11 +3088,11 @@ export var addCapacitor = async function (basePath = process.cwd()) {
 
   log('Adding capacitor');
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'app-static'),
+    path.join(getScriptDir(), '..', '..', 'defaults', 'app-static'),
     targetFolder,
   );
   fs.copySync(
-    path.join(__dirname, '..', 'defaults', 'capacitor', 'scripts'),
+    path.join(getScriptDir(), '..', '..', 'defaults', 'capacitor', 'scripts'),
     path.join(targetFolder, 'scripts'),
   );
 
@@ -2180,21 +3189,59 @@ export var executeCommandForPackage = function (packageName, command) {
     log(
       "Executing 'cd " +
         packageDetails.path +
-        ' && yarn exec lincd' +
+        ' && yarn lincd' +
         (command ? ' ' + command : '') +
         "'",
     );
 
-    return execp(
-      'cd ' +
-        packageDetails.path +
-        ' && yarn exec lincd' +
-        (command ? ' ' + command : ''),
+    spawnChild(
+      process.platform === 'win32' ? 'yarn.cmd' : 'yarn', // Windows quirk
+      ['lincd', command || null],
+      {
+        cwd: packageDetails.path,
+        stdio: 'inherit',
+      },
     );
   } else {
     warn(
       "Could not find a pkg who's name (partially) matched " +
         chalk.cyan(packageName),
     );
+  }
+};
+
+/**
+ * Function to remove files older than 10 seconds from the 'lib' folder.
+ * @param {string} packagePath - The path to the package directory.
+ */
+export const removeOldFiles = async (packagePath) => {
+  const libPath = path.join(packagePath, 'lib');
+
+  try {
+    // Read all files in the 'lib' folder asynchronously
+    const files = await glob(packagePath + '/lib/**/*.*');
+
+    // Iterate through each file
+    for (const file of files) {
+      // const filePath = path.join(libPath, file);
+
+      // Check if the file exists before attempting to delete it
+      // if (await fs.pathExists(filePath)) {
+      const stats = await fs.stat(file);
+      const currentTime = new Date().getTime();
+      const lastModifiedTime = stats.mtime.getTime();
+
+      // Check if the difference between the current time and last modified time is greater than 120 seconds
+      if (currentTime - lastModifiedTime > 120000) {
+        // Attempt to delete the file
+        await fs.unlink(file);
+        // console.log(`Removed: ${file}`);
+      }
+      // }
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error removing files: ${error.message}`);
+    return false;
   }
 };

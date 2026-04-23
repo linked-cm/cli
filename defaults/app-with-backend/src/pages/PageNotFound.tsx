@@ -1,4 +1,5 @@
-import {DefaultLayout} from '../layout/DefaultLayout';
+import React from 'react';
+import { DefaultLayout } from '../layout/DefaultLayout';
 
 export default function PageNotFound() {
   return (

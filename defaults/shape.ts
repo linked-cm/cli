@@ -1,6 +1,6 @@
-import {Shape} from 'lincd/lib/shapes/Shape';
-import {NamedNode} from 'lincd/lib/models';
-import {linkedShape} from '../package';
+import {Shape} from 'lincd/shapes/Shape';
+import {NamedNode} from 'lincd/models';
+import {linkedShape} from '../package.js';
 
 @linkedShape
 export class ${camel_name} extends Shape {

@@ -1,0 +1,137 @@
+/**
+ * LINCD Custom Preflight
+ * 
+ * A modified version of Tailwind's preflight that excludes the problematic
+ * #\# specificity hack selectors, making it compatible with legacy CSS.
+ * 
+ * Based on Tailwind v4 preflight but with sensible :not() exclusions
+ * to preserve inline element styles.
+ */
+
+@layer base {
+  /* Reset all elements except common inline tags and semantic containers */
+  *:not(code):not(pre):not(kbd):not(samp):not(mark):not(q):not(ins):not(del):not(span):not(a):not(b):not(i):not(em):not(u):not(s):not(small):not(strong):not(sub):not(sup),
+  ::before,
+  ::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-style: solid;
+    border-color: currentColor;
+  }
+
+  html {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    font-family: system-ui, sans-serif;
+  }
+
+  body {
+    margin: 0;
+    line-height: inherit;
+    background-color: white;
+  }
+
+  hr {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+
+  abbr {
+    text-decoration: underline dotted;
+  }
+
+  b,
+  strong {
+    font-weight: bolder;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1em;
+  }
+
+  small {
+    font-size: 80%;
+  }
+
+  sub,
+  sup {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+
+  sub {
+    bottom: -0.25em;
+  }
+
+  sup {
+    top: -0.5em;
+  }
+
+  table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+
+  button,
+  input,
+  optgroup,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+    margin: 0;
+    padding: 0;
+    line-height: inherit;
+    background-color: transparent;
+    border-color: inherit;
+  }
+
+  button,
+  select {
+    text-transform: none;
+  }
+
+  button,
+  [type='button'],
+  [type='reset'],
+  [type='submit'] {
+    -webkit-appearance: button;
+    appearance: button;
+  }
+
+  ::-moz-focus-inner {
+    border-style: none;
+    padding: 0;
+  }
+
+  :-moz-focusring {
+    outline: auto;
+  }
+
+  :-moz-ui-invalid {
+    box-shadow: none;
+  }
+
+  fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  legend {
+    padding: 0;
+  }
+}
+

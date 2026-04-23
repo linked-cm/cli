@@ -1,11 +1,11 @@
-const { Storage } = require('lincd/lib/utils/Storage');
-const { LocalFileStore } = require('lincd-server/lib/shapes/filestores/LocalFileStore');
-const { LinkedFileStorage } = require('lincd/lib/utils/LinkedFileStorage');
-const { N3FileStore } = require('lincd-server/lib/shapes/quadstores/N3FileStore');
+import { LinkedStorage } from 'lincd/utils/LinkedStorage';
+import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
+import { LocalFileStore } from 'lincd-server/shapes/filestores/LocalFileStore';
+import { N3FileStore } from 'lincd-server/shapes/quadstores/N3FileStore';
 
 //How quads are stored
-let fileStore = new N3FileStore(process.env.NODE_ENV + '-main');
-Storage.setDefaultStore(fileStore);
+let quadStore = new N3FileStore(process.env.NODE_ENV + '-main');
+LinkedStorage.setDefaultStore(quadStore);
 
 //How files are stored
 let fileStore = new LocalFileStore(process.env.NODE_ENV + '-main');

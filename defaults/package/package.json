@@ -10,29 +10,55 @@
     "type": "git",
     "url": ""
   },
-  "version": "0.1.0",
-  "lincd": true,
-  "main": "lib/index.js",
-  "types": "dist/${output_file_name}.d.ts",
+  "version": "1.0.0",
+  "linkedPackage": true,
+  "main": "lib/cjs/index.js",
+  "module": "lib/esm/index.js",
+  "types": "lib/esm/index.d.ts",
   "license": "ISC",
   "scripts": {
-    "start": "npm exec lincd dev",
-    "build": "npm exec lincd build",
-    "prepublishOnly": "npm exec lincd build production",
-    "postpublish": "npm exec lincd register"
+    "start": "yarn linked dev",
+    "build": "yarn linked build",
+    "prepublishOnly": "yarn linked build production",
+    "postpublish": "yarn linked register"
   },
   "keywords": [
-    "lincd",
+    "linked",
     "linked data",
-    "interoperable",
     "semantic web",
     "web3"
   ],
+  "exports": {
+    ".": {
+      "types": "./lib/esm/index.d.ts",
+      "import": "./lib/esm/index.js",
+      "require": "./lib/cjs/index.js"
+    },
+    "./*.js": {
+      "types": "./lib/esm/*.d.ts",
+      "import": "./lib/esm/*.js",
+      "require": "./lib/cjs/*.js"
+    },
+    "./*": {
+      "types": "./lib/esm/*.d.ts",
+      "import": "./lib/esm/*.js",
+      "require": "./lib/cjs/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "lib/esm/*"
+      ]
+    }
+  },
   "dependencies": {
-    "lincd": "^0.6",
-    "lincd-jsonld": "^0.1"
+    "@_linked/core": "^2.0"
   },
   "devDependencies": {
-    "lincd-cli": "~1.1"
+    "@types/node": "^22.13.14",
+    "@_linked/cli": "^1.2",
+    "tsconfig-to-dual-package": "^1.2.0",
+    "typescript": "^5.7.3"
   }
 }

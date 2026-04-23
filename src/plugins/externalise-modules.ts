@@ -1,5 +1,6 @@
 /// <reference path="colors.d.ts" />
-import colors = require('colors');
+import colors from 'colors';
+import fs from 'fs';
 
 var exportRoot = '/lib';
 var libraryName = 'lincd';
@@ -135,7 +136,7 @@ var externaliseModules = function (config, es5) {
       return callback();
     }
 
-    //remove export root path (for example with lincd/lib/models: the module has lib/ as root, so to get to the exported path lincd.models we need to remove it)
+    //remove export root path (for example with lincd/models: the module has lib/ as root, so to get to the exported path lincd.models we need to remove it)
     let cleanRequest = request.replace(exportRoot, '');
 
     let targetVariable;
@@ -199,7 +200,7 @@ function isLincdModule(debug, packageName: string) {
     let isLincdModule: boolean;
     let modulePackage;
     try {
-      modulePackage = require(packageName + '/package.json');
+      modulePackage = JSON.parse(fs.readFileSync(packageName + '/package.json','utf8'));
     } catch (e) {
       debug(colors.red(packageName + '/package.json' + ' does not exist'));
       // return callback();

@@ -1,16 +1,15 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import chalk from 'chalk';
-import {exec} from 'child_process';
-import ts from 'typescript';
+import {exec, ExecOptions} from 'child_process';
+import * as fs from 'fs';
 import {builtinModules} from 'module';
-import {PackageDetails} from 'interfaces';
+import * as path from 'path';
+import ts from 'typescript';
+import {PackageDetails} from './interfaces';
 
-const {
-  findNearestPackageJson,
-  findNearestPackageJsonSync,
-} = require('find-nearest-package-json');
-var glob = require('glob');
+import * as crypto from 'crypto';
+import {findNearestPackageJsonSync} from 'find-nearest-package-json';
+import * as glob from 'glob';
+
 var gruntConfig;
 
 // Credit: https://gist.github.com/tinovyatkin/727ddbf7e7e10831a1eca9e4ff2fc32e
@@ -29,28 +28,69 @@ const tsHost = ts.createCompilerHost(
 );
 
 export var getFileImports = async function (filePath) {
-  const sourceFile = tsHost.getSourceFile(
-    filePath,
-    ts.ScriptTarget.Latest,
-    (msg) => {
-      throw new Error(`Failed to parse ${filePath}: ${msg}`);
-    },
-  );
-  if (!sourceFile) throw ReferenceError(`Failed to find file ${filePath}`);
-  const importing: string[] = [];
-  delintNode(sourceFile);
-  return importing;
+  try {
+    const importing: string[] = [];
 
-  function delintNode(node: ts.Node) {
-    if (ts.isImportDeclaration(node)) {
-      const moduleName = node.moduleSpecifier.getText().replace(/['"]/g, '');
-      if (
-        !moduleName.startsWith('node:') &&
-        !builtinModules.includes(moduleName)
-      )
-        importing.push(moduleName);
-    } else ts.forEachChild(node, delintNode);
+    const delintNode = (node: ts.Node) => {
+      if (ts.isImportDeclaration(node)) {
+        const moduleName = node.moduleSpecifier.getText().replace(/['"]/g, '');
+        if (
+          !moduleName.startsWith('node:') &&
+          !builtinModules.includes(moduleName)
+        )
+          importing.push(moduleName);
+      } else ts.forEachChild(node, delintNode);
+    };
+    const sourceFile = tsHost.getSourceFile(
+      filePath,
+      ts.ScriptTarget.Latest,
+      (msg) => {
+        throw new Error(`Failed to parse ${filePath}: ${msg}`);
+      },
+    );
+    //check if its a directory, then we wanr that we can't parse it
+    let stat = fs.lstatSync(filePath);
+    if (stat.isDirectory()) {
+      return importing;
+    }
+
+    if (!sourceFile) {
+      console.warn(`Failed to find file ${filePath}`);
+      return importing;
+    }
+    delintNode(sourceFile);
+    return importing;
+  } catch (err) {
+    console.warn(`Error parsing file ${filePath}: ${err}`);
+    return [];
   }
+};
+
+/**
+ *
+ * @param importPath The import path to check
+ * @param curFileDepth How many folders deep the current file is (0 = src, 1 = src/foo, etc.)
+ * @returns
+ */
+export var isInvalidLINCDImport = function (
+  importPath: string,
+  curFileDepth: number,
+) {
+  return (
+    importPath.includes('lincd') &&
+    (importPath.includes('/src/') || importPath.includes('/lib/'))
+  );
+};
+export var isImportOutsideOfPackage = function (
+  importPath: string,
+  curFileDepth: number,
+) {
+  if (importPath.includes('..')) {
+    //the number of '..' in the import path should be less than or equal to the current file depth
+    //if its bigger then the import is outside of the package
+    return importPath.split('..').length - 1 > curFileDepth;
+  }
+  return false;
 };
 
 /**
@@ -77,7 +117,21 @@ export var isValidLINCDImport = function (
   return validLincdPath || validRelativePath;
 };
 
+export var isImportWithMissingExtension = function (importPath: string) {
+  //if  a relative import then it needs an extension
+  if (importPath.startsWith('../') || importPath.startsWith('./')) {
+    //check if the last part of the import after the last slash has a file extension
+    if (importPath.split('/').pop().split('.').length < 2) {
+      //if it doesn't have an extension, then it's missing, so return true
+      return true;
+    }
+  }
+  return false;
+};
+
 export var getPackageJSON = function (root = process.cwd(), error = true) {
+  // console.log('Getting package.json from ' + chalk.cyan(root));
+  //log stack trace
   let packagePath = path.join(root, 'package.json');
   if (fs.existsSync(packagePath)) {
     return JSON.parse(fs.readFileSync(packagePath, 'utf8'));
@@ -198,12 +252,14 @@ export var getLINCDDependencies = function (
 
     // a simple sort with dependencyMap doesn't seem to work,so we start with LINCD (least dependencies) and from there add packages that have all their dependencies already added
     let sortedPackagePaths = [];
-    let addedPackages = new Set(['lincd']);
-    sortedPackagePaths.push(
-      lincdPackagePaths.find(([packageName]) => {
-        return packageName === 'lincd';
-      }),
-    );
+    let addedPackages = new Set();
+    let lincdItself = lincdPackagePaths.find(([packageName]) => {
+      return packageName === 'lincd';
+    });
+    if (lincdItself) {
+      sortedPackagePaths.push(lincdItself);
+      addedPackages = new Set(['lincd']);
+    }
 
     while (addedPackages.size !== lincdPackagePaths.length) {
       let startSize = addedPackages.size;
@@ -245,9 +301,9 @@ export const getLastBuildTime = (packagePath) => {
 };
 
 export const getLastModifiedSourceTime = (packagePath) => {
-  return getLastModifiedFile(packagePath + '/@(src|data|scss|modules)/**/*', {
+  return getLastModifiedFile(packagePath + '/@(src|data|css|modules)/**/*', {
     ignore: [
-      packagePath + '/**/*.scss.json',
+      packagePath + '/**/*.css.json',
       packagePath + '/**/*.d.ts',
       packagePath + '/**/node_modules/**/*',
       packagePath + '/**/lib/**/*',
@@ -333,20 +389,6 @@ export var getModulePackageJSON = function (module_name, work_dir?) {
 
   return [package_json, module_dir];
 };
-export var getGruntConfig = function (root = process.cwd(), error = true) {
-  let gruntFile = path.join(root, 'Gruntfile.js');
-  if (fs.existsSync(gruntFile)) {
-    return require(gruntFile)();
-  } else if (root === process.cwd()) {
-    if (error) {
-      console.warn(
-        'Could not find Gruntfile.js. Make sure you run this command from the root of a lincd module or a lincd yarn workspace',
-      );
-      process.exit();
-    }
-  }
-};
-
 export function execp(
   cmd,
   log: boolean = false,
@@ -409,7 +451,7 @@ export function execPromise(
   command,
   log = false,
   allowError: boolean = false,
-  options?: any,
+  options?: ExecOptions,
   pipeOutput: boolean = false,
 ): Promise<string> {
   return new Promise(function (resolve, reject) {
@@ -440,27 +482,25 @@ export function execPromise(
   });
 }
 
-// export function generateScopedName(moduleName,name, filename, css) {
-export function generateScopedName(
-  isProduction,
-  isWebpack,
-  cssClassName,
-  filepath,
-  css,
-) {
+export function generateScopedNameProduction(cssClassName, filepath, css?) {
   //for app development we can use short unique hashes
   //but for webpack bundles of lincd modules, we need to ensure unique class names across bundles of many packages
-  if (isProduction && !isWebpack) {
-    //generate a short unique hash based on cssClassName and filepath
-    let hash = require('crypto')
-      .createHash('md5')
-      .update(cssClassName + filepath)
-      .digest('hex')
-      .substring(0, 6);
-    return hash;
-  }
-  var filename = path.basename(filepath, '.scss');
-  let nearestPackageJson = findNearestPackageJsonSync(filename);
+  //generate a short unique hash based on cssClassName and filepath
+  let hash = crypto
+    .createHash('md5')
+    .update(cssClassName + filepath)
+    .digest('hex')
+    .substring(0, 6);
+  return hash;
+}
+export function generateScopedName(cssClassName, filepath, css?) {
+  // return cssClassName;
+  var filename = path
+    .basename(filepath)
+    .replace(/\.module\.css$/, '')
+    .replace(/\.css$/, '');
+  let resolved = path.resolve(filepath).replace(/[\w\-_\/]+\/file\:/, '');
+  let nearestPackageJson = findNearestPackageJsonSync(resolved);
   let packageName = nearestPackageJson
     ? nearestPackageJson.data.name
     : 'unknown';
@@ -575,13 +615,31 @@ export function getLinkedTailwindColors() {
  * @param dir The directory to get files from
  * @returns A promise that resolves to an array of file paths
  */
-export async function getFiles(dir: string): Promise<string[]> {
+export async function getFiles(
+  dir: string,
+  filenameFilter?: string,
+): Promise<string[]> {
   const entries = await fs.promises.readdir(dir, {withFileTypes: true});
-  const files = await Promise.all(
+  let files = await Promise.all(
     entries.map((entry) => {
       const res = path.resolve(dir, entry.name);
-      return entry.isDirectory() ? getFiles(res) : res;
+      return entry.isDirectory() ? getFiles(res, filenameFilter) : res;
     }),
   );
-  return Array.prototype.concat(...files);
+  //flatten the array of arrays into a single array
+  let flatFiles = flatten(files) as string[];
+  if (filenameFilter) {
+    //filter the files to only include those that match the filenameFilter
+    flatFiles = flatFiles.filter((file) => file.includes(filenameFilter));
+  }
+  return flatFiles;
+}
+
+/**
+ * Strip ANSI escape codes from a string
+ * @param str The string to strip ANSI codes from
+ * @returns The string with ANSI codes removed
+ */
+export function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, '');
 }

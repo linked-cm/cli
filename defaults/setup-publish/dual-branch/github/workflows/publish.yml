@@ -1,0 +1,122 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Publish Stable Release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Create release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: npx changeset publish
+          title: "chore: release"
+          commit: "chore: release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.{{NPM_SECRET_NAME}} }}
+          NPM_TOKEN: ${{ secrets.{{NPM_SECRET_NAME}} }}
+
+  sync-version-to-dev:
+    name: Sync Version to Dev
+    needs: release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Sync package.json version from main via PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MAIN_VERSION=$(git show origin/main:package.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          DEV_VERSION=$(node -p "require('./package.json').version")
+          if [ "$MAIN_VERSION" != "$DEV_VERSION" ]; then
+            BRANCH="chore/sync-version-${MAIN_VERSION}"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git checkout -b "$BRANCH"
+            npm version "$MAIN_VERSION" --no-git-tag-version --allow-same-version
+            git add package.json package-lock.json
+            git commit -m "chore: sync package.json version to $MAIN_VERSION from main"
+            git push origin "$BRANCH"
+            gh pr create \
+              --base dev \
+              --head "$BRANCH" \
+              --title "chore: sync package.json version to $MAIN_VERSION from main" \
+              --body "Automated version sync from main after release."
+          fi
+
+  dev-release:
+    name: Publish Dev Release
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish next release
+        run: |
+          # Start from main's version so changesets apply on top of the latest stable
+          git fetch origin main --depth=1
+          MAIN_VERSION=$(git show origin/main:package.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          npm version "$MAIN_VERSION" --no-git-tag-version --allow-same-version
+          # Apply pending changesets to get the next version
+          npx changeset version
+          NEXT_VERSION=$(node -p "require('./package.json').version")
+          # Append dev prerelease identifier
+          DEV_VERSION="${NEXT_VERSION}-next.$(date +%Y%m%d%H%M%S)"
+          npm version "$DEV_VERSION" --no-git-tag-version
+          npm publish --tag next
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.{{NPM_SECRET_NAME}} }}
+          NPM_TOKEN: ${{ secrets.{{NPM_SECRET_NAME}} }}

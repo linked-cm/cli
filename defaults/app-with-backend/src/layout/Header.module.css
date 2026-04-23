@@ -1,0 +1,25 @@
+.header {
+  display: block;
+}
+
+.menu {
+  margin: 1rem 0 3rem;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-gap: 1rem;
+  > a {
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+    background: black;
+    color: white;
+    padding: 5px 10px;
+    text-decoration: none;
+    &.active {
+      background: white;
+      color: black;
+      box-shadow: 1px 8px 10px #888;
+      border: 1px solid #444;
+    }
+  }
+}

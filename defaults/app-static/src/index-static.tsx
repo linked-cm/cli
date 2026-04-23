@@ -8,7 +8,7 @@ import {AppContextProvider} from 'lincd-server-utils/lib/components/AppContext';
 import './config-frontend';
 
 const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
+  document.getElementById('root') as HTMLElement,
 );
 
 root.render(
@@ -18,5 +18,5 @@ root.render(
         <App />
       </AppContextProvider>
     </BrowserRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
