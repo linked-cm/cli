@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2
+
+### Patch Changes
+
+- [#19](https://github.com/linked-cm/cli/pull/19) [`2111d11`](https://github.com/linked-cm/cli/commit/2111d113039c95304458e72c29dc2a58ca97ba16) Thanks [@flyon](https://github.com/flyon)! - Remove `prepack: yarn build && pinst --disable` and `postpack: pinst --enable` scripts. These were conflicting with the CI publish flow (ENEEDAUTH on the actual `npm publish` call). Build now happens only in the dedicated CI "Build" step. Also remove `postinstall: husky install` (not needed for published installs).
+
 ## 1.3.0
 
 ### Minor Changes
