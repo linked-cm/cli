@@ -156,9 +156,9 @@ async function updateGitignore(cwd: string): Promise<void> {
     '*.log',
     '.DS_Store',
     '',
-    '# Compiled artifacts from tsc should live in lib/, never under src/.',
-    '# (.js alone is NOT ignored — some packages have legit .js test helpers/config.)',
-    'src/**/*.d.ts',
+    '# tsc sourcemap output — always in lib/, never src/.',
+    '# (.d.ts not ignored — hand-written type declarations like colors.d.ts',
+    '#  are legit src files.)',
     'src/**/*.js.map',
   ];
   const existing = fs.existsSync(gitignorePath)
