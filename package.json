@@ -1,6 +1,6 @@
 {
   "name": "@_linked/cli",
-  "version": "1.2.11",
+  "version": "1.3.1",
   "description": "Command line tools for the @_linked/* packages and apps",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
@@ -38,9 +38,6 @@
     "copy-to-lib": "echo '💫 Copying CSS assets to lib folder' && yarn copyfiles -u 1 'src/**/*.css' lib/esm && yarn copyfiles -u 1 'src/**/*.css' lib/cjs",
     "dev": "yarn tsc -p tsconfig-esm.json -w",
     "dev-cjs": "yarn tsc -p tsconfig-cjs.json -w",
-    "postinstall": "husky install",
-    "prepack": "yarn build && pinst --disable",
-    "postpack": "pinst --enable",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
     "format": "yarn prettier:fix && yarn lint:fix"
