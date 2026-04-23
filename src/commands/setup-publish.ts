@@ -18,6 +18,7 @@ export type SetupPublishOptions = {
   configureGithub?: boolean;
   scope?: 'core' | 'community'; // which NPM secret name to use
   dualBranch?: boolean; // main + dev with `@next` prereleases on dev
+  grantTeam?: string; // GitHub team slug to grant push access on the repo
 };
 
 /**
@@ -82,8 +83,13 @@ export async function setupPublish(opts: SetupPublishOptions = {}): Promise<void
     await configureGithub(repoSlug);
   }
 
+  // 8. Optional: grant a GitHub team push access
+  if (opts.grantTeam) {
+    await grantTeamAccess(repoSlug, opts.grantTeam);
+  }
+
   // Summary + manual steps
-  printNextSteps(repoSlug, npmSecretName, opts.configureGithub);
+  printNextSteps(repoSlug, npmSecretName, opts.configureGithub, opts.grantTeam);
 }
 
 async function resolveRepoSlug(cwd: string, pkgJson: any): Promise<string> {
@@ -299,7 +305,40 @@ async function configureGithub(repoSlug: string): Promise<void> {
   }
 }
 
-function printNextSteps(repoSlug: string, npmSecretName: string, configuredGithub: boolean | undefined): void {
+async function grantTeamAccess(repoSlug: string, teamSlug: string): Promise<void> {
+  console.log('');
+  console.log(chalk.magenta(`Granting '${teamSlug}' team push access to ${repoSlug}...`));
+
+  try {
+    await execPromise('gh --version', false, false);
+  } catch {
+    console.warn(chalk.yellow("  ⚠ `gh` CLI not found. Install from https://cli.github.com/ and retry with --grant-team,"));
+    console.warn(chalk.yellow(`    or add the team manually at https://github.com/${repoSlug}/settings/access`));
+    return;
+  }
+
+  const [owner, repo] = repoSlug.split('/');
+  try {
+    await execPromise(
+      `gh api -X PUT /orgs/${owner}/teams/${teamSlug}/repos/${owner}/${repo} -f permission=push`,
+      false,
+      false,
+    );
+    console.log(chalk.green('  ✓') + ` team '${teamSlug}' granted push access on ${repoSlug}`);
+  } catch (err: any) {
+    const msg = err?.stderr || err?.stdout || String(err);
+    console.warn(chalk.yellow(`  ⚠ Failed to grant team access: ${msg.slice(0, 200)}`));
+    console.warn(chalk.yellow(`    Team may not exist in org '${owner}', or you may lack admin rights.`));
+    console.warn(chalk.yellow(`    Manual: https://github.com/${repoSlug}/settings/access`));
+  }
+}
+
+function printNextSteps(
+  repoSlug: string,
+  npmSecretName: string,
+  configuredGithub: boolean | undefined,
+  grantedTeam: string | undefined,
+): void {
   console.log('');
   console.log(chalk.green('Done.'));
   console.log('');
