@@ -18,7 +18,7 @@ export type SetupPublishOptions = {
   configureGithub?: boolean;
   scope?: 'core' | 'community'; // which NPM secret name to use
   dualBranch?: boolean; // main + dev with `@next` prereleases on dev
-  grantTeam?: string; // GitHub team slug to grant push access (e.g. 'semantu-devs')
+  grantTeam?: string; // GitHub team slug to grant push access on the repo
 };
 
 /**
