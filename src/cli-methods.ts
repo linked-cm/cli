@@ -1468,7 +1468,7 @@ export const checkImports = async (
   let flat = [...invalidImports.values()].flat();
   // All recursion must have finished, display any errors
   if (depth === 0 && flat.length > 0) {
-    res += chalk.yellow('Import warnings (non-fatal):\n');
+    res += chalk.red('Invalid imports found.\n');
 
     invalidImports.forEach((value, key) => {
       // res += '- '+chalk.blueBright(key.split('/').pop()) + ':\n';
@@ -1486,13 +1486,13 @@ export const checkImports = async (
           message +=
             ' which should end with a file extension. Like .js or .scss';
         }
-        res += chalk.yellow(message + '\n');
+        res += chalk.red(message + '\n');
       });
     });
 
-    // Return as a string so buildStep treats this as a warning (build continues)
-    // rather than throwing and aborting the compile pipeline.
-    return res;
+    // Throw so buildStep aborts the compile pipeline — relative imports MUST
+    // have .js (or .scss) extensions for native-ESM-compatible output.
+    throw res;
   } else if (depth === 0 && invalidImports.size === 0) {
     // console.info('All imports OK');
     // process.exit(0);
