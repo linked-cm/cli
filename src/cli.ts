@@ -357,12 +357,17 @@ program
     'Which NPM secret to reference in the publish workflow: "core" uses NPM_AUTH_TOKEN, "community" uses NPM_AUTH_TOKEN_CM. Defaults to "core".',
     'core',
   )
+  .option(
+    '--grant-team <slug>',
+    'GitHub team slug to grant push access (e.g. "semantu-devs"). Requires gh CLI.',
+  )
   .action(async (options) => {
     const {setupPublish} = await import('./commands/setup-publish.js');
     await setupPublish({
       configureGithub: !!options.configureGithub,
       dualBranch: !!options.dualBranch,
       scope: options.scope === 'community' ? 'community' : 'core',
+      grantTeam: options.grantTeam,
     });
   });
 

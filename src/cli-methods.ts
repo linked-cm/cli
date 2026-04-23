@@ -2405,6 +2405,31 @@ export const buildPackage = async (
   // Always use the resolved absolute path
   packagePath = currentPath;
 
+  // Guard: `linked build` only makes sense for linkedPackage. Apps must use
+  // `linked build-app`. Plain packages (no linked flag) have no build pipeline
+  // defined here and should have their own build script.
+  const pkgJson = JSON.parse(
+    fs.readFileSync(path.join(packagePath, 'package.json'), 'utf8'),
+  );
+  const isPackage = pkgJson.linkedPackage === true || pkgJson.lincd === true;
+  const isApp = pkgJson.linkedApp === true || pkgJson.lincdApp === true;
+  if (!isPackage) {
+    if (isApp) {
+      console.error(
+        chalk.red(
+          `'${pkgJson.name || packagePath}' is a linkedApp, not a linkedPackage. Use 'linked build-app' instead of 'linked build'.`,
+        ),
+      );
+    } else {
+      console.error(
+        chalk.red(
+          `'${pkgJson.name || packagePath}' does not have 'linkedPackage: true' in package.json. 'linked build' only builds linked packages. Add the flag or run a different build command.`,
+        ),
+      );
+    }
+    return false;
+  }
+
   let spinner: Ora;
   if (logResults) {
     //TODO: replace with listr so we can show multiple processes at once
