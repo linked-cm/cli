@@ -133,7 +133,7 @@
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "tsconfig-to-dual-package": "^1.2.0",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3",
+    "typescript": "^5.4.0",
     "typescript-plugin-css-modules": "^5.1.0",
     "webpack": "^5.90.3",
     "webpack-bundle-analyzer": "^4.10.1",
@@ -142,12 +142,12 @@
     "webpack-typings-for-css": "^0.13.0"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "husky": "^9.0.11",
     "optimize-css-assets-webpack-plugin": "^6.0.1",
     "pinst": "^3.0.0",
-    "prettier": "^3.2.5",
-    "@changesets/cli": "^2.29.8",
-    "@changesets/changelog-github": "^0.5.2"
+    "prettier": "^3.2.5"
   },
   "peerDepencencies": {},
   "type": "module"
