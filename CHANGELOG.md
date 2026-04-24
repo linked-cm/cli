@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.3
+
+### Patch Changes
+
+- [`8179c96`](https://github.com/linked-cm/cli/commit/8179c9627757be6c67de44e22b6ae7b08e83bcc1) - Remove webpack loader `./plugins/check-imports` from the package barrel (`src/index.ts`). The loader is CJS (uses `require()`) and was crashing ESM consumers at import time with "require is not defined in ES module scope". Webpack loads this file directly by path via `config-webpack.ts`, so no public export is needed. Also fix two relative imports in `tailwind.config.ts` and `utils.ts` that were missing `.js` extensions.
+
+- [#19](https://github.com/linked-cm/cli/pull/19) [`eb1224e`](https://github.com/linked-cm/cli/commit/eb1224ea65ae65d7f534923b286d5daa0cdc151d) Thanks [@flyon](https://github.com/flyon)! - Remove `prepack: yarn build && pinst --disable` and `postpack: pinst --enable` scripts. These were conflicting with the CI publish flow (ENEEDAUTH on the actual `npm publish` call). Build now happens only in the dedicated CI "Build" step. Also remove `postinstall: husky install` (not needed for published installs).
+
 ## 1.3.2
 
 ### Patch Changes
