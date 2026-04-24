@@ -1,4 +1,4 @@
-import getLincdSources from './plugins/lincd-tailwind-sources';
+import getLincdSources from './plugins/lincd-tailwind-sources.js';
 // console.log('✅ Loaded tailwind.config.js');
 
 // This config is used via @config directive in theme.css

@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import {builtinModules} from 'module';
 import * as path from 'path';
 import ts from 'typescript';
-import {PackageDetails} from './interfaces';
+import {PackageDetails} from './interfaces.js';
 
 import * as crypto from 'crypto';
 import {findNearestPackageJsonSync} from 'find-nearest-package-json';
