@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.4
+
+### Patch Changes
+
+- [`67f01ab`](https://github.com/linked-cm/cli/commit/67f01abcbed04625175a5c82e584f09fee41cdea) - Remove `preflight.css` — moved to `@_linked/css`.
+
+  `preflight.css` is a CSS asset; it belongs in the CSS package alongside `theme-defaults.css` and `utilities.css`. Consumers should update imports from `@_linked/cli/preflight.css` to `@_linked/css/preflight.css`.
+
+  The exports entry `"./preflight.css": "./preflight.css"` is also removed from `package.json`.
+
+- [`2b40588`](https://github.com/linked-cm/cli/commit/2b405880cbb21992c5005cb048f910df79c32145) - Relax `typescript` dep from `^5.7.3` to `^5.4.0` so consumers that pin a lower 5.x version (e.g. CN at 5.4.5) don't end up with a nested `typescript@5.9.x` install in `packages/cli/node_modules/`. The nested 5.9.x was incompatible with `react-refresh-typescript@2.0.12`'s AST walk — crashed frontend builds with `TypeError: Cannot read properties of undefined (reading 'declarations')` inside `VariableStatement.declarationList.declarations` traversal.
+
 ## 1.3.3
 
 ### Patch Changes
