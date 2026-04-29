@@ -1,4 +1,10 @@
-@import 'tailwindcss';
+/* Tailwind v4 layers — split-import pattern to substitute the LINCD preflight.
+   See @_linked/css README "Why the split-import?" for details. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import '@_linked/css/preflight.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
+
 /*apply tailwind config, which ensures that all LINCD components are considered "content" for tailwind */
 @config "../node_modules/@_linked/cli/lib/esm/tailwind.config.js";
 
