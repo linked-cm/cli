@@ -2,6 +2,11 @@
 /*apply tailwind config, which ensures that all LINCD components are considered "content" for tailwind */
 @config "../node_modules/@_linked/cli/lib/esm/tailwind.config.js";
 
+/* @_linked/css: framework theme defaults + utility mixins.
+   App-specific @theme overrides below extend / replace these defaults. */
+@import '@_linked/css/theme-defaults.css';
+@import '@_linked/css/utilities.css';
+
 /*Use this to generate ALL css variables */
 /*@theme static {*/
 /*    --*: initial;*/
