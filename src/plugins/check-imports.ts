@@ -1,27 +1,42 @@
-// file: my-webpack-loader.js
-const {getOptions} = require('loader-utils');
-// const validateOptions = require('schema-utils');
-const path = require('path');
+import path from 'path';
 
-// const schema = {
-//   type: 'object',
-//   properties: {
-//     test: {
-//       type: 'string',
-//     },
-//   },
-// };
-let tsconfig, baseUrl, outDir;
-try {
-  tsconfig = require(path.resolve(process.cwd(), './tsconfig.json'));
-  baseUrl = path.resolve(process.cwd(), tsconfig.compilerOptions.baseUrl);
-  outDir = tsconfig.compilerOptions.outDir;
-} catch (err) {
-  console.warn('Could not find tsconfig for checking imports');
+// Lazily-loaded CJS deps. We deliberately avoid top-level `require(...)` so
+// that native-ESM consumers (e.g. backend package indexing that does
+// `import('@_linked/cli')`) do not crash with "require is not defined".
+// `handler` is only ever invoked by webpack, which is a CJS environment, so
+// the global `require` is available at call time.
+let getOptions: ((ctx: unknown) => unknown) | undefined;
+let tsconfig: {compilerOptions: {baseUrl: string; outDir?: string}} | undefined;
+let baseUrl: string | undefined;
+let outDir: string | undefined;
+
+function ensureInitialized(): void {
+  if (getOptions) return;
+  // file: my-webpack-loader.js
+  ({getOptions} = require('loader-utils'));
+  // const validateOptions = require('schema-utils');
+
+  // const schema = {
+  //   type: 'object',
+  //   properties: {
+  //     test: {
+  //       type: 'string',
+  //     },
+  //   },
+  // };
+  try {
+    tsconfig = require(path.resolve(process.cwd(), './tsconfig.json'));
+    baseUrl = path.resolve(process.cwd(), tsconfig!.compilerOptions.baseUrl);
+    outDir = tsconfig!.compilerOptions.outDir;
+  } catch (err) {
+    console.warn('Could not find tsconfig for checking imports');
+  }
 }
 
-export default function handler(source) {
-  const options = getOptions(this);
+function handler(this: any, source: string): string {
+  ensureInitialized();
+
+  const options = getOptions!(this);
 
   //e.g. lincd.org/modules/schema
   let rootContext = this.rootContext;
@@ -57,13 +72,14 @@ export default function handler(source) {
   //if its a relative import,and its not in the baseUrl, throw an error
   if (
     isRelativeReq &&
+    baseUrl &&
     this.resourcePath.indexOf(baseUrl) !== 0 &&
     this.resourcePath.indexOf('node_modules') === -1
   ) {
     this.emitError(
       Error(
-        `LINCD Error: You are importing a file from outside the baseUrl ${tsconfig.compilerOptions.baseUrl}. 
-        ${relativePath} is not in ${tsconfig.compilerOptions.baseUrl}.`,
+        `LINCD Error: You are importing a file from outside the baseUrl ${tsconfig!.compilerOptions.baseUrl}. 
+        ${relativePath} is not in ${tsconfig!.compilerOptions.baseUrl}.`,
       ),
     );
   }
@@ -76,4 +92,13 @@ export default function handler(source) {
   return source;
 }
 
-module.exports = handler;
+export default handler;
+
+// Webpack loaders are consumed as CJS — webpack expects the loader to be
+// `module.exports`. Set it only in CJS evaluation; in ESM, `module` is not a
+// global and this branch is skipped, so it stays import-safe either way.
+declare const module: any;
+if (typeof module !== 'undefined' && module?.exports) {
+  module.exports = handler;
+  module.exports.default = handler;
+}
