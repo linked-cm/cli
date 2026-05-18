@@ -5,8 +5,8 @@ import { N3FileStore } from 'lincd-server/shapes/quadstores/N3FileStore';
 
 //How quads are stored
 let quadStore = new N3FileStore(process.env.NODE_ENV + '-main');
-LinkedStorage.setDefaultStore(quadStore);
+LinkedStorage.setDefaultDataset(quadStore);
 
 //How files are stored
 let fileStore = new LocalFileStore(process.env.NODE_ENV + '-main');
-LinkedFileStorage.setDefaultStore(fileStore);
+LinkedFileStorage.setDefaultDataset(fileStore);

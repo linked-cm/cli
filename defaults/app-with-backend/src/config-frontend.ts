@@ -6,7 +6,7 @@ import { LinkedStorage } from 'lincd/utils/LinkedStorage';
 // store all quads in a file on the backend named 'main'
 // export const store = new BackendFileStore('main');
 const store = new BackendAPIStore();
-LinkedStorage.setDefaultStore(store);
+LinkedStorage.setDefaultDataset(store);
 
 // determine where assets at loaded from
 // if (process.env.NODE_ENV === 'development') {
