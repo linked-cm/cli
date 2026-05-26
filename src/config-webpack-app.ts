@@ -162,6 +162,11 @@ export const getWebpackAppConfig = async () => {
   // set up the storage config for the app
   await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
   const accessURL = LinkedFileStorage.accessURL;
+  const staticAccessURL = (
+    process.env.STATIC_ACCESS_URL ||
+    accessURL ||
+    ''
+  ).replace(/\/$/, '');
 
   // set up the public path for the app
   // for Capacitor apps (APP_ENV is set), use /bundles/ since Capacitor's webDir strips /public (see: capacitor.config.ts)
@@ -173,8 +178,9 @@ export const getWebpackAppConfig = async () => {
   // ASSET_PATH is used load the assets from the correct path
   // if ASSET_PATH is set in environment (app builds), use it directly
   // otherwise, use CDN URL + bundlesPath for production, or bundlesPath for development
-  const ASSET_PATH = process.env.ASSET_PATH || 
-    (accessURL ? accessURL + bundlesPath : bundlesPath);
+  const ASSET_PATH =
+    process.env.ASSET_PATH ||
+    (staticAccessURL ? staticAccessURL + bundlesPath : bundlesPath);
 
   let config = await getLincdConfig();
 
@@ -243,7 +249,7 @@ export const getWebpackAppConfig = async () => {
           return cleanedUrl;
         }
 
-        const baseUrl = (accessURL || '').replace(/\/$/, '');
+        const baseUrl = staticAccessURL;
         return `${baseUrl}${publicPath}${cleanedUrl}`;
       },
     }),

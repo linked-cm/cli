@@ -1886,13 +1886,17 @@ export const buildFrontend = async () => {
     });
   }).then(async () => {
     // make sure environment is not development for storage config
-    // and if we want to upload to storage, we need set S3_BUCKET_ENDPOINT
+    // and ensure remote storage config exists for publish
+    const hasRemoteStorageEndpoint =
+      process.env.STATIC_S3_BUCKET_ENDPOINT ||
+      process.env.UPLOADS_S3_BUCKET_ENDPOINT ||
+      process.env.S3_BUCKET_ENDPOINT;
     if (
       process.env.NODE_ENV === 'development' ||
-      !process.env.S3_BUCKET_ENDPOINT
+      !hasRemoteStorageEndpoint
     ) {
       console.warn(
-        'Upload build to storage skip in development environment or S3_BUCKET_ENDPOINT is not set',
+        'Upload build to storage skipped in development environment or no S3 endpoint is configured',
       );
       return;
       // process.exit();
@@ -1909,9 +1913,12 @@ export const buildFrontend = async () => {
       path.join(process.cwd(), 'scripts', 'storage-config.js')
     );
 
-    // check if LincdFileStorage has a default FileStore
-    // if yes: copy all the files in the build folder over with LincdFileStorage
-    if (LinkedFileStorage.getDefaultStore()) {
+    const publishStore =
+      storageConfig.staticFileStore || LinkedFileStorage.getDefaultStore();
+
+    // check if we have a publish store
+    // if yes: copy all the files in the build folder over with that store
+    if (publishStore) {
       // get public directory
       const rootDirectory = 'public';
       const pathDir = path.join(process.cwd(), rootDirectory);
@@ -1944,7 +1951,8 @@ export const buildFrontend = async () => {
         const pathname = filePath.replace(pathDir, `/${rootDirectory}`);
 
         // upload file to storage
-        await LinkedFileStorage.saveFile(pathname, fileContent)
+        await publishStore
+          .saveFile(pathname, fileContent)
           .then(() => {
             clearSpinner.text = `${counter++}/${files.length}: - Published ${pathname} `;
           })
