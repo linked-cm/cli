@@ -3,9 +3,13 @@ import { getAccessUrlLocalFileStore } from '@_linked/server/utils/accessUrl';
 import { BackendAPIStore } from '@_linked/server/shapes/quadstores/BackendAPIStore';
 import { LinkedStorage } from '@_linked/core/utils/LinkedStorage';
 
-// store all quads in a file on the backend named 'main'
-// export const store = new BackendFileStore('main');
-const store = new BackendAPIStore();
+// Frontend store: a proxy that forwards every query to this app's backend
+// via /call/... endpoints. The backend in turn talks to Fuseki (configured
+// in scripts/storage-config.js). The name passed to BackendAPIStore gives
+// the proxy a deterministic instance URI so the request-side serialisation
+// can reconstruct the store on the server. Match it to your dataset name
+// (defaults to '${hyphen_name}-main' to mirror storage-config.js).
+const store = new BackendAPIStore('${hyphen_name}-main');
 LinkedStorage.setDefaultDataset(store);
 
 // determine where assets at loaded from

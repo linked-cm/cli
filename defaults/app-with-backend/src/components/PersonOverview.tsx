@@ -18,7 +18,11 @@ function PersonList({ refreshKey }: { refreshKey: number }) {
     let cancelled = false;
     Person.select((p) => [p.givenName, p.familyName])
       .then((results) => {
-        if (!cancelled) setRows(results as PersonRow[]);
+        if (cancelled) return;
+        // results may be undefined if the backend call failed silently;
+        // coerce to an empty array so the UI shows "No people yet" rather
+        // than rendering forever in the loading state.
+        setRows(Array.isArray(results) ? (results as PersonRow[]) : []);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -31,7 +35,7 @@ function PersonList({ refreshKey }: { refreshKey: number }) {
     };
   }, [refreshKey]);
 
-  if (rows === null) return <p>Loading…</p>;
+  if (!rows) return <p>Loading…</p>;
   if (rows.length === 0) return <p>No people yet. Add one below.</p>;
 
   return (
