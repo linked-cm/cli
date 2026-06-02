@@ -162,8 +162,9 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     `Make sure Fuseki is running, e.g.:`,
     `  ${chalk.blueBright('docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki')}`,
     `or edit ${chalk.cyan('scripts/storage-config.js')} to point at a different endpoint.`,
-    `\nTo start:`,
-    `  ${chalk.blueBright(`cd ${hyphenName} && yarn start`)}`,
+    `\nTo start (with npm or yarn):`,
+    `  ${chalk.blueBright(`cd ${hyphenName} && npm start`)}`,
+    `  ${chalk.gray('# or: yarn start')}`,
   );
 };
 

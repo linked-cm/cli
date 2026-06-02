@@ -20,6 +20,15 @@ multiple datasets.
 
 ## Run
 
+With npm:
+
+```bash
+npm install
+npm start
+```
+
+Or with yarn:
+
 ```bash
 yarn install
 yarn start
@@ -27,14 +36,14 @@ yarn start
 
 The home page renders a small Person overview that demonstrates the
 `@_linked` query DSL — see `src/components/PersonOverview.tsx` for the
-linked-set list and `src/components/PersonPreview.tsx` for the per-row
+list query and `src/components/PersonPreview.tsx` for the per-row
 sub-query, optimistic update, and delete pattern.
 
 ## Build for production
 
 ```bash
-yarn build
-yarn server:prod
+npm run build
+npm run server:prod
 ```
 
 ## Learn more
