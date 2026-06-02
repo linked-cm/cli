@@ -1,19 +1,47 @@
-# installation
+# ${name}
 
-Optional: to work on source of any `@_linked/*` packages locally, edit `mrgit-template.json` to list the packages you want cloned into `packages/`. Then run:
+A standalone [Linked](https://linked.cm) app generated with `@_linked/cli`.
+
+## Storage
+
+This app talks to an Apache Jena Fuseki SPARQL endpoint. Defaults:
+
+- `FUSEKI_BASE_URL` — `http://localhost:3030`
+- `FUSEKI_DATASET`  — `${hyphen_name}-main`
+
+Start a local Fuseki container:
 
 ```bash
-yarn setup
+docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki
 ```
 
-Otherwise just install dependencies:
+Edit `scripts/storage-config.js` to point at a different endpoint or to add
+multiple datasets.
+
+## Run
 
 ```bash
 yarn install
-```
-
-Start the app:
-
-```bash
 yarn start
 ```
+
+The home page renders a small Person overview that demonstrates the
+`@_linked` query DSL — see `src/components/PersonOverview.tsx` for the
+linked-set list and `src/components/PersonPreview.tsx` for the per-row
+sub-query, optimistic update, and delete pattern.
+
+## Build for production
+
+```bash
+yarn build
+yarn server:prod
+```
+
+## Learn more
+
+- [@_linked/core](https://www.npmjs.com/package/@_linked/core) — query DSL,
+  Shape classes, storage routing.
+- [@_linked/react](https://www.npmjs.com/package/@_linked/react) —
+  `linkedComponent`, `linkedSetComponent`.
+- [@_linked/schema](https://www.npmjs.com/package/@_linked/schema) — shipped
+  Shape classes (Person, Place, Organization, …).
