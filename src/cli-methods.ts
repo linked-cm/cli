@@ -140,7 +140,7 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
 
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
-  log("Creating new LINCD application '" + appName + "'");
+  log("Creating new Linked app '" + appName + "'");
 
   //replace variables in some copied files
   await replaceVariablesInFolder(targetFolder);
@@ -157,10 +157,13 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   }
 
   log(
-    `Your LINCD App is ready at ${chalk.blueBright(targetFolder)}`,
-    `To start, run\n${chalk.blueBright(
-      `cd ${hyphenName}`,
-    )} and then ${chalk.blueBright('yarn start')}`,
+    `Your Linked app is ready at ${chalk.blueBright(targetFolder)}`,
+    `\nStorage: scripts/storage-config.js uses Fuseki at ${chalk.cyan('http://localhost:3030')}.`,
+    `Make sure Fuseki is running, e.g.:`,
+    `  ${chalk.blueBright('docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki')}`,
+    `or edit ${chalk.cyan('scripts/storage-config.js')} to point at a different endpoint.`,
+    `\nTo start:`,
+    `  ${chalk.blueBright(`cd ${hyphenName} && yarn start`)}`,
   );
 };
 
