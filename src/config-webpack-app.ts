@@ -95,8 +95,8 @@ function getLocalIdent(context, currentFormat, name) {
 }
 
 export const getLincdConfig = async (): Promise<LincdConfig> => {
-  const lincdConfigPathJs = path.resolve(process.cwd(), 'lincd.config.js');
-  const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
+  const linkedConfigPathJs = path.resolve(process.cwd(), 'linked.config.js');
+  const linkedConfigPathJson = path.resolve(process.cwd(), 'linked.config.json');
 
   //default config
   let config: LincdConfig = {
@@ -115,11 +115,11 @@ export const getLincdConfig = async (): Promise<LincdConfig> => {
     loaded = packageJson.linkedApp;
   } else if (typeof packageJson.lincdApp === 'object') {
     loaded = packageJson.lincdApp;
-  } else if (fs.existsSync(lincdConfigPathJs)) {
-    let lincdConfig = await import(lincdConfigPathJs);
-    loaded = lincdConfig.default;
-  } else if (fs.existsSync(lincdConfigPathJson)) {
-    loaded = JSON.parse(fs.readFileSync(lincdConfigPathJson, 'utf-8'));
+  } else if (fs.existsSync(linkedConfigPathJs)) {
+    let linkedConfig = await import(linkedConfigPathJs);
+    loaded = linkedConfig.default;
+  } else if (fs.existsSync(linkedConfigPathJson)) {
+    loaded = JSON.parse(fs.readFileSync(linkedConfigPathJson, 'utf-8'));
   }
 
   // Backward compatibility: migrate flat structure to nested

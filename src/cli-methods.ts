@@ -1669,21 +1669,21 @@ export const runMethod = async (
   await ensureEnvironmentLoaded();
 
   if (options.spawn) {
-    let lincdConfig = (
-      await import(path.join(process.cwd(), 'lincd.config.js'))
+    let linkedConfig = (
+      await import(path.join(process.cwd(), 'linked.config.js'))
     ).default;
 
     // Set default loadAppComponent if not provided
-    if (!lincdConfig.server) {
-      lincdConfig.server = {};
+    if (!linkedConfig.server) {
+      linkedConfig.server = {};
     }
-    if (!lincdConfig.server.loadAppComponent) {
-      lincdConfig.server.loadAppComponent = async () =>
+    if (!linkedConfig.server.loadAppComponent) {
+      linkedConfig.server.loadAppComponent = async () =>
         (await import(path.join(process.cwd(), 'src', 'App'))).default;
     }
     // Set default loadRoutes if not provided
-    if (!lincdConfig.server.loadRoutes) {
-      lincdConfig.server.loadRoutes = async () =>
+    if (!linkedConfig.server.loadRoutes) {
+      linkedConfig.server.loadRoutes = async () =>
         await import(path.join(process.cwd(), 'src', 'routes.tsx'));
     }
 
@@ -1691,7 +1691,7 @@ export const runMethod = async (
     const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
       .LincdServer;
     await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
-    let server = new ServerClass(lincdConfig);
+    let server = new ServerClass(linkedConfig);
     //init the server
     console.log('Initializing server...');
     server.initOnly().then(() => {
@@ -1778,7 +1778,7 @@ export const startServer = async (
 ) => {
   await ensureEnvironmentLoaded();
 
-  let lincdConfig = (await import(path.join(process.cwd(), 'lincd.config.js')))
+  let linkedConfig = (await import(path.join(process.cwd(), 'linked.config.js')))
     .default;
 
   // function scssLoadcall(source, filename) {
@@ -1799,10 +1799,10 @@ export const startServer = async (
   await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
 
   // Set default loadAppComponent if not provided
-  if (!lincdConfig.server) {
-    lincdConfig.server = {};
+  if (!linkedConfig.server) {
+    linkedConfig.server = {};
   }
-  if (!lincdConfig.server.loadAppComponent) {
+  if (!linkedConfig.server.loadAppComponent) {
     let appPromise;
     if (process.env.NODE_ENV !== 'development') {
       appPromise = (await import(path.join(process.cwd(), 'lib', 'App.js')))
@@ -1811,14 +1811,14 @@ export const startServer = async (
       appPromise = (await import(path.join(process.cwd(), 'src', 'App.tsx')))
         .default;
     }
-    lincdConfig.server.loadAppComponent = async () => {
+    linkedConfig.server.loadAppComponent = async () => {
       return appPromise;
     };
   }
 
   // Set default loadRoutes if not provided
-  if (!lincdConfig.server.loadRoutes) {
-    lincdConfig.server.loadRoutes = async () => {
+  if (!linkedConfig.server.loadRoutes) {
+    linkedConfig.server.loadRoutes = async () => {
       if (process.env.NODE_ENV !== 'development') {
         return await import(path.join(process.cwd(), 'lib', 'routes.js'));
       } else {
@@ -1827,7 +1827,7 @@ export const startServer = async (
     };
   }
 
-  let server = new ServerClass(lincdConfig);
+  let server = new ServerClass(linkedConfig);
   //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
   let args = process.argv.slice(2);
   //if --initOnly is passed, only initialize the server and don't start it
