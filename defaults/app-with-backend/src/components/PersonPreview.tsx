@@ -1,81 +1,100 @@
 // Example PersonPreview — single-Person row. Demonstrates a per-row linked
-// query (firstName + lastName), optimistic UI via _refresh(...) on update,
-// and Person.delete by id. Notifies the parent overview to re-run its list
-// query via the refresh context.
-import React, { useState } from 'react';
-import { linkedComponent } from '@_linked/react';
+// query (givenName + familyName), an optimistic in-place edit via local
+// state, and Person.delete by id. Triggers the parent overview to re-run
+// its list query via the refresh context.
+import React, { useEffect, useState } from 'react';
 import { Person } from '@_linked/schema/shapes/Person';
 import { usePersonListRefresh } from './PersonOverviewContext';
 
-export const PersonPreview = linkedComponent(
-  Person.query((p) => [p.givenName, p.familyName]),
-  ({ givenName, familyName, source, _refresh }) => {
-    const refreshList = usePersonListRefresh();
-    const [editing, setEditing] = useState(false);
-    const [draftGiven, setDraftGiven] = useState(givenName ?? '');
-    const [draftFamily, setDraftFamily] = useState(familyName ?? '');
-    const [busy, setBusy] = useState(false);
+type PreviewData = { id: string; givenName?: string; familyName?: string };
 
-    async function save() {
-      setBusy(true);
-      try {
-        // Optimistic patch — UI reflects new name immediately.
-        _refresh({ givenName: draftGiven, familyName: draftFamily });
-        await Person.update({
-          givenName: draftGiven,
-          familyName: draftFamily,
-        }).for({ id: source.id });
-        setEditing(false);
-      } finally {
-        setBusy(false);
-      }
+export function PersonPreview({ of }: { of: { id: string } }) {
+  const refreshList = usePersonListRefresh();
+  const [data, setData] = useState<PreviewData | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draftGiven, setDraftGiven] = useState('');
+  const [draftFamily, setDraftFamily] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Person.select((p) => [p.givenName, p.familyName])
+      .where((p) => p.equals({ id: of.id }))
+      .one()
+      .then((row) => {
+        if (cancelled || !row) return;
+        setData(row as PreviewData);
+        setDraftGiven(row.givenName ?? '');
+        setDraftFamily(row.familyName ?? '');
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('PersonPreview load failed', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [of.id]);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await Person.update({
+        givenName: draftGiven,
+        familyName: draftFamily,
+      }).for({ id: of.id });
+      setData({ id: of.id, givenName: draftGiven, familyName: draftFamily });
+      setEditing(false);
+    } finally {
+      setBusy(false);
     }
+  }
 
-    async function remove() {
-      setBusy(true);
-      try {
-        await Person.delete({ id: source.id });
-        refreshList();
-      } finally {
-        setBusy(false);
-      }
+  async function remove() {
+    setBusy(true);
+    try {
+      await Person.delete({ id: of.id });
+      refreshList();
+    } finally {
+      setBusy(false);
     }
+  }
 
-    if (editing) {
-      return (
-        <span data-testid="person-edit">
-          <input
-            value={draftGiven}
-            onChange={(e) => setDraftGiven(e.target.value)}
-            aria-label="First name"
-          />
-          <input
-            value={draftFamily}
-            onChange={(e) => setDraftFamily(e.target.value)}
-            aria-label="Last name"
-          />
-          <button onClick={save} disabled={busy}>
-            Save
-          </button>
-          <button onClick={() => setEditing(false)} disabled={busy}>
-            Cancel
-          </button>
-        </span>
-      );
-    }
+  if (data === null) return <span>…</span>;
 
+  if (editing) {
     return (
-      <span data-testid="person-row">
-        <span data-testid="person-name">
-          {givenName} {familyName}
-        </span>{' '}
-        <button onClick={() => setEditing(true)} disabled={busy}>
-          Edit
+      <span data-testid="person-edit">
+        <input
+          value={draftGiven}
+          onChange={(e) => setDraftGiven(e.target.value)}
+          aria-label="First name"
+        />
+        <input
+          value={draftFamily}
+          onChange={(e) => setDraftFamily(e.target.value)}
+          aria-label="Last name"
+        />
+        <button onClick={save} disabled={busy}>
+          Save
         </button>
-        <button onClick={remove} disabled={busy}>
-          Delete
+        <button onClick={() => setEditing(false)} disabled={busy}>
+          Cancel
         </button>
       </span>
     );
-  },
-);
+  }
+
+  return (
+    <span data-testid="person-row">
+      <span data-testid="person-name">
+        {data.givenName} {data.familyName}
+      </span>{' '}
+      <button onClick={() => setEditing(true)} disabled={busy}>
+        Edit
+      </button>
+      <button onClick={remove} disabled={busy}>
+        Delete
+      </button>
+    </span>
+  );
+}

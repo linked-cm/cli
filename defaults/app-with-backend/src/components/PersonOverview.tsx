@@ -1,27 +1,49 @@
 // Example PersonOverview — demonstrates the @_linked query DSL end-to-end:
-// a linkedSetComponent runs the list query and each row delegates to a
-// linkedComponent (PersonPreview). Add/delete/edit are demonstrated via
-// Person.create / Person.update / Person.delete on the same dataset.
+// runs an awaited Person.select(...) to fetch the list, renders each row as a
+// PersonPreview, and exposes add/edit/delete via Person.create / Person.update /
+// Person.delete. After any mutation, bumping `refreshKey` re-runs the list.
 //
 // Replace or extend this with your own shapes (see https://linked.cm).
-import React, { useCallback, useState } from 'react';
-import { linkedSetComponent } from '@_linked/react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Person } from '@_linked/schema/shapes/Person';
 import { PersonPreview } from './PersonPreview';
 import { PersonListRefreshProvider } from './PersonOverviewContext';
 
-const PersonList = linkedSetComponent(
-  Person.query((p) => [p.givenName, p.familyName]),
-  ({ linkedData }) => (
+type PersonRow = { id: string; givenName?: string; familyName?: string };
+
+function PersonList({ refreshKey }: { refreshKey: number }) {
+  const [rows, setRows] = useState<PersonRow[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Person.select((p) => [p.givenName, p.familyName])
+      .then((results) => {
+        if (!cancelled) setRows(results as PersonRow[]);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('PersonList load failed', err);
+          setRows([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  if (rows === null) return <p>Loading…</p>;
+  if (rows.length === 0) return <p>No people yet. Add one below.</p>;
+
+  return (
     <ul data-testid="person-list">
-      {(linkedData || []).map((p) => (
+      {rows.map((p) => (
         <li key={p.id}>
           <PersonPreview of={{ id: p.id }} />
         </li>
       ))}
     </ul>
-  ),
-);
+  );
+}
 
 function PersonAddForm({ onAdded }: { onAdded: () => void }) {
   const [given, setGiven] = useState('');
@@ -62,8 +84,6 @@ function PersonAddForm({ onAdded }: { onAdded: () => void }) {
 }
 
 export function PersonOverview() {
-  // Bumping `refreshKey` re-mounts <PersonList/> so the linkedSetComponent
-  // re-runs its query after a mutation.
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -76,7 +96,7 @@ export function PersonOverview() {
           against your local Fuseki dataset. Edit{' '}
           <code>src/components/PersonOverview.tsx</code> to extend it.
         </p>
-        <PersonList key={refreshKey} />
+        <PersonList refreshKey={refreshKey} />
         <PersonAddForm onAdded={refresh} />
       </div>
     </PersonListRefreshProvider>
