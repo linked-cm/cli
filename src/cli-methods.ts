@@ -254,7 +254,7 @@ function checkPackagePath(rootPath, packagePath, res) {
     //some packages are not true lincd packages, but we still want them to be re-built automatically. This is what lincd_util is for
     if (pack && pack.workspaces) {
       checkWorkspaces(packagePath, pack.workspaces, res);
-    } else if (pack && (pack.linkedPackage === true || pack.lincd === true)) {
+    } else if (pack && pack.linkedPackage === true) {
       res.push({
         path: packagePath,
         packageName: pack.name,
@@ -522,7 +522,7 @@ function findAppRoot(startPath = process.cwd()): string | null {
   let candidateRoots: Array<{
     path: string;
     hasWorkspaces: boolean;
-    isLincd: boolean;
+    isLinked: boolean;
   }> = [];
 
   // Walk up the directory tree
@@ -535,7 +535,7 @@ function findAppRoot(startPath = process.cwd()): string | null {
       candidateRoots.push({
         path: currentPath,
         hasWorkspaces: !!packageJson.workspaces,
-        isLincd: packageJson.linkedPackage === true || packageJson.lincd === true,
+        isLinked: packageJson.linkedPackage === true,
       });
     }
 
@@ -548,17 +548,17 @@ function findAppRoot(startPath = process.cwd()): string | null {
   }
 
   // Find the topmost package.json that has workspaces
-  // Prefer non-lincd packages (app roots) over lincd packages
+  // Prefer non-linked packages (app roots) over linked packages
   let appRoot = null;
   for (let i = candidateRoots.length - 1; i >= 0; i--) {
     const candidate = candidateRoots[i];
-    if (candidate.hasWorkspaces && !candidate.isLincd) {
+    if (candidate.hasWorkspaces && !candidate.isLinked) {
       appRoot = candidate.path;
       break;
     }
   }
 
-  // If no non-lincd workspace found, use the topmost workspace
+  // If no non-linked workspace found, use the topmost workspace
   if (!appRoot) {
     for (let i = candidateRoots.length - 1; i >= 0; i--) {
       if (candidateRoots[i].hasWorkspaces) {
@@ -2414,8 +2414,8 @@ export const buildPackage = async (
   const pkgJson = JSON.parse(
     fs.readFileSync(path.join(packagePath, 'package.json'), 'utf8'),
   );
-  const isPackage = pkgJson.linkedPackage === true || pkgJson.lincd === true;
-  const isApp = pkgJson.linkedApp === true || pkgJson.lincdApp === true;
+  const isPackage = pkgJson.linkedPackage === true;
+  const isApp = pkgJson.linkedApp === true;
   if (!isPackage) {
     if (isApp) {
       console.error(

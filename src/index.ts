@@ -12,9 +12,9 @@ export {generateWebpackConfig};
 export * from './utils';
 export {defineConfig} from './defineConfig';
 export type {
-  LincdConfig,
-  LincdWebpackConfig,
-  LincdServerConfig,
+  LinkedConfig,
+  LinkedWebpackConfig,
+  LinkedServerConfig,
 } from './interfaces';
 
 export {buildPackageByPath} from './commands/build-package';

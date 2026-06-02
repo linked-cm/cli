@@ -86,7 +86,7 @@ The CLI recognizes two flags in `package.json`:
 }
 ```
 
-The legacy `lincd: true` and `lincdApp: true` flags are still read for the transition period.
+The legacy `lincd: true` / `lincdApp: true` flags are no longer read. Migrate to `linkedPackage` / `linkedApp`.
 
 ## Development
 

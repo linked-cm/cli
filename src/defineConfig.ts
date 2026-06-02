@@ -1,11 +1,11 @@
-import {LincdConfig} from './interfaces';
+import {LinkedConfig} from './interfaces';
 
 /**
- * Define a LINCD configuration with type checking and autocomplete
+ * Define a Linked configuration with type checking and autocomplete
  * @param config The configuration object
  * @returns The same configuration object (identity function for type inference)
  */
-export function defineConfig(config: LincdConfig): LincdConfig {
+export function defineConfig(config: LinkedConfig): LinkedConfig {
   return config;
 }
 

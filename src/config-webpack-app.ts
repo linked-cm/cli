@@ -8,7 +8,7 @@ import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
 import {WebpackManifestPlugin} from 'webpack-manifest-plugin';
-import {LincdConfig} from './interfaces.js';
+import {LinkedConfig} from './interfaces.js';
 import {generateScopedName} from './utils.js';
 
 import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
@@ -94,12 +94,12 @@ function getLocalIdent(context, currentFormat, name) {
   return generateScopedName(name, context.resourcePath);
 }
 
-export const getLincdConfig = async (): Promise<LincdConfig> => {
+export const getLinkedConfig = async (): Promise<LinkedConfig> => {
   const linkedConfigPathJs = path.resolve(process.cwd(), 'linked.config.js');
   const linkedConfigPathJson = path.resolve(process.cwd(), 'linked.config.json');
 
   //default config
-  let config: LincdConfig = {
+  let config: LinkedConfig = {
     //tailwind is default
     cssMode: cssModes[0] as 'tailwind' | 'postcss',
     webpack: {
@@ -113,8 +113,6 @@ export const getLincdConfig = async (): Promise<LincdConfig> => {
   let loaded: any;
   if (typeof packageJson.linkedApp === 'object') {
     loaded = packageJson.linkedApp;
-  } else if (typeof packageJson.lincdApp === 'object') {
-    loaded = packageJson.lincdApp;
   } else if (fs.existsSync(linkedConfigPathJs)) {
     let linkedConfig = await import(linkedConfigPathJs);
     loaded = linkedConfig.default;
@@ -176,7 +174,7 @@ export const getWebpackAppConfig = async () => {
   const ASSET_PATH = process.env.ASSET_PATH || 
     (accessURL ? accessURL + bundlesPath : bundlesPath);
 
-  let config = await getLincdConfig();
+  let config = await getLinkedConfig();
 
   let postcssPlugins = [];
 
