@@ -5,7 +5,7 @@ export default function Signin() {
     <DefaultLayout>
       <div>
         <h2>Sign In</h2>
-        See lincd.org for different ways to sign in.
+        See https://linked.cm for different ways to sign in.
       </div>
     </DefaultLayout>
   );

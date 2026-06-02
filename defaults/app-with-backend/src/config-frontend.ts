@@ -1,7 +1,7 @@
-import { LinkedFileStorage } from 'lincd/utils/LinkedFileStorage';
-import { getAccessUrlLocalFileStore } from 'lincd-server/utils/accessUrl';
-import { BackendAPIStore } from 'lincd-server/shapes/quadstores/BackendAPIStore';
-import { LinkedStorage } from 'lincd/utils/LinkedStorage';
+import { LinkedFileStorage } from '@_linked/core/utils/LinkedFileStorage';
+import { getAccessUrlLocalFileStore } from '@_linked/server/utils/accessUrl';
+import { BackendAPIStore } from '@_linked/server/shapes/quadstores/BackendAPIStore';
+import { LinkedStorage } from '@_linked/core/utils/LinkedStorage';
 
 // store all quads in a file on the backend named 'main'
 // export const store = new BackendFileStore('main');

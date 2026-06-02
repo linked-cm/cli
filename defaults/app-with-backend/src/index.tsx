@@ -1,5 +1,5 @@
-import { AppContextProvider } from 'lincd-server-utils/components/AppContext';
-import { initFrontend } from 'lincd-server-utils/utils/Frontend';
+import { AppContextProvider } from '@_linked/server-utils/components/AppContext';
+import { initFrontend } from '@_linked/server-utils/utils/Frontend';
 import React from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

@@ -8,7 +8,7 @@ export default function Home() {
       <div className={style.Home}>
         <h2>Get started</h2>
         <p>
-          Your LINCD App is ready to go!
+          Your Linked app is ready to go!
           <br />
           To edit this file, open:
         </p>

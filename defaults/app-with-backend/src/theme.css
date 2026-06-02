@@ -1,11 +1,11 @@
-/* Tailwind v4 layers — split-import pattern to substitute the LINCD preflight.
+/* Tailwind v4 layers — split-import pattern to substitute the Linked preflight.
    See @_linked/css README "Why the split-import?" for details. */
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 @import '@_linked/css/preflight.css';
 @import 'tailwindcss/utilities.css' layer(utilities);
 
-/*apply tailwind config, which ensures that all LINCD components are considered "content" for tailwind */
+/*apply tailwind config, which ensures that all Linked components are considered "content" for tailwind */
 @config "../node_modules/@_linked/cli/lib/esm/tailwind.config.js";
 
 /* @_linked/css: framework theme defaults + utility mixins.
@@ -25,7 +25,7 @@
 /*@use 'todomvc-app-css/index.css';*/
 /*@use 'todomvc-common/base.css';*/
 
-/*LINCD uses tailwind for creating themes, see https://tailwindcss.com/docs/theme#what-are-theme-variables */
+/*Linked uses tailwind for creating themes, see https://tailwindcss.com/docs/theme#what-are-theme-variables */
 /*@theme {*/
 /*  --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',*/
 /*    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';*/

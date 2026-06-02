@@ -7,7 +7,7 @@ export function Header() {
   let path = useLocation();
   return (
     <header className={style.header}>
-      <h1>LINCD 1.0 Demo App</h1>
+      <h1>${name}</h1>
       <nav className={style.menu}>
         {Object.keys(ROUTES).map((key) => {
           if (ROUTES[key].excludeFromMenu) return null;
