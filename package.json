@@ -69,8 +69,8 @@
   "bin": {
     "lincd": "lib/esm/cli-deprecated.js",
     "lincd-cli": "lib/esm/cli-deprecated.js",
-    "linked": "lib/esm/cli.js",
-    "lnk": "lib/esm/cli.js"
+    "linked": "lib/esm/launch.js",
+    "lnk": "lib/esm/launch.js"
   },
   "dependencies": {
     "@_linked/core": "^2.2.1",
