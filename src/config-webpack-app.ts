@@ -168,11 +168,16 @@ export const getWebpackAppConfig = async () => {
   const publicPath = isCapacitorBuild ? '' : '/public';
   const bundlesPath = publicPath + '/bundles/';
 
-  // ASSET_PATH is used load the assets from the correct path
-  // if ASSET_PATH is set in environment (app builds), use it directly
-  // otherwise, use CDN URL + bundlesPath for production, or bundlesPath for development
-  const ASSET_PATH = process.env.ASSET_PATH || 
-    (accessURL ? accessURL + bundlesPath : bundlesPath);
+  // ASSET_PATH is used to load the assets from the correct path.
+  // - If ASSET_PATH is set in environment (app builds), use it directly.
+  // - In development we want a port-agnostic relative path so the bundle URLs
+  //   work no matter which PORT the dev server binds to (browsers resolve
+  //   relative URLs against window.location.origin). Baking SITE_ROOT into
+  //   the publicPath was a footgun when scaffolded apps overrode PORT.
+  // - In production, use the absolute origin from accessURL (CDN, etc.).
+  const ASSET_PATH =
+    process.env.ASSET_PATH ||
+    (isDevelopment ? bundlesPath : accessURL ? accessURL + bundlesPath : bundlesPath);
 
   let config = await getLinkedConfig();
 
