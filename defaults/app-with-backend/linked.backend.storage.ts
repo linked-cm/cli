@@ -4,10 +4,8 @@
 // store class via its npm path, and instantiates with the entry's `config`
 // verbatim. See the mirror at src/linked.frontend.storage.ts.
 import datasetsConfig from './linked.backend.datasets.json' assert { type: 'json' };
-import {
-  parseDatasetsConfig,
-  loadStores,
-} from '@_linked/core/utils/parseDatasetsConfig';
+import { parseDatasetsConfig } from '@_linked/core/utils/parseDatasetsConfig';
+import { loadStores } from '@_linked/core/utils/loadStores';
 import { LinkedStorage } from '@_linked/core/utils/LinkedStorage';
 import { LinkedFileStorage } from '@_linked/core/utils/LinkedFileStorage';
 import type { FusekiStore } from '@_linked/fuseki/shapes/FusekiStore';

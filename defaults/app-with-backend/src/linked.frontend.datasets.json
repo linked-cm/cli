@@ -5,7 +5,7 @@
     "appData": {
       "store": "@_linked/server/shapes/quadstores/BackendAPIStore",
       "config": {
-        "alias": "appData"
+        "name": "appData"
       }
     }
   }
