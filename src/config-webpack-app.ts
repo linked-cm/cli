@@ -157,8 +157,22 @@ export const getLinkedConfig = async (): Promise<LinkedConfig> => {
 };
 
 export const getWebpackAppConfig = async () => {
-  // set up the storage config for the app
-  await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
+  // set up the storage config for the app — tries the canonical
+  // backend-storage-config at app root first, then the legacy scripts/
+  // location, so older clones keep booting during the transition.
+  const cwd = process.cwd();
+  const candidates = [
+    path.join(cwd, 'backend-storage-config.ts'),
+    path.join(cwd, 'backend-storage-config.js'),
+    path.join(cwd, 'scripts', 'backend-storage-config.js'),
+    path.join(cwd, 'scripts', 'storage-config.js'), // legacy
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      await import(candidate);
+      break;
+    }
+  }
   const accessURL = LinkedFileStorage.accessURL;
 
   // set up the public path for the app

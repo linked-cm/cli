@@ -39,6 +39,36 @@ let dirname__ =
     : //@ts-ignore
       dirname(import.meta.url).replace('file:/', '');
 
+/**
+ * Dynamically import the app's backend storage configuration. Tries the
+ * current canonical location at the app root first (`backend-storage-config.ts`
+ * / `.js`), then falls back to the legacy `scripts/storage-config.js` path
+ * so older app templates and pre-rename CN clones keep booting. After all
+ * known sites migrate, the fallback can be dropped.
+ */
+async function loadBackendStorageConfig(): Promise<any> {
+  const cwd = process.cwd();
+  const candidates = [
+    path.join(cwd, 'backend-storage-config.ts'),
+    path.join(cwd, 'backend-storage-config.js'),
+    path.join(cwd, 'scripts', 'backend-storage-config.js'),
+    path.join(cwd, 'scripts', 'backend-storage-config.ts'),
+    // legacy:
+    path.join(cwd, 'scripts', 'storage-config.js'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return import(candidate);
+    }
+  }
+  console.warn(
+    chalk.yellow(
+      '[backend-storage-config] no backend-storage-config.{ts,js} found at app root or scripts/.',
+    ),
+  );
+  return undefined;
+}
+
 var variables = {};
 /**
  * Prompt user for input
@@ -158,10 +188,10 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
 
   log(
     `Your Linked app is ready at ${chalk.blueBright(targetFolder)}`,
-    `\nStorage: scripts/storage-config.js uses Fuseki at ${chalk.cyan('http://localhost:3030')}.`,
+    `\nStorage: backend-storage-config.ts uses Fuseki at ${chalk.cyan('http://localhost:3030')}.`,
     `Make sure Fuseki is running, e.g.:`,
     `  ${chalk.blueBright('docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki')}`,
-    `or edit ${chalk.cyan('scripts/storage-config.js')} to point at a different endpoint.`,
+    `or edit ${chalk.cyan('backend-storage-config.ts')} (backend) / ${chalk.cyan('src/frontend-storage-config.ts')} (frontend) to point at a different endpoint.`,
     `\nTo start (with npm or yarn):`,
     `  ${chalk.blueBright(`cd ${hyphenName} && npm start`)}`,
     `  ${chalk.gray('# or: yarn start')}`,
@@ -1691,7 +1721,7 @@ export const runMethod = async (
     //@ts-ignore
     const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
       .LincdServer;
-    await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
+    await loadBackendStorageConfig();
     let server = new ServerClass(linkedConfig);
     //init the server
     console.log('Initializing server...');
@@ -1797,7 +1827,7 @@ export const startServer = async (
     //@ts-ignore
     ServerClass = (await import('@_linked/server/shapes/LincdServer')).LincdServer;
   }
-  await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
+  await loadBackendStorageConfig();
 
   // Set default loadAppComponent if not provided
   if (!linkedConfig.server) {
@@ -1909,9 +1939,7 @@ export const buildFrontend = async () => {
     }
 
     // load the storage config
-    const storageConfig = await import(
-      path.join(process.cwd(), 'scripts', 'storage-config.js')
-    );
+    const storageConfig = await loadBackendStorageConfig();
 
     // check if LincdFileStorage has a default FileStore
     // if yes: copy all the files in the build folder over with LincdFileStorage
