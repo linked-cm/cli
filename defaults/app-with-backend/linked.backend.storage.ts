@@ -1,35 +1,28 @@
 // Backend storage for ${name}.
 //
-// Maps each alias declared in linked.backend.datasets.json to a store
-// instance, then pins shape→store routing via LinkedStorage. See the
-// mirror file at src/linked.frontend.storage.ts for the frontend side.
+// Reads linked.backend.datasets.json, dynamically imports each alias's
+// store class via its npm path, and instantiates with the entry's `config`
+// verbatim. See the mirror at src/linked.frontend.storage.ts.
 import datasetsConfig from './linked.backend.datasets.json' assert { type: 'json' };
 import {
   parseDatasetsConfig,
-  buildStoresFromConfig,
+  loadStores,
 } from '@_linked/core/utils/parseDatasetsConfig';
 import { LinkedStorage } from '@_linked/core/utils/LinkedStorage';
 import { LinkedFileStorage } from '@_linked/core/utils/LinkedFileStorage';
-import { FusekiStore } from '@_linked/fuseki/shapes/FusekiStore';
+import type { FusekiStore } from '@_linked/fuseki/shapes/FusekiStore';
 import { LocalFileStore } from '@_linked/server/shapes/filestores/LocalFileStore';
 
-// Resolve ${VAR} placeholders against the runtime environment.
+// Resolve ${VAR} placeholders against the runtime environment, then
+// instantiate each store class declared in the JSON.
 const config = parseDatasetsConfig(datasetsConfig, process.env);
+const stores = await loadStores(config);
 
-// Build stores from the JSON. Each factory is keyed by the same npm
-// import-path string that appears under `store` in the JSON, and receives
-// the entry's `config` object verbatim.
-const stores = buildStoresFromConfig(config, {
-  '@_linked/fuseki/shapes/FusekiStore': ({ endpoint }) => {
-    const url = new URL(endpoint as string);
-    return new FusekiStore(url.pathname.slice(1), `${url.protocol}//${url.host}`);
-  },
-});
-
-// Auto-create the dataset on first boot. Override FUSEKI_DB_TYPE=mem in
-// the JSON or env for an in-memory dataset (lost on restart).
+// Auto-create the dataset on first boot.
 const appData = stores.appData as FusekiStore;
-appData.ensureDatasetExists().catch((err) => console.warn('dataset ensure failed:', err));
+appData.ensureDatasetExists().catch((err) =>
+  console.warn('dataset ensure failed:', err),
+);
 
 // Shape → alias. Single alias → default for every shape. For multi-alias
 // add per-shape pins, e.g.:
