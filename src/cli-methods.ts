@@ -41,19 +41,23 @@ let dirname__ =
 
 /**
  * Dynamically import the app's backend storage configuration. Tries the
- * current canonical location at the app root first (`backend-storage-config.ts`
- * / `.js`), then falls back to the legacy `scripts/storage-config.js` path
- * so older app templates and pre-rename CN clones keep booting. After all
- * known sites migrate, the fallback can be dropped.
+ * canonical `linked.backend.storage.{ts,js}` at app root first, then the
+ * earlier `backend-storage-config.{ts,js}` (Iter3), then the legacy
+ * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
+ * app clones keep booting through the rename.
  */
 async function loadBackendStorageConfig(): Promise<any> {
   const cwd = process.cwd();
   const candidates = [
+    // Iter4 canonical:
+    path.join(cwd, 'linked.backend.storage.ts'),
+    path.join(cwd, 'linked.backend.storage.js'),
+    // Iter3:
     path.join(cwd, 'backend-storage-config.ts'),
     path.join(cwd, 'backend-storage-config.js'),
     path.join(cwd, 'scripts', 'backend-storage-config.js'),
     path.join(cwd, 'scripts', 'backend-storage-config.ts'),
-    // legacy:
+    // legacy pre-rename:
     path.join(cwd, 'scripts', 'storage-config.js'),
   ];
   for (const candidate of candidates) {
@@ -63,7 +67,7 @@ async function loadBackendStorageConfig(): Promise<any> {
   }
   console.warn(
     chalk.yellow(
-      '[backend-storage-config] no backend-storage-config.{ts,js} found at app root or scripts/.',
+      '[linked.backend.storage] no linked.backend.storage.{ts,js} found at app root.',
     ),
   );
   return undefined;
@@ -168,6 +172,17 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     path.join(targetFolder, '.yarnrc.yml'),
   );
 
+  // Seed the real (gitignored) Layer 2 config from the committed example so
+  // the scaffolded app boots first try. Users can edit either file later.
+  const datasetsExample = path.join(
+    targetFolder,
+    'linked.backend.datasets.example.json',
+  );
+  const datasetsReal = path.join(targetFolder, 'linked.backend.datasets.json');
+  if (fs.existsSync(datasetsExample) && !fs.existsSync(datasetsReal)) {
+    fs.copySync(datasetsExample, datasetsReal);
+  }
+
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
   log("Creating new Linked app '" + appName + "'");
@@ -188,10 +203,12 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
 
   log(
     `Your Linked app is ready at ${chalk.blueBright(targetFolder)}`,
-    `\nStorage: backend-storage-config.ts uses Fuseki at ${chalk.cyan('http://localhost:3030')}.`,
+    `\nStorage: linked.backend.storage.ts wires aliases to stores; linked.backend.datasets.json holds endpoints.`,
+    `Defaults to Fuseki at ${chalk.cyan('http://localhost:3030')} (auto-creates the dataset on first boot).`,
     `Make sure Fuseki is running, e.g.:`,
     `  ${chalk.blueBright('docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki')}`,
-    `or edit ${chalk.cyan('backend-storage-config.ts')} (backend) / ${chalk.cyan('src/frontend-storage-config.ts')} (frontend) to point at a different endpoint.`,
+    `Edit ${chalk.cyan('linked.backend.datasets.json')} to change endpoints or credentials.`,
+    `Mirror file for the frontend: ${chalk.cyan('src/linked.frontend.storage.ts')} + ${chalk.cyan('src/linked.frontend.datasets.json')}.`,
     `\nTo start (with npm or yarn):`,
     `  ${chalk.blueBright(`cd ${hyphenName} && npm start`)}`,
     `  ${chalk.gray('# or: yarn start')}`,

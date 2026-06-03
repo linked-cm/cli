@@ -1,0 +1,9 @@
+{
+  "_note": "Frontend Layer 2 config. Public values only — never put secrets here, this file ships in the browser bundle. The default 'backend-api' type proxies queries to this app's own backend, which does the real routing (see linked.backend.storage.ts). Aliases here are independent from backend aliases; the framework re-routes by shape on each side.",
+
+  "datasets": {
+    "appData": {
+      "type": "backend-api"
+    }
+  }
+}

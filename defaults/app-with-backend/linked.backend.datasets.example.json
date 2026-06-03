@@ -1,0 +1,15 @@
+{
+  "_note": "Backend Layer 2 config (per arch-04 §Dataset configuration model). Copy this file to linked.backend.datasets.json (gitignored) and replace placeholders with literal values OR set the corresponding env vars. ${VAR:-default} resolves to env[VAR] if set, otherwise the literal after :-. Each alias key maps to a store-type entry; the type string is dispatched to a factory in linked.backend.storage.ts.",
+
+  "datasets": {
+    "appData": {
+      "type":     "sparql",
+      "endpoint": "${FUSEKI_BASE_URL:-http://localhost:3030}/${FUSEKI_DATASET:-${hyphen_name}-main}",
+      "credentials": {
+        "type":     "basic",
+        "username": "${FUSEKI_USER:-admin}",
+        "password": "${FUSEKI_PASSWORD:-admin}"
+      }
+    }
+  }
+}

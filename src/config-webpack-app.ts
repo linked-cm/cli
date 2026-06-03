@@ -162,10 +162,15 @@ export const getWebpackAppConfig = async () => {
   // location, so older clones keep booting during the transition.
   const cwd = process.cwd();
   const candidates = [
+    // Iter4 canonical:
+    path.join(cwd, 'linked.backend.storage.ts'),
+    path.join(cwd, 'linked.backend.storage.js'),
+    // Iter3:
     path.join(cwd, 'backend-storage-config.ts'),
     path.join(cwd, 'backend-storage-config.js'),
     path.join(cwd, 'scripts', 'backend-storage-config.js'),
-    path.join(cwd, 'scripts', 'storage-config.js'), // legacy
+    // legacy:
+    path.join(cwd, 'scripts', 'storage-config.js'),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {

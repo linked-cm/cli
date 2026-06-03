@@ -7,7 +7,7 @@ import App from './App';
 import { preloadMatchedRoute } from './utils/preloadRoutes';
 
 //import the storage & file configuration for the frontend
-import './frontend-storage-config';
+import './linked.frontend.storage';
 
 //to avoid errors with react-refresh-webpack-plugin
 window['$RefreshReg$'] = () => {};
