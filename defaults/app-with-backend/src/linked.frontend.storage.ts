@@ -1,21 +1,12 @@
-// Frontend storage configuration for ${name}.
+// Frontend storage for ${name}.
 //
-// Layer 1 (shape → alias routing) is in this file.
-// Layer 2 (alias → store-type + endpoint) is in linked.frontend.datasets.json.
+// Maps each alias declared in linked.frontend.datasets.json to a store
+// instance the browser uses. The default BackendAPIStore proxies every
+// query to the app's own backend; swap to a different store class to talk
+// directly to a public SPARQL endpoint or browser-local RDF store.
 //
-// The default mode proxies every query to the app's own backend via
-// BackendAPIStore. The backend then routes per linked.backend.storage.ts.
-//
-// You can also wire an alias directly to a Fuseki / external SPARQL
-// endpoint and skip the backend hop entirely. Useful for public read-only
-// datasets, fully client-side apps, or hybrid setups. Add a `sparql`
-// factory below and put a `{ "type": "sparql", "endpoint": "..." }` entry
-// in linked.frontend.datasets.json. (Requires CORS + auth on the target.)
-//
-// Aliases in this file are independent from the backend's aliases — the
-// framework re-routes by shape on each side. Matching names is a
-// documentation convention, not a framework requirement. See arch-04
-// §Frontend mirror.
+// Aliases on this side are independent from backend aliases — the
+// framework re-routes by shape on each side.
 import datasetsConfig from './linked.frontend.datasets.json' assert { type: 'json' };
 import {
   parseDatasetsConfig,
@@ -28,35 +19,26 @@ import { getAccessUrlLocalFileStore } from '@_linked/server/utils/accessUrl';
 // Uncomment to enable direct-to-Fuseki on the frontend:
 // import { FusekiStore } from '@_linked/fuseki/shapes/FusekiStore';
 
-// ── Parse linked.frontend.datasets.json ─────────────────────────────────
-// No runtime env resolution in the browser (process.env isn't a real
-// object there) — values in the FE JSON should be literals. If you need
-// per-environment values, swap the JSON at build time or hardcode via
-// `process.env.X` references which webpack inlines.
+// No ${VAR} interpolation in the browser — pass an empty env. For per-env
+// values, hardcode `process.env.X` references in this file (webpack inlines
+// them at build).
 const config = parseDatasetsConfig(datasetsConfig, {});
 
-// ── Build stores per alias ──────────────────────────────────────────────
-// Default: a BackendAPIStore proxy per alias. Add or replace factories
-// for any other dataset `type` strings you introduce.
+// Factory map keyed by npm import path — matches `store` in the JSON.
 const stores = buildStoresFromConfig(config, {
-  'backend-api': (_entry, alias) => new BackendAPIStore(alias),
-  // Direct-to-Fuseki alternative (advanced; no creds in browser):
-  // sparql: ({ endpoint }) => {
+  '@_linked/server/shapes/quadstores/BackendAPIStore': ({ alias }, fallbackAlias) =>
+    new BackendAPIStore((alias as string) || fallbackAlias),
+  // Direct-to-Fuseki alternative (no creds in browser):
+  // '@_linked/fuseki/shapes/FusekiStore': ({ endpoint }) => {
   //   const url = new URL(endpoint as string);
-  //   return new FusekiStore(
-  //     url.pathname.slice(1),
-  //     `${url.protocol}//${url.host}`,
-  //   );
+  //   return new FusekiStore(url.pathname.slice(1), `${url.protocol}//${url.host}`);
   // },
 });
 
-// ── Layer 1: shape → alias ───────────────────────────────────────────────
-// Single alias → set as default. For multi-alias, mirror the routing in
-// linked.backend.storage.ts:
-//
+// Shape → alias. For multi-alias setups add per-shape pins, e.g.:
 //   import { PageView } from './shapes/PageView';
 //   LinkedStorage.setDatasetForShapes(stores.analytics, [PageView]);
 LinkedStorage.setDefaultDataset(stores.appData);
 
-// ── File storage (where uploaded images load from) ──────────────────────
+// File asset URLs.
 LinkedFileStorage.setDefaultAccessURL(getAccessUrlLocalFileStore());

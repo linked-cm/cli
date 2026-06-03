@@ -1,9 +1,12 @@
 {
-  "_note": "Frontend Layer 2 config. Public values only — never put secrets here, this file ships in the browser bundle. The default 'backend-api' type proxies queries to this app's own backend, which does the real routing (see linked.backend.storage.ts). Aliases here are independent from backend aliases; the framework re-routes by shape on each side.",
+  "_note": "Frontend datasets config. Public values only — this file ships in the browser bundle. The default BackendAPIStore entry proxies queries to this app's own backend; swap in a different store class (e.g. @_linked/fuseki/shapes/FusekiStore) to talk directly to a public SPARQL endpoint.",
 
   "datasets": {
     "appData": {
-      "type": "backend-api"
+      "store": "@_linked/server/shapes/quadstores/BackendAPIStore",
+      "config": {
+        "alias": "appData"
+      }
     }
   }
 }
