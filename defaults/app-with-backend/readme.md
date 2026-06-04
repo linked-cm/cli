@@ -1,30 +1,8 @@
 # ${name}
 
-A standalone [Linked](https://linked.cm) app generated with `@_linked/cli`.
+A standalone [Linked](https://linked.cm) app generated with `@_linked/cli`. Requires **Node ≥ 20.6**.
 
-## Storage
-
-This app talks to an Apache Jena Fuseki SPARQL endpoint. Defaults:
-
-- `FUSEKI_BASE_URL` — `http://localhost:3030`
-- `FUSEKI_DATASET`  — `${hyphen_name}-main`
-- `FUSEKI_USER` / `FUSEKI_PASSWORD` — `admin` / `admin` (matches the
-  `stain/jena-fuseki` Docker image default)
-
-Start a local Fuseki container:
-
-```bash
-docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki
-```
-
-The app auto-creates the `${hyphen_name}-main` dataset on first boot.
-Set `FUSEKI_DB_TYPE=mem` for an in-memory dataset (data lost on restart),
-or keep the default `tdb2` for persistent on-disk storage.
-
-Edit `scripts/storage-config.js` to point at a different endpoint or to add
-multiple datasets.
-
-## Run
+## Install + run
 
 With npm:
 
@@ -40,15 +18,36 @@ yarn install
 yarn start
 ```
 
-> **Note:** if you scaffolded this app **inside an existing Yarn-workspace
-> monorepo** (e.g. inside `create_now/packages/`), use `yarn install` —
-> `npm install` walks up to the workspace root and may hit peer-dep
-> conflicts there. Outside a workspace, either tool works.
+The home page demonstrates the `@_linked` query DSL with a small Person CRUD — see `src/components/PersonOverview.tsx` and `src/components/PersonPreview.tsx`.
 
-The home page renders a small Person overview that demonstrates the
-`@_linked` query DSL — see `src/components/PersonOverview.tsx` for the
-list query and `src/components/PersonPreview.tsx` for the per-row
-sub-query, optimistic update, and delete pattern.
+> If you scaffolded this app **inside an existing Yarn-workspace monorepo** (e.g. `create_now/packages/`), use `yarn install` — `npm install` walks up to the workspace root and may hit peer-dep conflicts there. Outside a workspace, either tool works.
+
+## Storage
+
+This app talks to an Apache Jena Fuseki SPARQL endpoint. Start a local Fuseki container:
+
+```bash
+docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki
+```
+
+The app auto-creates its dataset on first boot.
+
+**Storage config lives in three files**, per the spec in [`@_linked/cli` docs](https://www.npmjs.com/package/@_linked/cli):
+
+| File | Purpose |
+|---|---|
+| `linked.backend.datasets.json` | Backend Layer 2 — alias → store class + config. Gitignored. Copy of `linked.backend.datasets.example.json`. |
+| `linked.backend.storage.ts` | Backend Layer 1 — shape → alias routing. Parses the JSON, instantiates stores via `loadStores`, calls `LinkedStorage.setDefaultDataset(...)` / `setDatasetForShapes(...)`. |
+| `src/linked.frontend.{storage.ts,datasets.json}` | Frontend mirror — same JSON shape, public values only; storage TS imports store classes explicitly and constructs one per alias. |
+
+Defaults shipped:
+
+- `FUSEKI_BASE_URL` — `http://localhost:3030`
+- `FUSEKI_DATASET`  — `${hyphen_name}-main`
+- `FUSEKI_USER` / `FUSEKI_PASSWORD` — `admin` / `admin` (matches the `stain/jena-fuseki` Docker image default)
+- `FUSEKI_DB_TYPE`  — `tdb2` (persistent). Set to `mem` for in-memory.
+
+All of these are referenced as `${VAR:-default}` placeholders in `linked.backend.datasets.json`, so you can either edit the JSON directly or set env vars.
 
 ## Build for production
 
@@ -59,9 +58,7 @@ npm run server:prod
 
 ## Learn more
 
-- [@_linked/core](https://www.npmjs.com/package/@_linked/core) — query DSL,
-  Shape classes, storage routing.
-- [@_linked/react](https://www.npmjs.com/package/@_linked/react) —
-  `linkedComponent`, `linkedSetComponent`.
-- [@_linked/schema](https://www.npmjs.com/package/@_linked/schema) — shipped
-  Shape classes (Person, Place, Organization, …).
+- [@_linked/core](https://www.npmjs.com/package/@_linked/core) — query DSL, Shape classes, storage routing. See `parseDatasetsConfig` + `loadStores` for the dataset-config helpers.
+- [@_linked/react](https://www.npmjs.com/package/@_linked/react) — `linkedComponent`, `linkedSetComponent`.
+- [@_linked/schema](https://www.npmjs.com/package/@_linked/schema) — shipped Shape classes (Person, Place, Organization, …).
+- [@_linked/css](https://www.npmjs.com/package/@_linked/css) — design tokens, Tailwind v4 theme primitives, `@utility` mixins. See `src/theme.css` for the wiring.

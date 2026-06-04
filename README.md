@@ -106,6 +106,25 @@ Templates live in `defaults/`:
 - `defaults/package/` — used by `linked create-package`
 - `defaults/setup-publish/` — workflow + changeset files written by `linked setup-publish` (single-branch default; `dual-branch/` subdirectory for the `--dual-branch` variant)
 
+### `linked create-app` template structure
+
+`linked create-app <name>` copies `defaults/app-with-backend/` to the new app's folder, substitutes `${name}` / `${hyphen_name}` / `${app_prefix}` / `${app_domain}` placeholders in selected files, and copies `linked.backend.datasets.example.json` → `linked.backend.datasets.json` so first boot works zero-config.
+
+Storage configuration follows the two-layer pattern from [backlog 016](https://github.com/create-now/docs/blob/main/docs/backlog/016-ejection-export-flow.md) (canonical spec) + the symmetric backend/frontend split:
+
+| File | Side | Role | Git |
+|---|---|---|---|
+| `linked.backend.storage.ts` | backend | Shape→alias routing. Uses `parseDatasetsConfig` + `loadStores` from `@_linked/core`; calls `LinkedStorage.setDefaultDataset(...)` / `setDatasetForShapes(...)`. | committed |
+| `linked.backend.datasets.json` | backend | Alias → `{ store, config }`. `store` is an npm import path; `config` is the store class's constructor arg. `${VAR:-default}` placeholders resolved at boot. | **gitignored** |
+| `linked.backend.datasets.example.json` | backend | Template / seed for the gitignored file. Has placeholders matching env vars. | committed |
+| `src/linked.frontend.storage.ts` | frontend | Same shape→alias model; imports store classes explicitly (webpack-bundle-safe), constructs per alias. | committed |
+| `src/linked.frontend.datasets.json` | frontend | Frontend alias → `{ store, config }`. Public values only — never put secrets here, it ships in the browser bundle. | committed |
+
+Conventions:
+- Aliases on the two sides are **independent**. The framework re-routes by shape on each side; matching alias names between FE and BE is convention, not a framework requirement.
+- The backend dispatcher is registry-free (dynamic `await import(entry.store)`). The frontend hardcodes each `new StoreClass(config)` because webpack can't bundle dynamic imports of arbitrary npm specifiers.
+- Each store class accepts a single config-object constructor argument — `new FusekiStore({ endpoint, credentials? })`, `new BackendAPIStore({ name?, id? })`.
+
 ## Repository
 
 `linked-cm/cli` on GitHub. License: MPL-2.0.
