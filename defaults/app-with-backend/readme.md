@@ -2,6 +2,35 @@
 
 A standalone [Linked](https://linked.cm) app generated with `@_linked/cli`. Requires **Node ≥ 20.6**.
 
+## What is Linked
+
+Linked is a TypeScript framework for building apps on top of a graph database (RDF / SPARQL). You write your domain as **shape classes**, query them with a **typed DSL**, and render with **linked React components** that subscribe to the query results.
+
+```ts
+// 1. A shape — domain class + SHACL metadata, generated from TypeScript decorators
+@linkedShape
+export class Person extends Shape {
+  static targetClass = schema.Person;
+
+  @literalProperty({ path: schema.givenName })  givenName: string;
+  @literalProperty({ path: schema.familyName }) familyName: string;
+}
+
+// 2. A query — TypeScript-embedded, type-inferred, executed against any IDataset
+const people = await Person.select((p) => [p.givenName, p.familyName]);
+
+// 3. A linked component — re-renders when its query result changes
+const PersonCard = linkedComponent(
+  Person.select((p) => [p.givenName, p.familyName]),
+  ({ givenName, familyName }) => <span>{givenName} {familyName}</span>,
+);
+```
+
+The home page in this app demonstrates the full chain end-to-end with `@_linked/schema`'s shipped `Person` shape.
+
+- **[@_linked/core](https://github.com/linked-cm/core)** — query DSL, Shape classes, storage routing.
+- **[@_linked/react](https://github.com/Semantu/linked-react)** — `linkedComponent`, `linkedSetComponent`.
+
 ## Install + run
 
 With npm:
