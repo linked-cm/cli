@@ -1,0 +1,19 @@
+@import '@_linked/css/package.css';
+
+.Card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: --spacing(6);
+  text-align: center;
+}
+
+.Card h2 {
+  margin: 0 0 --spacing(3);
+}
+
+.Card p {
+  color: var(--color-gray-700);
+  line-height: 1.5;
+  margin: 0;
+}

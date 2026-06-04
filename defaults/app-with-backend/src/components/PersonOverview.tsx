@@ -1,53 +1,42 @@
-// Example PersonOverview — demonstrates the @_linked query DSL end-to-end:
-// runs an awaited Person.select(...) to fetch the list, renders each row as a
-// PersonPreview, and exposes add/edit/delete via Person.create / Person.update /
-// Person.delete. After any mutation, bumping `refreshKey` re-runs the list.
+// Example PersonOverview — demonstrates @_linked/react's data binding:
+// linkedSetComponent for the list (auto-runs the query, injects results and
+// an injected _refresh); linkedComponent for each row (see PersonPreview).
+// After Person.create the form calls _refresh() to re-run the list query.
 //
 // Replace or extend this with your own shapes (see https://linked.cm).
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { linkedSetComponent } from '@_linked/react';
 import { Person } from '@_linked/schema/shapes/Person';
 import { PersonPreview } from './PersonPreview';
 import { PersonListRefreshProvider } from './PersonOverviewContext';
+import style from './PersonOverview.module.css';
 
-type PersonRow = { id: string; givenName?: string; familyName?: string };
+const PersonList = linkedSetComponent(
+  Person.select((p) => [p.givenName, p.familyName]),
+  ({ linkedData = [], _refresh, refreshRef }: any) => {
+    // Forward the list's _refresh up via a ref so the sibling form +
+    // child rows can trigger a re-fetch through context.
+    if (refreshRef) {
+      refreshRef.current = _refresh;
+    }
 
-function PersonList({ refreshKey }: { refreshKey: number }) {
-  const [rows, setRows] = useState<PersonRow[] | null>(null);
+    if (linkedData.length === 0) {
+      return (
+        <p className={style.Empty}>No people yet. Add one below.</p>
+      );
+    }
 
-  useEffect(() => {
-    let cancelled = false;
-    Person.select((p) => [p.givenName, p.familyName])
-      .then((results) => {
-        if (cancelled) return;
-        // results may be undefined if the backend call failed silently;
-        // coerce to an empty array so the UI shows "No people yet" rather
-        // than rendering forever in the loading state.
-        setRows(Array.isArray(results) ? (results as PersonRow[]) : []);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          console.error('PersonList load failed', err);
-          setRows([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshKey]);
-
-  if (!rows) return <p>Loading…</p>;
-  if (rows.length === 0) return <p>No people yet. Add one below.</p>;
-
-  return (
-    <ul data-testid="person-list">
-      {rows.map((p) => (
-        <li key={p.id}>
-          <PersonPreview of={{ id: p.id }} />
-        </li>
-      ))}
-    </ul>
-  );
-}
+    return (
+      <ul className={style.List} data-testid="person-list">
+        {linkedData.map((p: { id: string }) => (
+          <li key={p.id}>
+            <PersonPreview of={{ id: p.id }} />
+          </li>
+        ))}
+      </ul>
+    );
+  },
+);
 
 function PersonAddForm({ onAdded }: { onAdded: () => void }) {
   const [given, setGiven] = useState('');
@@ -69,7 +58,7 @@ function PersonAddForm({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <form onSubmit={submit}>
+    <form className={style.Form} onSubmit={submit}>
       <input
         value={given}
         placeholder="First name"
@@ -88,19 +77,19 @@ function PersonAddForm({ onAdded }: { onAdded: () => void }) {
 }
 
 export function PersonOverview() {
-  const [refreshKey, setRefreshKey] = useState(0);
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const refreshRef = useRef<() => void>(() => {});
+  const refresh = useCallback(() => refreshRef.current(), []);
 
   return (
     <PersonListRefreshProvider value={refresh}>
-      <div data-testid="person-overview">
+      <div className={style.Root} data-testid="person-overview">
         <h2>People</h2>
-        <p>
-          This is example code using the <code>@_linked</code> query DSL
-          against your local Fuseki dataset. Edit{' '}
+        <p className={style.Intro}>
+          Example code using the <code>@_linked</code> query DSL against
+          your local Fuseki dataset. Edit{' '}
           <code>src/components/PersonOverview.tsx</code> to extend it.
         </p>
-        <PersonList refreshKey={refreshKey} />
+        <PersonList refreshRef={refreshRef} />
         <PersonAddForm onAdded={refresh} />
       </div>
     </PersonListRefreshProvider>
