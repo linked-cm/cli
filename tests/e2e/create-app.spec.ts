@@ -11,8 +11,10 @@ import {test, expect} from '@playwright/test';
 import {GenericContainer, Wait, StartedTestContainer} from 'testcontainers';
 import {spawn, ChildProcess, execSync} from 'node:child_process';
 import {rmSync, existsSync} from 'node:fs';
-import {join, resolve} from 'node:path';
+import {dirname, join, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const CN_ROOT = resolve(__dirname, '../../../..');
 const CLI_LAUNCH = resolve(__dirname, '../../lib/esm/launch.js');
 
