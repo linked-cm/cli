@@ -1,11 +1,15 @@
-import {DefaultLayout} from '../layout/DefaultLayout';
+import { DefaultLayout } from '../layout/DefaultLayout';
+import style from './Signin.module.css';
 
 export default function Signin() {
   return (
     <DefaultLayout>
-      <div>
-        <h2>Sign In</h2>
-        See lincd.org for different ways to sign in.
+      <div className={style.Card}>
+        <h2>Sign in</h2>
+        <p>
+          See <a href="https://linked.cm">linked.cm</a> for different ways to
+          sign in.
+        </p>
       </div>
     </DefaultLayout>
   );

@@ -8,7 +8,7 @@ import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
 import {WebpackManifestPlugin} from 'webpack-manifest-plugin';
-import {LincdConfig} from './interfaces.js';
+import {LinkedConfig} from './interfaces.js';
 import {generateScopedName} from './utils.js';
 
 import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
@@ -94,12 +94,12 @@ function getLocalIdent(context, currentFormat, name) {
   return generateScopedName(name, context.resourcePath);
 }
 
-export const getLincdConfig = async (): Promise<LincdConfig> => {
-  const lincdConfigPathJs = path.resolve(process.cwd(), 'lincd.config.js');
-  const lincdConfigPathJson = path.resolve(process.cwd(), 'lincd.config.json');
+export const getLinkedConfig = async (): Promise<LinkedConfig> => {
+  const linkedConfigPathJs = path.resolve(process.cwd(), 'linked.config.js');
+  const linkedConfigPathJson = path.resolve(process.cwd(), 'linked.config.json');
 
   //default config
-  let config: LincdConfig = {
+  let config: LinkedConfig = {
     //tailwind is default
     cssMode: cssModes[0] as 'tailwind' | 'postcss',
     webpack: {
@@ -113,13 +113,11 @@ export const getLincdConfig = async (): Promise<LincdConfig> => {
   let loaded: any;
   if (typeof packageJson.linkedApp === 'object') {
     loaded = packageJson.linkedApp;
-  } else if (typeof packageJson.lincdApp === 'object') {
-    loaded = packageJson.lincdApp;
-  } else if (fs.existsSync(lincdConfigPathJs)) {
-    let lincdConfig = await import(lincdConfigPathJs);
-    loaded = lincdConfig.default;
-  } else if (fs.existsSync(lincdConfigPathJson)) {
-    loaded = JSON.parse(fs.readFileSync(lincdConfigPathJson, 'utf-8'));
+  } else if (fs.existsSync(linkedConfigPathJs)) {
+    let linkedConfig = await import(linkedConfigPathJs);
+    loaded = linkedConfig.default;
+  } else if (fs.existsSync(linkedConfigPathJson)) {
+    loaded = JSON.parse(fs.readFileSync(linkedConfigPathJson, 'utf-8'));
   }
 
   // Backward compatibility: migrate flat structure to nested
@@ -159,8 +157,27 @@ export const getLincdConfig = async (): Promise<LincdConfig> => {
 };
 
 export const getWebpackAppConfig = async () => {
-  // set up the storage config for the app
-  await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
+  // set up the storage config for the app — tries the canonical
+  // backend-storage-config at app root first, then the legacy scripts/
+  // location, so older clones keep booting during the transition.
+  const cwd = process.cwd();
+  const candidates = [
+    // Iter4 canonical:
+    path.join(cwd, 'linked.backend.storage.ts'),
+    path.join(cwd, 'linked.backend.storage.js'),
+    // Iter3:
+    path.join(cwd, 'backend-storage-config.ts'),
+    path.join(cwd, 'backend-storage-config.js'),
+    path.join(cwd, 'scripts', 'backend-storage-config.js'),
+    // legacy:
+    path.join(cwd, 'scripts', 'storage-config.js'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      await import(candidate);
+      break;
+    }
+  }
   const accessURL = LinkedFileStorage.accessURL;
 
   // set up the public path for the app
@@ -170,13 +187,18 @@ export const getWebpackAppConfig = async () => {
   const publicPath = isCapacitorBuild ? '' : '/public';
   const bundlesPath = publicPath + '/bundles/';
 
-  // ASSET_PATH is used load the assets from the correct path
-  // if ASSET_PATH is set in environment (app builds), use it directly
-  // otherwise, use CDN URL + bundlesPath for production, or bundlesPath for development
-  const ASSET_PATH = process.env.ASSET_PATH || 
-    (accessURL ? accessURL + bundlesPath : bundlesPath);
+  // ASSET_PATH is used to load the assets from the correct path.
+  // - If ASSET_PATH is set in environment (app builds), use it directly.
+  // - In development we want a port-agnostic relative path so the bundle URLs
+  //   work no matter which PORT the dev server binds to (browsers resolve
+  //   relative URLs against window.location.origin). Baking SITE_ROOT into
+  //   the publicPath was a footgun when scaffolded apps overrode PORT.
+  // - In production, use the absolute origin from accessURL (CDN, etc.).
+  const ASSET_PATH =
+    process.env.ASSET_PATH ||
+    (isDevelopment ? bundlesPath : accessURL ? accessURL + bundlesPath : bundlesPath);
 
-  let config = await getLincdConfig();
+  let config = await getLinkedConfig();
 
   let postcssPlugins = [];
 

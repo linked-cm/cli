@@ -39,6 +39,40 @@ let dirname__ =
     : //@ts-ignore
       dirname(import.meta.url).replace('file:/', '');
 
+/**
+ * Dynamically import the app's backend storage configuration. Tries the
+ * canonical `linked.backend.storage.{ts,js}` at app root first, then the
+ * earlier `backend-storage-config.{ts,js}` (Iter3), then the legacy
+ * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
+ * app clones keep booting through the rename.
+ */
+async function loadBackendStorageConfig(): Promise<any> {
+  const cwd = process.cwd();
+  const candidates = [
+    // Iter4 canonical:
+    path.join(cwd, 'linked.backend.storage.ts'),
+    path.join(cwd, 'linked.backend.storage.js'),
+    // Iter3:
+    path.join(cwd, 'backend-storage-config.ts'),
+    path.join(cwd, 'backend-storage-config.js'),
+    path.join(cwd, 'scripts', 'backend-storage-config.js'),
+    path.join(cwd, 'scripts', 'backend-storage-config.ts'),
+    // legacy pre-rename:
+    path.join(cwd, 'scripts', 'storage-config.js'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return import(candidate);
+    }
+  }
+  console.warn(
+    chalk.yellow(
+      '[linked.backend.storage] no linked.backend.storage.{ts,js} found at app root.',
+    ),
+  );
+  return undefined;
+}
+
 var variables = {};
 /**
  * Prompt user for input
@@ -138,9 +172,20 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     path.join(targetFolder, '.yarnrc.yml'),
   );
 
+  // Seed the real (gitignored) Layer 2 config from the committed example so
+  // the scaffolded app boots first try. Users can edit either file later.
+  const datasetsExample = path.join(
+    targetFolder,
+    'linked.backend.datasets.example.json',
+  );
+  const datasetsReal = path.join(targetFolder, 'linked.backend.datasets.json');
+  if (fs.existsSync(datasetsExample) && !fs.existsSync(datasetsReal)) {
+    fs.copySync(datasetsExample, datasetsReal);
+  }
+
   // fs.copySync(path.join(__dirname, '..', 'defaults', 'app'), targetFolder);
 
-  log("Creating new LINCD application '" + appName + "'");
+  log("Creating new Linked app '" + appName + "'");
 
   //replace variables in some copied files
   await replaceVariablesInFolder(targetFolder);
@@ -157,10 +202,16 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   }
 
   log(
-    `Your LINCD App is ready at ${chalk.blueBright(targetFolder)}`,
-    `To start, run\n${chalk.blueBright(
-      `cd ${hyphenName}`,
-    )} and then ${chalk.blueBright('yarn start')}`,
+    `Your Linked app is ready at ${chalk.blueBright(targetFolder)}`,
+    `\nStorage: linked.backend.storage.ts wires aliases to stores; linked.backend.datasets.json holds endpoints.`,
+    `Defaults to Fuseki at ${chalk.cyan('http://localhost:3030')} (auto-creates the dataset on first boot).`,
+    `Make sure Fuseki is running, e.g.:`,
+    `  ${chalk.blueBright('docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki')}`,
+    `Edit ${chalk.cyan('linked.backend.datasets.json')} to change endpoints or credentials.`,
+    `Mirror file for the frontend: ${chalk.cyan('src/linked.frontend.storage.ts')} + ${chalk.cyan('src/linked.frontend.datasets.json')}.`,
+    `\nTo start (with npm or yarn):`,
+    `  ${chalk.blueBright(`cd ${hyphenName} && npm start`)}`,
+    `  ${chalk.gray('# or: yarn start')}`,
   );
 };
 
@@ -251,7 +302,7 @@ function checkPackagePath(rootPath, packagePath, res) {
     //some packages are not true lincd packages, but we still want them to be re-built automatically. This is what lincd_util is for
     if (pack && pack.workspaces) {
       checkWorkspaces(packagePath, pack.workspaces, res);
-    } else if (pack && (pack.linkedPackage === true || pack.lincd === true)) {
+    } else if (pack && pack.linkedPackage === true) {
       res.push({
         path: packagePath,
         packageName: pack.name,
@@ -519,7 +570,7 @@ function findAppRoot(startPath = process.cwd()): string | null {
   let candidateRoots: Array<{
     path: string;
     hasWorkspaces: boolean;
-    isLincd: boolean;
+    isLinked: boolean;
   }> = [];
 
   // Walk up the directory tree
@@ -532,7 +583,7 @@ function findAppRoot(startPath = process.cwd()): string | null {
       candidateRoots.push({
         path: currentPath,
         hasWorkspaces: !!packageJson.workspaces,
-        isLincd: packageJson.linkedPackage === true || packageJson.lincd === true,
+        isLinked: packageJson.linkedPackage === true,
       });
     }
 
@@ -545,17 +596,17 @@ function findAppRoot(startPath = process.cwd()): string | null {
   }
 
   // Find the topmost package.json that has workspaces
-  // Prefer non-lincd packages (app roots) over lincd packages
+  // Prefer non-linked packages (app roots) over linked packages
   let appRoot = null;
   for (let i = candidateRoots.length - 1; i >= 0; i--) {
     const candidate = candidateRoots[i];
-    if (candidate.hasWorkspaces && !candidate.isLincd) {
+    if (candidate.hasWorkspaces && !candidate.isLinked) {
       appRoot = candidate.path;
       break;
     }
   }
 
-  // If no non-lincd workspace found, use the topmost workspace
+  // If no non-linked workspace found, use the topmost workspace
   if (!appRoot) {
     for (let i = candidateRoots.length - 1; i >= 0; i--) {
       if (candidateRoots[i].hasWorkspaces) {
@@ -1666,29 +1717,29 @@ export const runMethod = async (
   await ensureEnvironmentLoaded();
 
   if (options.spawn) {
-    let lincdConfig = (
-      await import(path.join(process.cwd(), 'lincd.config.js'))
+    let linkedConfig = (
+      await import(path.join(process.cwd(), 'linked.config.js'))
     ).default;
 
     // Set default loadAppComponent if not provided
-    if (!lincdConfig.server) {
-      lincdConfig.server = {};
+    if (!linkedConfig.server) {
+      linkedConfig.server = {};
     }
-    if (!lincdConfig.server.loadAppComponent) {
-      lincdConfig.server.loadAppComponent = async () =>
+    if (!linkedConfig.server.loadAppComponent) {
+      linkedConfig.server.loadAppComponent = async () =>
         (await import(path.join(process.cwd(), 'src', 'App'))).default;
     }
     // Set default loadRoutes if not provided
-    if (!lincdConfig.server.loadRoutes) {
-      lincdConfig.server.loadRoutes = async () =>
+    if (!linkedConfig.server.loadRoutes) {
+      linkedConfig.server.loadRoutes = async () =>
         await import(path.join(process.cwd(), 'src', 'routes.tsx'));
     }
 
     //@ts-ignore
     const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
       .LincdServer;
-    await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
-    let server = new ServerClass(lincdConfig);
+    await loadBackendStorageConfig();
+    let server = new ServerClass(linkedConfig);
     //init the server
     console.log('Initializing server...');
     server.initOnly().then(() => {
@@ -1775,7 +1826,7 @@ export const startServer = async (
 ) => {
   await ensureEnvironmentLoaded();
 
-  let lincdConfig = (await import(path.join(process.cwd(), 'lincd.config.js')))
+  let linkedConfig = (await import(path.join(process.cwd(), 'linked.config.js')))
     .default;
 
   // function scssLoadcall(source, filename) {
@@ -1793,13 +1844,13 @@ export const startServer = async (
     //@ts-ignore
     ServerClass = (await import('@_linked/server/shapes/LincdServer')).LincdServer;
   }
-  await import(path.join(process.cwd(), 'scripts', 'storage-config.js'));
+  await loadBackendStorageConfig();
 
   // Set default loadAppComponent if not provided
-  if (!lincdConfig.server) {
-    lincdConfig.server = {};
+  if (!linkedConfig.server) {
+    linkedConfig.server = {};
   }
-  if (!lincdConfig.server.loadAppComponent) {
+  if (!linkedConfig.server.loadAppComponent) {
     let appPromise;
     if (process.env.NODE_ENV !== 'development') {
       appPromise = (await import(path.join(process.cwd(), 'lib', 'App.js')))
@@ -1808,14 +1859,14 @@ export const startServer = async (
       appPromise = (await import(path.join(process.cwd(), 'src', 'App.tsx')))
         .default;
     }
-    lincdConfig.server.loadAppComponent = async () => {
+    linkedConfig.server.loadAppComponent = async () => {
       return appPromise;
     };
   }
 
   // Set default loadRoutes if not provided
-  if (!lincdConfig.server.loadRoutes) {
-    lincdConfig.server.loadRoutes = async () => {
+  if (!linkedConfig.server.loadRoutes) {
+    linkedConfig.server.loadRoutes = async () => {
       if (process.env.NODE_ENV !== 'development') {
         return await import(path.join(process.cwd(), 'lib', 'routes.js'));
       } else {
@@ -1824,7 +1875,7 @@ export const startServer = async (
     };
   }
 
-  let server = new ServerClass(lincdConfig);
+  let server = new ServerClass(linkedConfig);
   //Important to use slice, because when using clusers, child processes need to be able to read the same arguments
   let args = process.argv.slice(2);
   //if --initOnly is passed, only initialize the server and don't start it
@@ -1905,13 +1956,11 @@ export const buildFrontend = async () => {
     }
 
     // load the storage config
-    const storageConfig = await import(
-      path.join(process.cwd(), 'scripts', 'storage-config.js')
-    );
+    const storageConfig = await loadBackendStorageConfig();
 
     // check if LincdFileStorage has a default FileStore
     // if yes: copy all the files in the build folder over with LincdFileStorage
-    if (LinkedFileStorage.getDefaultStore()) {
+    if (LinkedFileStorage.getDefaultDataset()) {
       // get public directory
       const rootDirectory = 'public';
       const pathDir = path.join(process.cwd(), rootDirectory);
@@ -2411,8 +2460,8 @@ export const buildPackage = async (
   const pkgJson = JSON.parse(
     fs.readFileSync(path.join(packagePath, 'package.json'), 'utf8'),
   );
-  const isPackage = pkgJson.linkedPackage === true || pkgJson.lincd === true;
-  const isApp = pkgJson.linkedApp === true || pkgJson.lincdApp === true;
+  const isPackage = pkgJson.linkedPackage === true;
+  const isApp = pkgJson.linkedApp === true;
   if (!isPackage) {
     if (isApp) {
       console.error(

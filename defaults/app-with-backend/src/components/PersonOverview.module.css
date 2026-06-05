@@ -1,0 +1,100 @@
+@import '@_linked/css/package.css';
+
+.Root {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: --spacing(6);
+}
+
+.Intro {
+  color: var(--color-gray-600);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0 0 --spacing(5);
+}
+
+.Intro code {
+  background: var(--bg-section);
+  padding: 0 --spacing(1);
+  border-radius: var(--radius-element);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.Empty {
+  color: var(--color-gray-500);
+  font-style: italic;
+  padding: --spacing(4) 0;
+  margin: 0;
+}
+
+.Loading {
+  color: var(--color-gray-500);
+  padding: --spacing(4) 0;
+  margin: 0;
+}
+
+.List {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 --spacing(5);
+}
+
+.List > li {
+  padding: --spacing(3) 0;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.List > li:first-child {
+  padding-top: 0;
+}
+
+.List > li:last-child {
+  border-bottom: none;
+}
+
+.Form {
+  display: flex;
+  gap: --spacing(2);
+  flex-wrap: wrap;
+  padding-top: --spacing(4);
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.Form input {
+  flex: 1 1 140px;
+  padding: --spacing(2) --spacing(3);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-element);
+  background: var(--bg-card);
+  color: var(--color-gray-900);
+  font: inherit;
+}
+
+.Form input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 2px var(--color-primary-200);
+}
+
+.Form button {
+  padding: --spacing(2) --spacing(5);
+  background: var(--color-primary-500);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-element);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.Form button:hover:not(:disabled) {
+  background: var(--color-primary-600);
+}
+
+.Form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

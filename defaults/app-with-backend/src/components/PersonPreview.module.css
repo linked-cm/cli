@@ -1,0 +1,97 @@
+@import '@_linked/css/package.css';
+
+.Row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: --spacing(2);
+  flex-wrap: wrap;
+}
+
+.Name {
+  font-weight: 500;
+  color: var(--color-gray-900);
+}
+
+.Actions {
+  display: flex;
+  gap: --spacing(2);
+}
+
+.EditButton,
+.SaveButton,
+.CancelButton,
+.DeleteButton {
+  padding: --spacing(1) --spacing(3);
+  font: inherit;
+  font-size: 0.85rem;
+  border-radius: var(--radius-element);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.EditButton,
+.CancelButton {
+  background: transparent;
+  color: var(--color-gray-700);
+  border-color: var(--color-gray-300);
+}
+
+.EditButton:hover:not(:disabled),
+.CancelButton:hover:not(:disabled) {
+  background: var(--color-gray-100);
+  color: var(--color-gray-900);
+}
+
+.SaveButton {
+  background: var(--color-primary-500);
+  color: var(--color-white);
+}
+
+.SaveButton:hover:not(:disabled) {
+  background: var(--color-primary-600);
+}
+
+.DeleteButton {
+  background: transparent;
+  color: var(--color-red-600);
+  border-color: transparent;
+}
+
+.DeleteButton:hover:not(:disabled) {
+  color: var(--color-red-700);
+  background: var(--color-red-50);
+}
+
+.EditButton:disabled,
+.SaveButton:disabled,
+.CancelButton:disabled,
+.DeleteButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.EditRow {
+  display: flex;
+  align-items: center;
+  gap: --spacing(2);
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.EditRow input {
+  flex: 1 1 140px;
+  padding: --spacing(2) --spacing(3);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-element);
+  background: var(--bg-card);
+  color: var(--color-gray-900);
+  font: inherit;
+}
+
+.EditRow input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 2px var(--color-primary-200);
+}

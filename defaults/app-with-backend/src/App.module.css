@@ -1,17 +1,32 @@
+@import '@_linked/css/package.css';
+
+:global(body) {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--color-gray-900);
+  margin: 0;
+}
+
 .App {
-  display: block;
-  color: #141414;
-  margin-top: 1.5rem;
+  min-height: 100vh;
 }
-body {
-  font-family: 'Roboto', sans-serif;
-  background-color: #ffffff;
+
+:global(h1) {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0;
 }
-h1 {
-  font-size: 2rem;
-  font-weight: 100;
+
+:global(h2) {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 --spacing(3);
 }
-h2 {
-  font-size: 1.5em;
-  font-weight: bold;
+
+:global(a) {
+  color: var(--color-primary-600);
+}
+
+:global(a:hover) {
+  color: var(--color-primary-700);
 }

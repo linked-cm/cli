@@ -1,25 +1,46 @@
+@import '@_linked/css/package.css';
+
 .header {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: --spacing(4);
+  padding: --spacing(4) 0 --spacing(6);
+  flex-wrap: wrap;
+}
+
+.header h1 {
+  color: var(--color-primary-700);
+  margin: 0;
 }
 
 .menu {
-  margin: 1rem 0 3rem;
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  grid-gap: 1rem;
-  > a {
-    text-align: center;
-    font-weight: bold;
-    font-size: 1.2rem;
-    background: black;
-    color: white;
-    padding: 5px 10px;
-    text-decoration: none;
-    &.active {
-      background: white;
-      color: black;
-      box-shadow: 1px 8px 10px #888;
-      border: 1px solid #444;
-    }
-  }
+  display: flex;
+  gap: --spacing(1);
+  flex-wrap: wrap;
+}
+
+.menu > a {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--color-gray-700);
+  padding: --spacing(2) --spacing(3);
+  border-radius: var(--radius-element);
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.menu > a:hover {
+  background: var(--color-gray-100);
+  color: var(--color-gray-900);
+}
+
+.menu > a.active {
+  background: var(--color-primary-500);
+  color: var(--color-white);
+}
+
+.menu > a.active:hover {
+  background: var(--color-primary-600);
+  color: var(--color-white);
 }

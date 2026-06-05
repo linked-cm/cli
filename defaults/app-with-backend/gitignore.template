@@ -5,6 +5,7 @@ public/bundles
 data/uploads
 data/metadata
 data/sessions
+linked.backend.datasets.json
 .yarn/*
 !.yarn/patches
 !.yarn/plugins

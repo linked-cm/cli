@@ -51,11 +51,11 @@ program
     });
   })
   .description(
-    'Creates a new folder with all the required files for a LINCD app',
+    'Creates a new folder with all the required files for a Linked app',
   )
   .argument(
     '<name>',
-    'the name of your LINCD app. To use spaces, wrap the name in double quotes.',
+    'the name of your Linked app. To use spaces, wrap the name in double quotes.',
   )
   .option('--app-name <name>', 'Display name for the app (skip interactive prompt)')
   .option('--app-prefix <prefix>', 'Short code prefix for data files (skip interactive prompt)')
@@ -69,7 +69,7 @@ program
   })
   .option('--env', 'The node environment to use. Default is "development"')
   .description(
-    'Start the LINCD node.js server. Use --initOnly to start the backend without http server',
+    'Start the Linked node.js server. Use --initOnly to start the backend without http server',
   );
 
 program
@@ -83,7 +83,7 @@ program
   )
   .option('--env', 'The node environment to use. Default is "development"')
   .description(
-    'Start the LINCD node.js server but without http server. Instead it immediately calls the specified method of the specified package and exits afterwards',
+    'Start the Linked node.js server but without http server. Instead it immediately calls the specified method of the specified package and exits afterwards',
   )
   .argument(
     '<package>',
@@ -102,7 +102,7 @@ program
   )
   .option('--env', 'The node environment to use. Default is "development"')
   .description(
-    'Start the LINCD node.js server but without http server. Instead it immediately runs the specified script and exits afterwards',
+    'Start the Linked node.js server but without http server. Instead it immediately runs the specified script and exits afterwards',
   )
   .argument(
     '<scriptName>',
@@ -115,7 +115,7 @@ program
     return createPackage(name, uriBase);
   })
   .description(
-    'Create a new folder with all the required files for a new LINCD package',
+    'Create a new folder with all the required files for a new Linked package',
   )
   .argument(
     '<name>',
@@ -132,7 +132,7 @@ program
     return upgradePackages();
   })
   .description(
-    'Upgrade all lincd packages in the workspace to ESM/CJS dual packages',
+    'Upgrade all linked packages in the workspace to ESM/CJS dual packages',
   );
 
 program
@@ -206,7 +206,7 @@ program
     register('https://registry.lincd.org');
   })
   .description(
-    'Register (a new version of) this package to the LINCD registry. If successful your package will appear on www.lincd.org',
+    'Register (a new version of) this package to the Linked registry. If successful your package will appear on linked.cm',
   );
 
 program
@@ -255,7 +255,7 @@ program
   })
   .option('--env', 'The node environment to use. Default is "development"')
   .description(
-    'Start the LINCD node.js server. Use --initOnly to start the backend without http server',
+    'Start the Linked node.js server. Use --initOnly to start the backend without http server',
   );
 
 program.command('publish-updated').action(() => {

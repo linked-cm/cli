@@ -1,0 +1,12 @@
+{
+  "_note": "Frontend datasets config. Public values only — this file ships in the browser bundle. Each entry: `store` (npm import path to the IDataset class) + `config` (a single JSON object passed verbatim to `new StoreClass(config)`). The default BackendAPIStore entry proxies queries to this app's own backend; swap in a different store class (e.g. @_linked/fuseki/shapes/FusekiStore) to talk directly to a public SPARQL endpoint.",
+
+  "datasets": {
+    "appData": {
+      "store": "@_linked/server/shapes/quadstores/BackendAPIStore",
+      "config": {
+        "name": "appData"
+      }
+    }
+  }
+}

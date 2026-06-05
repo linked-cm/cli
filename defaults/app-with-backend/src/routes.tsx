@@ -1,5 +1,5 @@
-import { RequireAuth } from 'lincd-auth/components/RequireAuth';
-import type { RoutesConfig } from 'lincd-server/types/RouteConfig';
+import { RequireAuth } from '@_linked/auth/components/RequireAuth';
+import type { RoutesConfig } from '@_linked/server/types/RouteConfig';
 import React, { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { Spinner } from './components/Spinner';

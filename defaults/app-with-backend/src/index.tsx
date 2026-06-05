@@ -1,5 +1,5 @@
-import { AppContextProvider } from 'lincd-server-utils/components/AppContext';
-import { initFrontend } from 'lincd-server-utils/utils/Frontend';
+import { AppContextProvider } from '@_linked/server-utils/components/AppContext';
+import { initFrontend } from '@_linked/server-utils/utils/Frontend';
 import React from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -7,7 +7,7 @@ import App from './App';
 import { preloadMatchedRoute } from './utils/preloadRoutes';
 
 //import the storage & file configuration for the frontend
-import './config-frontend';
+import './linked.frontend.storage';
 
 //to avoid errors with react-refresh-webpack-plugin
 window['$RefreshReg$'] = () => {};

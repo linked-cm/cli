@@ -43,7 +43,7 @@ export interface PackageDetails {
 /**
  * Webpack build configuration
  */
-export interface LincdWebpackConfig {
+export interface LinkedWebpackConfig {
   /**
    * Enable webpack filesystem caching for faster rebuilds
    * @default true
@@ -80,7 +80,7 @@ export interface LincdWebpackConfig {
 /**
  * Server-specific configuration
  */
-export interface LincdServerConfig {
+export interface LinkedServerConfig {
   /**
    * Paths to cache for server-side rendering (SSR)
    * Cached pages will be served from memory for faster response times
@@ -116,9 +116,9 @@ export interface LincdServerConfig {
 }
 
 /**
- * Complete LINCD configuration
+ * Complete Linked configuration
  */
-export interface LincdConfig {
+export interface LinkedConfig {
   /**
    * CSS processing mode (shared by webpack and server for SSR)
    * - 'tailwind': Use Tailwind CSS v4 with @tailwindcss/postcss. Still supports CSS Modules for .module.css files
@@ -130,10 +130,10 @@ export interface LincdConfig {
   /**
    * Webpack build configuration
    */
-  webpack?: LincdWebpackConfig;
+  webpack?: LinkedWebpackConfig;
 
   /**
    * Server configuration
    */
-  server?: LincdServerConfig;
+  server?: LinkedServerConfig;
 }
