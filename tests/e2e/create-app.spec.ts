@@ -1,26 +1,26 @@
 // End-to-end: scaffold a Linked app via `linked create-app`, install, start it
 // against a fresh Fuseki container, then drive the Person CRUD flow.
 //
-// Why scaffold inside the CN monorepo's packages/ rather than to /tmp:
-// the template depends on unpublished `@_linked/*` packages. Inside the
-// workspace, yarn resolves those locally via workspace symlinks. Outside
-// the workspace they'd need to be published to npm first.
-//
-// Cleanup deletes the scaffolded folder + drops the Fuseki dataset.
+// Self-contained: scaffolds into an OS tmpdir, installs deps from npm,
+// starts a Fuseki testcontainer, exercises the Person fixture. No
+// dependency on any parent monorepo. Companion `@_linked/*` packages
+// must be published to npm at compatible versions; if they aren't yet,
+// set SKIP_E2E=1 to skip this test.
 import {test, expect} from '@playwright/test';
 import {GenericContainer, Wait, StartedTestContainer} from 'testcontainers';
 import {spawn, ChildProcess, execSync} from 'node:child_process';
-import {rmSync, existsSync} from 'node:fs';
+import {rmSync, existsSync, mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CN_ROOT = resolve(__dirname, '../../../..');
 const CLI_LAUNCH = resolve(__dirname, '../../lib/esm/launch.js');
 
 // Deterministic-enough app name; salted so concurrent runs don't collide.
 const APP_NAME = `e2e-test-app-${process.pid}`;
-const APP_DIR = join(CN_ROOT, 'packages', APP_NAME);
+const SCAFFOLD_ROOT = mkdtempSync(join(tmpdir(), 'linked-cli-e2e-'));
+const APP_DIR = join(SCAFFOLD_ROOT, APP_NAME);
 const DATASET = `${APP_NAME}-main`;
 const APP_PORT = 4400 + (process.pid % 100); // avoid collision with a CN backend on 4040
 
@@ -29,6 +29,8 @@ let appProc: ChildProcess | null = null;
 let fusekiUrl: string;
 
 test.beforeAll(async () => {
+  if (process.env.SKIP_E2E === '1') test.skip();
+
   // 1. Start a fresh Fuseki container with a random host port.
   fuseki = await new GenericContainer('stain/jena-fuseki')
     .withExposedPorts(3030)
@@ -37,11 +39,11 @@ test.beforeAll(async () => {
     .start();
   fusekiUrl = `http://${fuseki.getHost()}:${fuseki.getMappedPort(3030)}`;
 
-  // 2. Scaffold the app via the new launch.js bin (loader-baked).
+  // 2. Scaffold the app via the local CLI build.
   if (existsSync(APP_DIR)) rmSync(APP_DIR, {recursive: true, force: true});
   execSync(
     `node ${CLI_LAUNCH} create-app ${APP_NAME} --app-name "E2E" --app-prefix e2e --app-domain e2e.local --skip-install`,
-    {cwd: join(CN_ROOT, 'packages'), stdio: 'inherit'},
+    {cwd: SCAFFOLD_ROOT, stdio: 'inherit'},
   );
 
   // 3. Create the matching dataset in Fuseki. Template default is
@@ -59,8 +61,9 @@ test.beforeAll(async () => {
     throw new Error(`Failed to create dataset: ${resp.status} ${await resp.text()}`);
   }
 
-  // 4. Install scaffolded app deps. Inside the CN workspace yarn resolves
-  // @_linked/* via local symlinks.
+  // 4. Install scaffolded app deps from npm. The scaffolded package.json
+  // pins @_linked/* versions; install resolves them straight from the
+  // registry (no workspace symlinks involved).
   execSync('yarn install', {cwd: APP_DIR, stdio: 'inherit'});
 
   // 5. Boot the app with env overrides pointing at the testcontainer Fuseki.
@@ -101,8 +104,10 @@ test.afterAll(async () => {
   // Stop testcontainer.
   await fuseki?.stop().catch(() => {});
 
-  // Remove scaffolded app folder.
-  if (existsSync(APP_DIR)) rmSync(APP_DIR, {recursive: true, force: true});
+  // Remove scaffolded app folder + its parent tmpdir.
+  if (existsSync(SCAFFOLD_ROOT)) {
+    rmSync(SCAFFOLD_ROOT, {recursive: true, force: true});
+  }
 }, /* timeout */ 2 * 60 * 1000);
 
 test('Person fixture: add → edit → delete round-trip', async ({page}) => {

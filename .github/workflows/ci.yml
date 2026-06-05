@@ -41,3 +41,11 @@ jobs:
       - name: Test (unit)
         if: steps.rpr.outputs.is_release_pr == 'false'
         run: npm run test:unit --if-present
+
+      # e2e scaffolds a fresh app, installs deps from npm, starts a Fuseki
+      # testcontainer, and drives a browser flow. Requires Docker on the
+      # runner. Skipped until @_linked/* companion packages publish with
+      # matching versions; set RUN_E2E=1 to opt in once they do.
+      - name: Test (e2e)
+        if: steps.rpr.outputs.is_release_pr == 'false' && env.RUN_E2E == '1'
+        run: npm run test:e2e --if-present
