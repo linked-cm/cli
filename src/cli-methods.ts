@@ -1960,7 +1960,7 @@ export const buildFrontend = async () => {
 
     // check if LincdFileStorage has a default FileStore
     // if yes: copy all the files in the build folder over with LincdFileStorage
-    if (LinkedFileStorage.getDefaultDataset()) {
+    if (LinkedFileStorage.getDefaultStore()) {
       // get public directory
       const rootDirectory = 'public';
       const pathDir = path.join(process.cwd(), rootDirectory);
