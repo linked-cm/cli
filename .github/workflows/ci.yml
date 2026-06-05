@@ -38,6 +38,6 @@ jobs:
         if: steps.rpr.outputs.is_release_pr == 'false'
         run: npm run build
 
-      - name: Test
+      - name: Test (unit)
         if: steps.rpr.outputs.is_release_pr == 'false'
-        run: npm test --if-present
+        run: npm run test:unit --if-present
