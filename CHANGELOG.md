@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.4.0
+
+### Minor Changes
+
+- [#23](https://github.com/linked-cm/cli/pull/23) [`a00168d`](https://github.com/linked-cm/cli/commit/a00168d0e55a3f7f8164df1ea90e8fe52aefd5d4) Thanks [@flyon](https://github.com/flyon)! - Rename `LincdConfig` / `LincdWebpackConfig` / `LincdServerConfig` → `LinkedConfig` / `LinkedWebpackConfig` / `LinkedServerConfig`. Function `getLincdConfig` → `getLinkedConfig`. Legacy package.json flags `lincd: true` and `lincdApp: true` are no longer read — migrate to `linkedPackage: true` / `linkedApp: true`. Built loader registration is unaffected.
+
+  Plus: CLI command help text refresh (`LINCD app` → `Linked app`, etc.). Config file name `lincd.config.{js,json}` → `linked.config.{js,json}` (hard cut, no fallback) — was previously rolled out separately.
+
+- [#23](https://github.com/linked-cm/cli/pull/23) [`a00168d`](https://github.com/linked-cm/cli/commit/a00168d0e55a3f7f8164df1ea90e8fe52aefd5d4) Thanks [@flyon](https://github.com/flyon)! - Starter template: CN-branded CSS theme + `@_linked/react` integration in the example components.
+
+  **Brand defaults.** The `app-with-backend` template now ships with the CN palette (`--color-primary-*` mapped to a teal-blue ramp, `--color-secondary-*` to mint green) as a default-branded baseline. Apps override `@theme { --color-primary-500: ... }` to swap brand.
+
+  **Semantic-token shell.** `App.module.css`, `DefaultLayout.module.css`, `Header.module.css` rewritten using `@_linked/css` semantic tokens (`--bg-page`, `--bg-card`, `--color-primary-*`) instead of hardcoded hex. Module CSS files using `--spacing(N)` import `@_linked/css/package.css` per the documented pattern.
+
+  **Person CRUD demo uses `@_linked/react`.** `PersonOverview` is now built with `linkedSetComponent`, and `PersonPreview` with `linkedComponent` — replacing the previous `useEffect` + `useState` query patterns. The wrappers handle loading state via the framework's `.ld-loader` and inject `_refresh` so the form (sibling) and rows (children) can trigger re-fetch. Optimistic UI on inline edit via `_refresh({givenName, familyName})`.
+
+  **Pages polish.** `Home`, `Signin`, `Page1`, `PageNotFound` get card layouts using semantic tokens — consistent across routes.
+
+  **`@_linked/react` is now a direct dep** in the scaffolded app's `package.json` so the bindings can be imported. Companion changes ship in `@_linked/react` (loader / errorElement API, `_refresh` on set, factory overloads) and `@_linked/css` (`.ld-loader` / `.ld-error` defaults + `--color-error-*` ramp).
+
+  **Storage layout.** Template now ships `linked.backend.storage.ts` + `linked.backend.datasets.json` and a mirror `src/linked.frontend.storage.ts` + `src/linked.frontend.datasets.json`. Backend uses `loadStores` (async, dynamic-import). Frontend hardcodes the per-alias store mapping for webpack-friendly bundling.
+
+  **npm + yarn compatibility.** `create-app` works with either package manager. Lockfile-based detection determines which to invoke for install.
+
+  No breaking changes. Existing scaffolded apps that don't pull in the template updates keep working.
+
+### Patch Changes
+
+- [`67f01ab`](https://github.com/linked-cm/cli/commit/67f01abcbed04625175a5c82e584f09fee41cdea) - Remove `preflight.css` — moved to `@_linked/css`.
+
+  `preflight.css` is a CSS asset; it belongs in the CSS package alongside `theme-defaults.css` and `utilities.css`. Consumers should update imports from `@_linked/cli/preflight.css` to `@_linked/css/preflight.css`.
+
+  The exports entry `"./preflight.css": "./preflight.css"` is also removed from `package.json`.
+
+- [`2b40588`](https://github.com/linked-cm/cli/commit/2b405880cbb21992c5005cb048f910df79c32145) - Relax `typescript` dep from `^5.7.3` to `^5.4.0` so consumers that pin a lower 5.x version (e.g. CN at 5.4.5) don't end up with a nested `typescript@5.9.x` install in `packages/cli/node_modules/`. The nested 5.9.x was incompatible with `react-refresh-typescript@2.0.12`'s AST walk — crashed frontend builds with `TypeError: Cannot read properties of undefined (reading 'declarations')` inside `VariableStatement.declarationList.declarations` traversal.
+
 ## 1.3.3
 
 ### Patch Changes
