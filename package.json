@@ -70,10 +70,7 @@
     "access": "public"
   },
   "bin": {
-    "lincd": "lib/esm/cli-deprecated.js",
-    "lincd-cli": "lib/esm/cli-deprecated.js",
-    "linked": "lib/esm/launch.js",
-    "lnk": "lib/esm/launch.js"
+    "linked": "lib/esm/launch.js"
   },
   "dependencies": {
     "@_linked/core": "^2.6.0",
