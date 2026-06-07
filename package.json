@@ -1,6 +1,6 @@
 {
   "name": "@_linked/cli",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "Command line tools for the @_linked/* packages and apps",
   "main": "lib/cjs/index.js",
   "module": "lib/esm/index.js",
