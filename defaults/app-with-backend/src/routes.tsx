@@ -1,4 +1,3 @@
-import { RequireAuth } from '@_linked/auth/components/RequireAuth';
 import type { RoutesConfig } from '@_linked/server/types/RouteConfig';
 import React, { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
@@ -36,9 +35,9 @@ export const ROUTES: RoutesConfig = {
     ),
     label: 'Components',
     preloadChunks: ['page1'],
-    // To make this route sign-in-protected, uncomment the next line + wire up
-    // an authentication provider in App.tsx. See @_linked/auth for options.
-    // requireAuth: true,
+    // To make this route sign-in-protected, install `@_linked/auth`, wire up
+    // a `<ProvideAuth>` provider in App.tsx, import RequireAuth here, and
+    // set `requireAuth: true` on this route.
   },
   signin: {
     path: '/signin',
@@ -56,12 +55,6 @@ export default function AppRoutes() {
         const route = ROUTES[routeName];
         const Component = route.component;
 
-        //if a route is marked as requireAuth, wrap it in the RequireAuth component and pass the signinRoute
-        const AuthGuard = route.requireAuth ? RequireAuth : React.Fragment;
-        const authProps = route.requireAuth
-          ? { signinRoute: ROUTES.signin.path }
-          : {};
-
         // define a render function that determines what to render based on the component and route.render
         const renderRoute = () =>
           // if a Component is defined, render it using JSX syntax (<Component />)
@@ -74,9 +67,7 @@ export default function AppRoutes() {
             key={route.path}
             path={route.path}
             element={
-              <AuthGuard {...authProps}>
-                <Suspense fallback={<Spinner />}>{renderRoute()}</Suspense>
-              </AuthGuard>
+              <Suspense fallback={<Spinner />}>{renderRoute()}</Suspense>
             }
           />
         );
