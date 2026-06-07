@@ -190,14 +190,24 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   //replace variables in some copied files
   await replaceVariablesInFolder(targetFolder);
 
+  // Pick a package manager. When both are available and the user is running
+  // create-app interactively, ask. Carry the choice through both the install
+  // step AND the final "next command" message so the user can copy-paste.
+  const interactive = !(
+    options.appName ||
+    options.appPrefix ||
+    options.appDomain
+  );
+  const pm = await choosePackageManager(interactive);
+
   if (!options.skipInstall) {
-    let hasYarn = await hasYarnInstalled();
-    let installCommand = hasYarn
-      ? 'export NODE_OPTIONS="--no-network-family-autoselection" && yarn install'
-      : 'npm install';
+    const installCommand =
+      pm === 'yarn'
+        ? 'export NODE_OPTIONS="--no-network-family-autoselection" && yarn install'
+        : 'npm install';
 
     const spinner = ora({
-      text: `Installing dependencies (${hasYarn ? 'yarn' : 'npm'})...`,
+      text: `Installing dependencies (${pm})...`,
       spinner: 'dots',
     }).start();
 
@@ -224,7 +234,7 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
       if (stdout) process.stdout.write(stdout);
       if (stderr) process.stderr.write(stderr);
     } else {
-      spinner.succeed(`Dependencies installed (${hasYarn ? 'yarn' : 'npm'})`);
+      spinner.succeed(`Dependencies installed (${pm})`);
       // Even on a 0-exit install, surface stderr (peer-dep warnings,
       // deprecations, ERESOLVE warns). Silent installs hide real problems
       // that bite users the next time they touch the lockfile.
@@ -234,6 +244,8 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     }
   }
 
+  const startCommand = pm === 'yarn' ? 'yarn start' : 'npm start';
+
   log(
     `Your Linked app is ready at ${chalk.blueBright(targetFolder)}`,
     `\nStorage: linked.backend.storage.ts wires aliases to stores; linked.backend.datasets.json holds endpoints.`,
@@ -242,9 +254,8 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     `  ${chalk.blueBright('docker run -d --rm -p 3030:3030 --name fuseki stain/jena-fuseki')}`,
     `Edit ${chalk.cyan('linked.backend.datasets.json')} to change endpoints or credentials.`,
     `Mirror file for the frontend: ${chalk.cyan('src/linked.frontend.storage.ts')} + ${chalk.cyan('src/linked.frontend.datasets.json')}.`,
-    `\nTo start (with npm or yarn):`,
-    `  ${chalk.blueBright(`cd ${hyphenName} && npm start`)}`,
-    `  ${chalk.gray('# or: yarn start')}`,
+    `\nTo start:`,
+    `  ${chalk.blueBright(`cd ${hyphenName} && ${startCommand}`)}`,
   );
 };
 
@@ -1295,13 +1306,48 @@ const replaceVariablesInFilesWithRoot = function (
 ) {
   return replaceVariablesInFiles(...files.map((f) => path.join(root, f)));
 };
-const hasYarnInstalled = async function () {
-  let version = (await execPromise('yarn --version').catch((err) => {
-    console.log('yarn probably not working');
-    return '';
-  })) as string;
-  return version.toString().match(/[0-9]+/);
-};
+type PackageManager = 'npm' | 'yarn';
+
+async function isAvailable(cmd: string): Promise<boolean> {
+  try {
+    const out = (await execPromise(`${cmd} --version`, false, false)) as string;
+    return /\d+/.test(String(out));
+  } catch {
+    return false;
+  }
+}
+
+async function detectPackageManagers(): Promise<PackageManager[]> {
+  const found: PackageManager[] = [];
+  if (await isAvailable('npm')) found.push('npm');
+  if (await isAvailable('yarn')) found.push('yarn');
+  return found;
+}
+
+async function choosePackageManager(
+  interactive: boolean,
+): Promise<PackageManager> {
+  const available = await detectPackageManagers();
+  if (available.length === 0) {
+    throw new Error(
+      'Neither npm nor yarn is available on PATH. Install one and retry.',
+    );
+  }
+  if (available.length === 1) return available[0];
+  if (!interactive) {
+    // Match the historical default: prefer yarn when both are installed.
+    return available.includes('yarn') ? 'yarn' : 'npm';
+  }
+  const fallback: PackageManager = available.includes('yarn') ? 'yarn' : 'npm';
+  const answer = await promptUser(
+    `Package manager [${available.join('/')}] (default: ${chalk.gray(fallback)}): `,
+  );
+  const choice = answer.trim().toLowerCase();
+  if (choice === 'npm' || choice === 'yarn') {
+    if (available.includes(choice)) return choice;
+  }
+  return fallback;
+}
 
 const ensureFolderExists = function (...folders: string[]) {
   let target;
