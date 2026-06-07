@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.3
+
+### Patch Changes
+
+- [#46](https://github.com/linked-cm/cli/pull/46) [`c1aa8d4`](https://github.com/linked-cm/cli/commit/c1aa8d49306a26513eb4826ab5ed9cbb98bc01d1) Thanks [@flyon](https://github.com/flyon)! - Two install-time fixes:
+  - **Template `eslint-plugin-react-hooks` bumped to `latest`** (from `^4.6.0`). The old range maxed out at eslint 8, but `eslint: "latest"` resolves to 10, so a fresh `npm install` after `create-app` blew up with `ERESOLVE could not resolve peer eslint`. Yarn was permissive enough to silently accept the mismatch, which is how it slipped past create-app's install step.
+  - **Install spinner no longer swallows warnings.** Even on a 0-exit install, stderr (peer-dep warnings, deprecations, ERESOLVE warns) is now printed under the green checkmark. Silent installs hide real problems that bite users the moment they touch the lockfile.
+
 ## 1.6.2
 
 ### Patch Changes
