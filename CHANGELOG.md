@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.1
+
+### Patch Changes
+
+- [#42](https://github.com/linked-cm/cli/pull/42) [`81ac274`](https://github.com/linked-cm/cli/commit/81ac2740d9d98b1755a27c54174e6225a45da158) Thanks [@flyon](https://github.com/flyon)! - Stripped `@_linked/auth` from the default scaffold. It was wired in (`<ProvideAuth>` in `App.tsx`, `RequireAuth` import in `routes.tsx`) but no signin provider was configured, so it did nothing — while still dragging the entire legacy `lincd-*` chain (`foaf`, `lincd-input`, `lincd-mui-base`, `lincd-rdfs`, `lincd-sioc`) into the dep tree and crashing on startup with `Error: Multiple versions of LINCD are loaded` (both `lincd@1.0.3` and `@_linked/core` claim the same `globalThis.lincd` key).
+
+  To add sign-in back: `yarn add @_linked/auth`, wrap `<AppRoutes/>` in `<ProvideAuth>`, import `RequireAuth`, set `requireAuth: true` on the route you want protected. Inline comments in `App.tsx` and `routes.tsx` show where.
+
 ## 1.6.0
 
 ### Minor Changes
