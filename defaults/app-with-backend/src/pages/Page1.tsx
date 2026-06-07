@@ -2,7 +2,7 @@
 // the active @_linked/css theme. Tweak tokens in src/theme.css to re-skin
 // everything on this page. (To make the route sign-in-protected later, see
 // the `requireAuth` line in src/routes.tsx.)
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DefaultLayout } from '../layout/DefaultLayout';
 import { Button } from '@_linked/primitives/components/Button';
 import { Input } from '@_linked/primitives/components/Input';
@@ -24,6 +24,11 @@ export default function Page1() {
   const [switchOn, setSwitchOn] = useState(true);
   const [radio, setRadio] = useState('comfy');
   const [text, setText] = useState('');
+  // Radix Tabs use React 18 useId() which can drift between SSR (StaticRouter)
+  // and CSR (BrowserRouter) trees and trigger an aria-controls hydration
+  // mismatch warning. Render the showcase only after mount to side-step this.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   return (
     <DefaultLayout>
@@ -38,6 +43,7 @@ export default function Page1() {
           </p>
         </header>
 
+        {mounted && (
         <Tabs.Root defaultValue="forms" className={style.Tabs}>
           <Tabs.List>
             <Tabs.Trigger value="forms">Forms</Tabs.Trigger>
@@ -183,6 +189,7 @@ export default function Page1() {
             </section>
           </Tabs.Content>
         </Tabs.Root>
+        )}
       </div>
     </DefaultLayout>
   );
