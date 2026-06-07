@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.2
+
+### Patch Changes
+
+- [#44](https://github.com/linked-cm/cli/pull/44) [`e366008`](https://github.com/linked-cm/cli/commit/e366008075ddee7774a30ae4d99d4acf30582b90) Thanks [@flyon](https://github.com/flyon)! - `linked start` no longer aborts standalone (non-workspace) apps. `getLincdPackages()` used to print "Could not find package workspaces" and call `process.exit()` when no `workspaces` field was present in the nearest `package.json`. That broke `npm start` for every `npx @_linked/cli create-app …` scaffold, since the resulting app is a single-package repo with no workspaces.
+
+  It now returns `[]` in that case — there simply are no local workspace packages to scan, which is the correct answer for a standalone app. Monorepo behavior is unchanged.
+
 ## 1.6.1
 
 ### Patch Changes
