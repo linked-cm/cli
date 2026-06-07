@@ -49,7 +49,7 @@ yarn start
 
 The home page demonstrates the `@_linked` query DSL with a small Person CRUD — see `src/components/PersonOverview.tsx` and `src/components/PersonPreview.tsx`.
 
-> If you scaffolded this app **inside an existing Yarn-workspace monorepo** (e.g. `create_now/packages/`), use `yarn install` — `npm install` walks up to the workspace root and may hit peer-dep conflicts there. Outside a workspace, either tool works.
+> If you scaffolded this app **inside an existing Yarn-workspace monorepo** (e.g. `packages/` of another repo), use `yarn install` — `npm install` walks up to the workspace root and may hit peer-dep conflicts there. Outside a workspace, either tool works.
 
 ## Storage
 
