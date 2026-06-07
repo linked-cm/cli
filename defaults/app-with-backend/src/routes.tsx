@@ -34,9 +34,11 @@ export const ROUTES: RoutesConfig = {
     component: lazy(
       () => import(/* webpackChunkName: "page1" */ './pages/Page1')
     ),
-    label: 'Protected page',
-    requireAuth: true,
+    label: 'Components',
     preloadChunks: ['page1'],
+    // To make this route sign-in-protected, uncomment the next line + wire up
+    // an authentication provider in App.tsx. See @_linked/auth for options.
+    // requireAuth: true,
   },
   signin: {
     path: '/signin',

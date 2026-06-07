@@ -1,6 +1,7 @@
 // Components showcase — demonstrates a slice of @_linked/primitives against
-// the active @_linked/css theme. Open this page after signing in to see the
-// design tokens in action. Replace with your own protected content.
+// the active @_linked/css theme. Tweak tokens in src/theme.css to re-skin
+// everything on this page. (To make the route sign-in-protected later, see
+// the `requireAuth` line in src/routes.tsx.)
 import React, { useState } from 'react';
 import { DefaultLayout } from '../layout/DefaultLayout';
 import { Button } from '@_linked/primitives/components/Button';
