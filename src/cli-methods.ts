@@ -201,22 +201,36 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
       spinner: 'dots',
     }).start();
 
-    try {
-      // Buffer all output. Only surface it if the install fails — keeps the
-      // happy path quiet, but never swallows a real error.
-      await execPromise(
+    const {stdout, stderr, failed} = await new Promise<{
+      stdout: string;
+      stderr: string;
+      failed: boolean;
+    }>((resolve) => {
+      exec(
         `cd ${hyphenName} && ${installCommand}`,
-        false, // log
-        false, // allowError → reject with {error, stdout, stderr} on failure
         {maxBuffer: 50 * 1024 * 1024} as any,
+        (error, out, err) => {
+          resolve({
+            stdout: typeof out === 'string' ? out : out?.toString() ?? '',
+            stderr: typeof err === 'string' ? err : err?.toString() ?? '',
+            failed: !!error,
+          });
+        },
       );
-      spinner.succeed(`Dependencies installed (${hasYarn ? 'yarn' : 'npm'})`);
-    } catch (err: any) {
+    });
+
+    if (failed) {
       spinner.fail('Could not install dependencies');
-      // Dump whatever the package manager printed so the user can see the
-      // actual cause.
-      if (err?.stdout) process.stdout.write(err.stdout);
-      if (err?.stderr) process.stderr.write(err.stderr);
+      if (stdout) process.stdout.write(stdout);
+      if (stderr) process.stderr.write(stderr);
+    } else {
+      spinner.succeed(`Dependencies installed (${hasYarn ? 'yarn' : 'npm'})`);
+      // Even on a 0-exit install, surface stderr (peer-dep warnings,
+      // deprecations, ERESOLVE warns). Silent installs hide real problems
+      // that bite users the next time they touch the lockfile.
+      if (stderr && stderr.trim()) {
+        process.stderr.write(stderr);
+      }
     }
   }
 
