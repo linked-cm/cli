@@ -1066,13 +1066,9 @@ export function getLincdPackages(rootPath = process.cwd()): PackageDetails[] {
   }
 
   if (!pack || !pack.workspaces) {
-    warn(
-      chalk.red(
-        'Could not find package workspaces. Make sure you run this command from a yarn workspace.',
-      ),
-    );
-    logHelp();
-    process.exit();
+    // Standalone apps (scaffolded with `linked create-app`) don't have
+    // workspaces — that's expected, just no local packages to scan.
+    return [];
   }
   // console.log(pack.workspaces);
 
