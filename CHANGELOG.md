@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2
+
+### Patch Changes
+
+- [#26](https://github.com/linked-cm/cli/pull/26) [`6e018c1`](https://github.com/linked-cm/cli/commit/6e018c11dedee787f818c01139b2ca53e184921e) Thanks [@flyon](https://github.com/flyon)! - Template now requires `@_linked/fuseki ^2.0` — that's the version which ships the `FusekiStore` config-object constructor that the new storage layout expects.
+
 ## 1.4.1
 
 ### Patch Changes
