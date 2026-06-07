@@ -1,12 +1,16 @@
 **/node_modules
-*.ts
-!defaults/*
-!defaults/**/*
-!defaults/**/.*
+/*.ts
+/src
+/tsconfig.json
 .idea
 #.git/
 #!.gitignore
-tsconfig.json
-src
 .npmrc
 .yarnrc.yml
+
+# Re-include everything under defaults/ — the .ts/.tsx files there are the
+# starter template source, not cli's own source. The /src and /*.ts rules
+# above intentionally only match the top-level (own cli source), not
+# defaults/.
+!defaults/**
+!defaults/**/.*
