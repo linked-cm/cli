@@ -1,18 +1,102 @@
 @import '@_linked/css/package.css';
 
-.Card {
+.Page {
+  display: flex;
+  flex-direction: column;
+  gap: --spacing(5);
+}
+
+.Header {
   background: var(--bg-card);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   padding: --spacing(6);
 }
 
-.Card h2 {
-  margin: 0 0 --spacing(3);
+.Header h2 {
+  margin: 0 0 --spacing(2);
 }
 
-.Card p {
+.Header p {
   color: var(--color-gray-700);
   line-height: 1.5;
+  margin: 0;
+}
+
+.Header code {
+  background: var(--bg-section);
+  padding: 0 --spacing(1);
+  border-radius: var(--radius-element);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.Tabs {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: --spacing(5);
+}
+
+.TabPanel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: --spacing(4);
+  margin-top: --spacing(5);
+}
+
+.Card {
+  background: var(--bg-section);
+  border-radius: var(--radius-element);
+  padding: --spacing(4);
+  display: flex;
+  flex-direction: column;
+  gap: --spacing(3);
+}
+
+.Card h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-gray-600);
+}
+
+.Field {
+  display: flex;
+  flex-direction: column;
+  gap: --spacing(2);
+}
+
+.Stack {
+  display: flex;
+  flex-direction: column;
+  gap: --spacing(2);
+}
+
+.Row {
+  display: flex;
+  align-items: center;
+  gap: --spacing(2);
+  flex-wrap: wrap;
+}
+
+.ButtonRow {
+  display: flex;
+  align-items: center;
+  gap: --spacing(2);
+  flex-wrap: wrap;
+}
+
+.AvatarRow {
+  display: flex;
+  gap: --spacing(3);
+  align-items: center;
+}
+
+.Hint {
+  color: var(--color-gray-600);
+  font-size: 0.875rem;
   margin: 0;
 }
