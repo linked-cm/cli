@@ -45,6 +45,15 @@
   margin-top: --spacing(5);
 }
 
+/* Radix marks inactive Tabs.Content with both the [hidden] attribute and
+   data-state="inactive". The display:grid above would otherwise win over
+   the user-agent's [hidden] rule and leave inactive panels visible as
+   empty grid containers. */
+.TabPanel[hidden],
+.TabPanel[data-state='inactive'] {
+  display: none;
+}
+
 .Card {
   background: var(--bg-section);
   border-radius: var(--radius-element);
