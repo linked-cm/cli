@@ -19,12 +19,13 @@ export const PersonPreview = linkedComponent(
     const [busy, setBusy] = useState(false);
 
     async function save() {
+      if (!source.id) return;
       setBusy(true);
       try {
         await Person.update({
           givenName: draftGiven,
           familyName: draftFamily,
-        }).for(source);
+        }).for({ id: source.id });
         // Optimistic patch — no extra network round-trip needed.
         _refresh({ givenName: draftGiven, familyName: draftFamily });
         setEditing(false);
@@ -34,9 +35,10 @@ export const PersonPreview = linkedComponent(
     }
 
     async function remove() {
+      if (!source.id) return;
       setBusy(true);
       try {
-        await Person.delete(source);
+        await Person.delete({ id: source.id });
         refreshList();
       } finally {
         setBusy(false);
