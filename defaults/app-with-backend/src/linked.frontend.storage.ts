@@ -7,7 +7,7 @@
 //
 // Aliases on this side are independent from backend aliases — the
 // framework re-routes by shape on each side.
-import datasetsConfig from './linked.frontend.datasets.json' assert { type: 'json' };
+import datasetsConfig from './linked.frontend.datasets.json' with { type: 'json' };
 import { parseDatasetsConfig } from '@_linked/core/utils/parseDatasetsConfig';
 import { LinkedFileStorage } from '@_linked/core/utils/LinkedFileStorage';
 import { LinkedStorage } from '@_linked/core/utils/LinkedStorage';
