@@ -172,6 +172,16 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     path.join(targetFolder, '.yarnrc.yml'),
   );
 
+  // Mark the new app as a self-contained Yarn project root. Without this,
+  // Yarn climbs ancestor dirs looking for the project root and may decide
+  // a stray yarn.lock further up the tree is "the project" — aborting
+  // install with "the nearest package directory doesn't seem to be part
+  // of the project declared in <ancestor>".
+  const yarnLockPath = path.join(targetFolder, 'yarn.lock');
+  if (!fs.existsSync(yarnLockPath)) {
+    fs.writeFileSync(yarnLockPath, '');
+  }
+
   // Seed the real (gitignored) Layer 2 config from the committed example so
   // the scaffolded app boots first try. Users can edit either file later.
   const datasetsExample = path.join(
