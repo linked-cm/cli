@@ -42,12 +42,57 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
       build: {
         outDir: opts.outDir ?? 'public/bundles',
         manifest: true,
+        // Bump chunk-size warning so it doesn't fire on every build for
+        // the linked vendor bundle. Real chunking happens via
+        // manualChunks below.
+        chunkSizeWarningLimit: 1000,
         rollupOptions: {
           input: opts.entry ?? 'src/index.tsx',
           output: {
             entryFileNames: 'assets/[name]-[hash].js',
             chunkFileNames: 'assets/[name]-[hash].js',
             assetFileNames: 'assets/[name]-[hash][extname]',
+            // Split large/common deps so route chunks don't all carry
+            // their own copy AND the main entry doesn't end up at 5MB+.
+            // Each manualChunk becomes its own assets/<name>-<hash>.js
+            // file the browser caches independently — incremental dev
+            // builds + cache wins on prod deploys both improve.
+            manualChunks: (id) => {
+              if (!id.includes('node_modules')) {
+                // Linked workspaces ship as @_linked/* / lincd-* —
+                // group all linked-framework code into a single chunk.
+                if (
+                  id.includes('/packages/core/') ||
+                  id.includes('/packages/react/') ||
+                  id.includes('/packages/server-utils/') ||
+                  id.includes('/packages/primitives/') ||
+                  id.includes('/packages/css/') ||
+                  /\/packages\/(auth|org|schema|fuseki|owl|xsd|dcat|dcmi|s3|sentry|ui)\//.test(id)
+                ) {
+                  return 'linked';
+                }
+                return undefined;
+              }
+              // React + React-DOM in their own chunk — every route uses them
+              if (/[\\/]node_modules[\\/](react|react-dom|react-router-dom|scheduler)[\\/]/.test(id)) {
+                return 'react-vendor';
+              }
+              // Heavy editor deps — only loaded on pages that need them,
+              // but worth isolating so they don't get pulled into main.
+              if (/[\\/]node_modules[\\/]@monaco-editor[\\/]/.test(id)) {
+                return 'monaco';
+              }
+              // Charting/visualization
+              if (/[\\/]node_modules[\\/](recharts|react-flow|@xyflow|d3-)[\\/]/.test(id)) {
+                return 'viz';
+              }
+              // Animation
+              if (/[\\/]node_modules[\\/]framer-motion[\\/]/.test(id)) {
+                return 'motion';
+              }
+              // Catch-all for other node_modules in a vendor chunk
+              return 'vendor';
+            },
           },
         },
         sourcemap: true,
