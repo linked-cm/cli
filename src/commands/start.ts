@@ -73,6 +73,26 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     return await vite.ssrLoadModule('/src/routes.tsx');
   };
 
+  // Vite SSR CSS collection support (plan-010 iter1 gap A):
+  // List all `src/pages/*.{ts,tsx}` files so LincdServer can ssrLoadModule
+  // each into Vite's moduleGraph BEFORE the first render of a session.
+  // React.lazy() doesn't auto-fire — without this, only App's eager
+  // imports' CSS is collected; lazy pages' CSS arrives after hydration
+  // causing an unstyled flash. After the first preload sweep, all
+  // subsequent renders have full CSS available.
+  linkedConfig.server.viteSsrPreload = async () => {
+    const pagesDir = path.join(cwd, 'src', 'pages');
+    if (!fsExtra.existsSync(pagesDir)) return [];
+    const files = fsExtra.readdirSync(pagesDir, {withFileTypes: true});
+    const paths: string[] = [];
+    for (const file of files) {
+      if (file.isFile() && /\.(tsx|ts)$/.test(file.name)) {
+        paths.push(`/src/pages/${file.name}`);
+      }
+    }
+    return paths;
+  };
+
   // Storage config bootstrap: legacy startServer() calls this so that
   // linked.backend.storage.ts wires up its FusekiStore aliases.
   const {loadBackendStorageConfig} = await import('../cli-methods.js');

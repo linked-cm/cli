@@ -494,12 +494,18 @@ export function generateScopedNameProduction(cssClassName, filepath, css?) {
   return hash;
 }
 export function generateScopedName(cssClassName, filepath, css?) {
-  // return cssClassName;
+  // Strip any Vite-style query suffix (?inline, ?raw, ?direct) before
+  // computing the filename. Without this, dev-mode SSR CSS collection
+  // via `?inline` produces selectors like
+  // `._foo_SigninLayout.module.css?inline_leftSidebar` — the literal
+  // `.module.css?inline` becomes part of the class name, which CSS
+  // parsers split on `.` and `?`, breaking everything.
+  const cleanFilepath = filepath.replace(/\?.*$/, '');
   var filename = path
-    .basename(filepath)
+    .basename(cleanFilepath)
     .replace(/\.module\.css$/, '')
     .replace(/\.css$/, '');
-  let resolved = path.resolve(filepath).replace(/[\w\-_\/]+\/file\:/, '');
+  let resolved = path.resolve(cleanFilepath).replace(/[\w\-_\/]+\/file\:/, '');
   let nearestPackageJson = findNearestPackageJsonSync(resolved);
   let packageName = nearestPackageJson
     ? nearestPackageJson.data.name
