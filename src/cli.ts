@@ -64,10 +64,19 @@ program
 
 program
   .command('start')
-  .action(() => {
+  .action(async (options) => {
+    // Migration window (plan 010): --vite opts into the new orchestrator.
+    // Default stays on the webpack-based startServer until Phase 5 lands
+    // CN's vite.config + workspace conditional exports. Default flips in
+    // Phase 5; Phase 7 deletes the legacy path entirely.
+    if (options?.vite) {
+      const {startWithVite} = await import('./commands/start.js');
+      return startWithVite({env: options?.env});
+    }
     return startServer();
   })
-  .option('--env', 'The node environment to use. Default is "development"')
+  .option('--env <env>', 'The node environment to use. Default is "development"')
+  .option('--vite', 'Use the new Vite-based dev/SSR orchestrator (plan 010)')
   .description(
     'Start the Linked node.js server. Use --initOnly to start the backend without http server',
   );
