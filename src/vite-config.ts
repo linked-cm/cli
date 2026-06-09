@@ -78,10 +78,43 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         },
         jsx: 'automatic',
       },
+      // SSR externals: @_linked/* (and friends) MUST load via Node's
+      // resolver to share a single instance with LincdServer and the
+      // app's backend.ts. Vite's default would auto-bundle workspace-
+      // symlinked packages (since they live in /packages and look like
+      // local source), creating a SECOND copy that the LINCD initTree
+      // check trips on ("Multiple versions of LINCD are loaded").
+      // Explicit `external` overrides this for known package scopes.
+      // HMR on workspace source is a separate concern, addressed via
+      // conditional exports (plan-010 deferred phase 3).
       ssr: {
-        // Linked workspace packages need Vite transforms applied for SSR
-        // so decorators + CSS imports + conditional `exports` work.
-        noExternal: [/^@_linked\//],
+        external: [
+          // Match every @_linked/* and legacy lincd-* package by their
+          // node_modules path roots — Vite externalizes them so Node
+          // loads them from disk once.
+          '@_linked/core',
+          '@_linked/auth',
+          '@_linked/css',
+          '@_linked/dcat',
+          '@_linked/dcmi',
+          '@_linked/fuseki',
+          '@_linked/org',
+          '@_linked/owl',
+          '@_linked/primitives',
+          '@_linked/react',
+          '@_linked/s3',
+          '@_linked/schema',
+          '@_linked/sentry',
+          '@_linked/server',
+          '@_linked/server-utils',
+          '@_linked/ui',
+          '@_linked/xsd',
+          'lincd',
+          'lincd-rdfs',
+          'lincd-sioc',
+          'lincd-design-elems',
+          'foaf',
+        ],
       },
       define: opts.define ?? {},
     };

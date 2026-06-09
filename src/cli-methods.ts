@@ -46,7 +46,7 @@ let dirname__ =
  * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
  * app clones keep booting through the rename.
  */
-async function loadBackendStorageConfig(): Promise<any> {
+export async function loadBackendStorageConfig(): Promise<any> {
   const cwd = process.cwd();
   const candidates = [
     // Iter4 canonical:
