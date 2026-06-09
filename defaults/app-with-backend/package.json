@@ -15,9 +15,16 @@
     "node": ">=20.6.0"
   },
   "main": "scripts/start-server.js",
+  "exports": {
+    "./backend": {
+      "development": "./src/backend.ts",
+      "default": "./src/backend.ts"
+    }
+  },
   "license": "MIT",
   "scripts": {
-    "start": "linked start --env development",
+    "start": "linked start --env development --vite",
+    "start:webpack": "linked start --env development",
     "build": "linked build-app --env production",
     "server:prod": "linked start --env production",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
