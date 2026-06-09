@@ -65,20 +65,19 @@ program
 program
   .command('start')
   .action(async (options) => {
-    // Migration window (plan 010): --vite opts into the new orchestrator.
-    // Default stays on the webpack-based startServer until Phase 5 lands
-    // CN's vite.config + workspace conditional exports. Default flips in
-    // Phase 5; Phase 7 deletes the legacy path entirely.
-    if (options?.vite) {
-      const {startWithVite} = await import('./commands/start.js');
-      return startWithVite({env: options?.env});
+    // Plan-010 iter1: Vite is the default. The pre-Vite webpack path
+    // lives in cli-methods startServer for now as `--legacy` escape
+    // hatch during the migration window (Phase 7 deletes it).
+    if (options?.legacy) {
+      return startServer();
     }
-    return startServer();
+    const {startWithVite} = await import('./commands/start.js');
+    return startWithVite({env: options?.env});
   })
   .option('--env <env>', 'The node environment to use. Default is "development"')
-  .option('--vite', 'Use the new Vite-based dev/SSR orchestrator (plan 010)')
+  .option('--legacy', 'Use the pre-Vite webpack dev server (deprecated; will be removed)')
   .description(
-    'Start the Linked node.js server. Use --initOnly to start the backend without http server',
+    'Start the Linked dev server. Vite-backed by default.',
   );
 
 program
@@ -259,12 +258,28 @@ program.command('build-metadata').action(() => {
 });
 program
   .command('build-app')
-  .action(() => {
+  .action(async (options) => {
+    // Plan-010 iter1 gap B: if vite.config.{ts,js,mjs} exists in cwd,
+    // run `vite build` for the client bundle. Falls back to webpack
+    // buildApp() when no Vite config (legacy apps).
+    const fs = await import('fs');
+    const path = await import('path');
+    const hasViteConfig = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs']
+      .some((f) => fs.existsSync(path.join(process.cwd(), f)));
+    if (hasViteConfig) {
+      const {ensureEnvironmentLoaded} = await import('./cli-methods.js');
+      await ensureEnvironmentLoaded();
+      const {build} = await import('vite');
+      console.log('🛠 Building production client bundle via vite build');
+      await build({root: process.cwd()});
+      console.log('✅ vite build complete');
+      return;
+    }
     buildApp();
   })
   .option('--env', 'The node environment to use. Default is "development"')
   .description(
-    'Start the Linked node.js server. Use --initOnly to start the backend without http server',
+    'Build the linked app for production. Uses `vite build` when vite.config exists; falls back to webpack.',
   );
 
 program.command('publish-updated').action(() => {

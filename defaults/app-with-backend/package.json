@@ -23,8 +23,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "linked start --env development --vite",
-    "start:webpack": "linked start --env development",
+    "start": "linked start --env development",
     "build": "linked build-app --env production",
     "server:prod": "linked start --env production",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
