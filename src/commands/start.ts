@@ -169,7 +169,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
 
   // Ensure env-cmd vars are loaded just like startServer() does.
   // We piggyback on the same helper for consistency.
-  const {ensureEnvironmentLoaded} = await import('../cli-methods.js');
+  const {ensureEnvironmentLoaded} = await import('../lifecycle.js');
   await ensureEnvironmentLoaded();
 
   // Apps must have a vite.config.{ts,js} at CWD that exports the result of
@@ -239,7 +239,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
 
   // Storage config bootstrap: legacy startServer() calls this so that
   // linked.backend.storage.ts wires up its FusekiStore aliases.
-  const {loadBackendStorageConfig} = await import('../cli-methods.js');
+  const {loadBackendStorageConfig} = await import('../lifecycle.js');
   await loadBackendStorageConfig();
 
   // Plan-011 — load LincdServer through Vite SSR so it shares the SAME

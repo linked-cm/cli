@@ -46,32 +46,16 @@ let dirname__ =
  * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
  * app clones keep booting through the rename.
  */
-export async function loadBackendStorageConfig(): Promise<any> {
-  const cwd = process.cwd();
-  const candidates = [
-    // Iter4 canonical:
-    path.join(cwd, 'linked.backend.storage.ts'),
-    path.join(cwd, 'linked.backend.storage.js'),
-    // Iter3:
-    path.join(cwd, 'backend-storage-config.ts'),
-    path.join(cwd, 'backend-storage-config.js'),
-    path.join(cwd, 'scripts', 'backend-storage-config.js'),
-    path.join(cwd, 'scripts', 'backend-storage-config.ts'),
-    // legacy pre-rename:
-    path.join(cwd, 'scripts', 'storage-config.js'),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return import(candidate);
-    }
-  }
-  console.warn(
-    chalk.yellow(
-      '[linked.backend.storage] no linked.backend.storage.{ts,js} found at app root.',
-    ),
-  );
-  return undefined;
-}
+// Plan-011: extracted to ./lifecycle.ts so the Vite SSR loader doesn't
+// have to graph-walk the rest of cli-methods.ts (which contains many
+// dynamic imports Vite can't analyze). We import for internal callers
+// AND re-export so external consumers can keep importing from here.
+import {
+  ensureEnvironmentLoaded,
+  loadBackendStorageConfig,
+  getLincdPackages,
+} from './lifecycle.js';
+export {ensureEnvironmentLoaded, loadBackendStorageConfig, getLincdPackages};
 
 var variables = {};
 /**
@@ -1085,32 +1069,7 @@ function getLocalLincdModules(rootPath = './'): PackageDetails[] {
   });
 }
 
-export function getLincdPackages(rootPath = process.cwd()): PackageDetails[] {
-  let pack = getPackageJSON(rootPath);
-  if (!pack || !pack.workspaces) {
-    const originalRoot = rootPath;
-    for (let i = 0; i <= 3; i++) {
-      rootPath = path.join(originalRoot, ...Array(i).fill('..'));
-
-      pack = getPackageJSON(rootPath);
-      if (pack && pack.workspaces) {
-        // log('Found workspace at '+packagePath);
-        break;
-      }
-    }
-  }
-
-  if (!pack || !pack.workspaces) {
-    // Standalone apps (scaffolded with `linked create-app`) don't have
-    // workspaces — that's expected, just no local packages to scan.
-    return [];
-  }
-  // console.log(pack.workspaces);
-
-  let res = [];
-  checkWorkspaces(rootPath, pack.workspaces, res);
-  return res;
-}
+// getLincdPackages moved to ./lifecycle.ts and re-exported above.
 
 function setVariable(name, replacement) {
   //prepare name for regexp
@@ -1716,59 +1675,7 @@ export const depCheck = async (packagePath: string = process.cwd()) => {
     });
   });
 };
-export const ensureEnvironmentLoaded = async () => {
-  if (!process.env.ENV_VARS_LOADED) {
-    //load env-cmd for development environment
-    let {GetEnvVars} = await import('env-cmd');
-    let envCmdrcPath = path.join(process.cwd(), '.env-cmdrc.json');
-    if (!fs.existsSync(envCmdrcPath)) {
-      console.warn(
-        'No .env-cmdrc.json found in this folder. Are you running this command from the root of a LINCD app?',
-      );
-      process.exit();
-    }
-    let vars = await GetEnvVars({
-      envFile: {
-        filePath: envCmdrcPath,
-      },
-    });
-    let environments = Object.keys(vars);
-
-    // Snapshot the original shell environment so it always takes highest priority
-    let shellEnv = {...process.env};
-
-    //if _main is present, load it first
-    if (environments.includes('_main')) {
-      process.env = {...process.env, ...vars._main};
-    }
-    //if --env is passed, load that environment
-    let args = process.argv.splice(2);
-    if (args.includes('--env')) {
-      let envIndex = args.indexOf('--env');
-      let env = args[envIndex + 1];
-      env.split(',').forEach((singleEnvironment) => {
-        if (environments.includes(singleEnvironment)) {
-          console.log('Environment: ' + singleEnvironment);
-          process.env = {...process.env, ...vars[singleEnvironment]};
-        } else {
-          console.warn(
-            'Environment ' +
-              singleEnvironment +
-              ' not found in .env-cmdrc.json. Available environments: ' +
-              environments.join(', '),
-          );
-        }
-      });
-    } else {
-      //chose development by default
-      process.env = {...process.env, ...vars.development};
-      console.log('No environment specified, using development');
-    }
-    // Re-apply original shell env vars so they always win over .env-cmdrc.json
-    process.env = {...process.env, ...shellEnv};
-    process.env.ENV_VARS_LOADED = 'true';
-  }
-};
+// ensureEnvironmentLoaded moved to ./lifecycle.ts and re-exported above.
 export const runScript = async (
   scriptName: string,
   options: {spawn: boolean},
@@ -1977,8 +1884,12 @@ export const buildApp = async () => {
 };
 export const buildFrontend = async () => {
   await ensureEnvironmentLoaded();
+  // @vite-ignore — the webpack build path is legacy code, only reached
+  // by `linked build-frontend` which is not part of the Vite dev/SSR
+  // flow. Tell Vite not to graph-walk into it so we don't emit
+  // import-analysis warnings for a file we never load via SSR.
   const webpackAppConfig = await (
-    await import('./config-webpack-app.js')
+    await import(/* @vite-ignore */ './config-webpack-app.js')
   ).getWebpackAppConfig();
 
   console.log(
