@@ -11,6 +11,8 @@
 // uses Vite's default scoping (content-hash, equivalent uniqueness).
 import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
+import fsExtra from 'fs-extra';
+import path from 'node:path';
 import {generateScopedName} from './utils.js';
 import type {Plugin, UserConfig} from 'vite';
 
@@ -98,6 +100,37 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         sourcemap: true,
       },
       plugins: [
+        // Plan-011 phase 3a — Workspace `.js` → `.ts` resolver.
+        //
+        // Workspace package source uses `import {X} from './Sibling.js'`
+        // (TS published-output convention). With the wildcard
+        // `"./*": { "development": "./src/*.ts" }` exports, Vite would
+        // otherwise hit `./src/Sibling.js.ts` and fail. This plugin
+        // intercepts resolution scoped to workspace `src/` trees and
+        // rewrites trailing `.js` → `.ts` (and `.jsx` → `.tsx`) when the
+        // `.ts` (or `.tsx`) actually exists on disk.
+        //
+        // Scoped to workspace packages only (importer path includes
+        // `/packages/`) so we don't accidentally rewrite npm-dep imports.
+        isDev
+          ? ({
+              name: 'linked:resolve-workspace-ts',
+              enforce: 'pre',
+              async resolveId(id, importer) {
+                if (!importer) return null;
+                if (!importer.includes(`${path.sep}packages${path.sep}`)) return null;
+                if (!/\.(jsx?)$/.test(id) || id.startsWith('\0')) return null;
+                if (!id.startsWith('.') && !id.startsWith('/')) return null;
+                const importerDir = path.dirname(importer);
+                const base = path.resolve(importerDir, id);
+                const tsCandidate = base.replace(/\.jsx?$/, (m) =>
+                  m === '.jsx' ? '.tsx' : '.ts',
+                );
+                if (await fsExtra.pathExists(tsCandidate)) return tsCandidate;
+                return null;
+              },
+            } as Plugin)
+          : null,
         react({
           babel: {
             parserOpts: {
@@ -138,42 +171,23 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         },
         jsx: 'automatic',
       },
-      // SSR externals: @_linked/* (and friends) MUST load via Node's
-      // resolver to share a single instance with LincdServer and the
-      // app's backend.ts. Vite's default would auto-bundle workspace-
-      // symlinked packages (since they live in /packages and look like
-      // local source), creating a SECOND copy that the LINCD initTree
-      // check trips on ("Multiple versions of LINCD are loaded").
-      // Explicit `external` overrides this for known package scopes.
-      // HMR on workspace source is a separate concern, addressed via
-      // conditional exports (plan-010 deferred phase 3).
+      // Plan-011 phase 3a — `ssr.external` is now a minimal allowlist of
+      // npm deps that genuinely can't (or shouldn't) go through Vite's
+      // SSR transform. Workspace packages (`@_linked/*`, `lincd-*`) are
+      // DELIBERATELY removed so Vite resolves them via each package's
+      // `development → ./src/*.ts` conditional export and HMR works on
+      // source changes (see plan-011 §I1).
+      //
+      // "Multiple LINCD" warnings may resurface during the interim until
+      // LINCD eradication completes (plan-011 §I2 — accepted).
       ssr: {
         external: [
-          // Match every @_linked/* and legacy lincd-* package by their
-          // node_modules path roots — Vite externalizes them so Node
-          // loads them from disk once.
-          '@_linked/core',
-          '@_linked/auth',
-          '@_linked/css',
-          '@_linked/dcat',
-          '@_linked/dcmi',
-          '@_linked/fuseki',
-          '@_linked/org',
-          '@_linked/owl',
-          '@_linked/primitives',
-          '@_linked/react',
-          '@_linked/s3',
-          '@_linked/schema',
-          '@_linked/sentry',
-          '@_linked/server',
-          '@_linked/server-utils',
-          '@_linked/ui',
-          '@_linked/xsd',
-          'lincd',
-          'lincd-rdfs',
-          'lincd-sioc',
-          'lincd-design-elems',
-          'foaf',
+          'react',
+          'react-dom',
+          'react-dom/server',
+          'react-router-dom',
+          'scheduler',
+          'express',
         ],
       },
       define: opts.define ?? {},
