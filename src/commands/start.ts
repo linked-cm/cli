@@ -242,9 +242,16 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   const {loadBackendStorageConfig} = await import('../cli-methods.js');
   await loadBackendStorageConfig();
 
-  // Import LincdServer dynamically — must come after env + storage setup.
-  const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
-    .LincdServer;
+  // Plan-011 — load LincdServer through Vite SSR so it shares the SAME
+  // module instances as everything else in the SSR call graph. Without
+  // this, LincdServer is loaded by Node (→ lib/esm) while CN's App.tsx +
+  // its transitive imports are loaded by Vite (→ src/). React contexts
+  // created in one tree don't reach consumers in the other, causing
+  // "Cannot destructure property 'isNativeApp' of useAppContext()" type
+  // errors on every SSR render.
+  const ServerClass = (
+    await vite.ssrLoadModule('@_linked/server/shapes/LincdServer')
+  ).LincdServer;
 
   const server = new (ServerClass as any)(linkedConfig);
 

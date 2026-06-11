@@ -33,9 +33,98 @@ export interface LinkedViteConfigOptions {
   define?: Record<string, string>;
 }
 
+interface WorkspaceEntry {
+  name: string;
+  srcDir: string;
+}
+
+/**
+ * Walk the app's package.json `workspaces` field to build a lookup table
+ * from npm name → absolute src/ directory. Used by the resolver plugin
+ * to map bare specifiers like `@_linked/foo/bar` directly to source.
+ * No glob library: workspaces only support trailing `/*` patterns.
+ */
+async function discoverWorkspaces(): Promise<WorkspaceEntry[]> {
+  const fs = await import('node:fs/promises');
+  const cwd = process.cwd();
+  const pkgPath = path.join(cwd, 'package.json');
+  if (!(await fsExtra.pathExists(pkgPath))) return [];
+  const pkg = await fsExtra.readJson(pkgPath);
+  const patterns: string[] = Array.isArray(pkg.workspaces)
+    ? pkg.workspaces
+    : pkg.workspaces?.packages ?? [];
+  const out: WorkspaceEntry[] = [];
+  for (const pattern of patterns) {
+    const m = pattern.match(/^(.+?)\/\*$/);
+    const candidates: string[] = [];
+    if (m) {
+      const parent = path.join(cwd, m[1]);
+      if (await fsExtra.pathExists(parent)) {
+        for (const ent of await fs.readdir(parent, {withFileTypes: true})) {
+          if (ent.isDirectory() || ent.isSymbolicLink()) {
+            candidates.push(path.join(parent, ent.name));
+          }
+        }
+      }
+    } else {
+      candidates.push(path.join(cwd, pattern));
+    }
+    for (const root of candidates) {
+      const subPkgPath = path.join(root, 'package.json');
+      if (!(await fsExtra.pathExists(subPkgPath))) continue;
+      try {
+        const sub = await fsExtra.readJson(subPkgPath);
+        if (sub.name) {
+          out.push({name: sub.name, srcDir: path.join(root, 'src')});
+        }
+      } catch {}
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve a bare specifier like `@_linked/foo/bar`, `lincd-rdfs/Foo`, or
+ * `pkg/utils/Bar.js` against the workspace lookup. Tries extensions in
+ * order: .ts, .tsx, then the literal id (for files that already include
+ * an extension or for non-TS assets). Returns null when the specifier
+ * doesn't match any workspace package or no candidate exists on disk.
+ */
+async function resolveWorkspaceSpecifier(
+  specifier: string,
+  workspaces: WorkspaceEntry[],
+): Promise<string | null> {
+  for (const ws of workspaces) {
+    if (specifier === ws.name) {
+      for (const ext of ['index.ts', 'index.tsx']) {
+        const p = path.join(ws.srcDir, ext);
+        if (await fsExtra.pathExists(p)) return p;
+      }
+      return null;
+    }
+    if (specifier.startsWith(ws.name + '/')) {
+      const subpath = specifier.slice(ws.name.length + 1);
+      // Strip .js/.jsx suffix — workspace src uses TS published-output
+      // convention (./Sibling.js) but we want the TS source.
+      const base = subpath.replace(/\.jsx?$/, '');
+      for (const ext of ['.tsx', '.ts']) {
+        const p = path.join(ws.srcDir, base + ext);
+        if (await fsExtra.pathExists(p)) return p;
+      }
+      // Files that already include an extension Vite handles (.css, .json,
+      // .svg, etc.) — return the literal path under src.
+      const literal = path.join(ws.srcDir, subpath);
+      if (await fsExtra.pathExists(literal)) return literal;
+      return null;
+    }
+  }
+  return null;
+}
+
 export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType<typeof defineConfig> {
   return defineConfig(async ({mode}) => {
     const isDev = mode === 'development';
+    const workspaces = isDev ? await discoverWorkspaces() : [];
     const config: UserConfig = {
       server: {
         port: opts.port ?? 4040,
@@ -100,26 +189,21 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         sourcemap: true,
       },
       plugins: [
-        // Plan-011 phase 3a — Workspace `.js` → `.ts` resolver + `.ts` → `.tsx`
-        // fallback for the conditional-exports wildcard.
+        // Plan-011 phase 3a — Direct workspace specifier resolver.
         //
-        // Two jobs:
+        // The package.json `"./*": { "development": "./src/*.ts" }` wildcard
+        // can't express "try .ts, fall back to .tsx" (Node's exports spec
+        // resolves to a single literal path). For React-heavy packages like
+        // @_linked/primitives, @_linked/server-utils, and @_linked/auth,
+        // most files are .tsx — the wildcard fails before any Vite plugin
+        // gets a chance to fix it up.
         //
-        //  (a) Workspace package source uses `import {X} from './Sibling.js'`
-        //      (TS published-output convention). With the wildcard
-        //      `"./*": { "development": "./src/*.ts" }` exports, Vite would
-        //      otherwise hit `./src/Sibling.js.ts` and fail. Rewrites trailing
-        //      `.js` → `.ts` and `.jsx` → `.tsx` for imports made from within
-        //      workspace `src/` trees.
-        //
-        //  (b) The `development → ./src/*.ts` wildcard cannot express
-        //      "try .ts, fall back to .tsx". When a consumer imports e.g.
-        //      `@_linked/primitives/components/Button`, Vite resolves it to
-        //      `./src/components/Button.ts` — but most components are `.tsx`.
-        //      When the resolved path ends in `.ts` and that file does NOT
-        //      exist but a `.tsx` sibling DOES, return the `.tsx`. Scoped to
-        //      paths under workspace `src/` so we don't catch unrelated
-        //      consumers.
+        // This plugin intercepts BARE workspace specifiers like
+        // `@_linked/foo/bar` and `pkg-name/utils/Baz.js` BEFORE Vite's
+        // package.json resolver runs, mapping them straight to source with
+        // proper extension fallback (.tsx → .ts → literal). It also covers
+        // the `./Sibling.js` published-output convention for imports made
+        // from within workspace `src/` trees.
         isDev
           ? ({
               name: 'linked:resolve-workspace-ts',
@@ -127,7 +211,7 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
               async resolveId(id, importer) {
                 if (id.startsWith('\0')) return null;
 
-                // (a) Workspace-internal .js → .ts/.tsx rewrite.
+                // Workspace-internal `./Sibling.js` → `.tsx` / `.ts` rewrite.
                 if (
                   importer &&
                   importer.includes(`${path.sep}packages${path.sep}`) &&
@@ -136,25 +220,20 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
                 ) {
                   const importerDir = path.dirname(importer);
                   const base = path.resolve(importerDir, id);
-                  const tsCandidate = base.replace(/\.jsx?$/, (m) =>
-                    m === '.jsx' ? '.tsx' : '.ts',
-                  );
-                  if (await fsExtra.pathExists(tsCandidate)) return tsCandidate;
-                  // also try .tsx when the import says .js but only .tsx exists
-                  const tsxCandidate = base.replace(/\.jsx?$/, '.tsx');
-                  if (await fsExtra.pathExists(tsxCandidate)) return tsxCandidate;
+                  for (const ext of ['.tsx', '.ts']) {
+                    const candidate = base.replace(/\.jsx?$/, ext);
+                    if (await fsExtra.pathExists(candidate)) return candidate;
+                  }
                 }
 
-                // (b) Conditional-exports .ts → .tsx fallback for paths
-                // resolved into a workspace src/ tree.
+                // Bare workspace specifier — resolve directly to src/.
                 if (
-                  id.endsWith('.ts') &&
-                  id.includes(`${path.sep}packages${path.sep}`) &&
-                  id.includes(`${path.sep}src${path.sep}`) &&
-                  !(await fsExtra.pathExists(id))
+                  !id.startsWith('.') &&
+                  !id.startsWith('/') &&
+                  workspaces.length > 0
                 ) {
-                  const tsxCandidate = id.slice(0, -3) + '.tsx';
-                  if (await fsExtra.pathExists(tsxCandidate)) return tsxCandidate;
+                  const resolved = await resolveWorkspaceSpecifier(id, workspaces);
+                  if (resolved) return resolved;
                 }
 
                 return null;
