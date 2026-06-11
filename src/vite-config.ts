@@ -105,8 +105,23 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
             },
           },
         }),
+        // Dev-only: log every file the watcher sees change. Without this,
+        // backend edits look silent (no JS rebuild step, no Node restart —
+        // see plan-010 §"Rebuild chain") and it's hard to tell whether
+        // Vite picked up the change at all.
+        isDev
+          ? ({
+              name: 'linked:reload-log',
+              configureServer(server) {
+                server.watcher.on('change', (file) => {
+                  const rel = file.replace(process.cwd() + '/', '');
+                  console.log(`[linked] reloaded ${rel}`);
+                });
+              },
+            } as Plugin)
+          : null,
         ...(opts.plugins ?? []),
-      ],
+      ].filter(Boolean) as Plugin[],
       css: {
         modules: {
           generateScopedName: isDev ? generateScopedName : undefined,
