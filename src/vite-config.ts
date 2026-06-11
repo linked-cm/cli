@@ -32,7 +32,7 @@ export interface LinkedViteConfigOptions {
 }
 
 export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType<typeof defineConfig> {
-  return defineConfig(({mode}) => {
+  return defineConfig(async ({mode}) => {
     const isDev = mode === 'development';
     const config: UserConfig = {
       server: {
@@ -166,16 +166,19 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
 
     // Tailwind plugin (only if explicitly enabled — adds a heavy plugin).
     if (opts.cssMode === 'tailwind') {
-      // Optional dependency. If not installed, fall through silently — the
-      // app can install `@tailwindcss/vite` itself.
+      // Try ESM dynamic import first (works when @tailwindcss/vite is
+      // installed in the app or hoisted). Surface a CLEAR warning when
+      // it's not — the app needs the dep for theme variables to load.
       try {
-        // Use top-level require so the import is conditional. Vite config runs
-        // in Node so require() is available (commonjs interop).
-        const tailwind = require('@tailwindcss/vite');
+        const tailwind: any = await import('@tailwindcss/vite' as any);
         const tailwindPlugin = tailwind.default ?? tailwind;
         (config.plugins as Plugin[]).push(tailwindPlugin());
-      } catch {
-        // ignore — caller may have CSS modules only
+      } catch (err) {
+        console.warn(
+          '[createViteConfig] cssMode=tailwind but @tailwindcss/vite ' +
+            'could not be loaded. Theme variables won\'t apply at runtime. ' +
+            'Add `@tailwindcss/vite` to your app\'s package.json.',
+        );
       }
     }
 
