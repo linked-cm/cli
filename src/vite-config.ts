@@ -100,33 +100,63 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         sourcemap: true,
       },
       plugins: [
-        // Plan-011 phase 3a — Workspace `.js` → `.ts` resolver.
+        // Plan-011 phase 3a — Workspace `.js` → `.ts` resolver + `.ts` → `.tsx`
+        // fallback for the conditional-exports wildcard.
         //
-        // Workspace package source uses `import {X} from './Sibling.js'`
-        // (TS published-output convention). With the wildcard
-        // `"./*": { "development": "./src/*.ts" }` exports, Vite would
-        // otherwise hit `./src/Sibling.js.ts` and fail. This plugin
-        // intercepts resolution scoped to workspace `src/` trees and
-        // rewrites trailing `.js` → `.ts` (and `.jsx` → `.tsx`) when the
-        // `.ts` (or `.tsx`) actually exists on disk.
+        // Two jobs:
         //
-        // Scoped to workspace packages only (importer path includes
-        // `/packages/`) so we don't accidentally rewrite npm-dep imports.
+        //  (a) Workspace package source uses `import {X} from './Sibling.js'`
+        //      (TS published-output convention). With the wildcard
+        //      `"./*": { "development": "./src/*.ts" }` exports, Vite would
+        //      otherwise hit `./src/Sibling.js.ts` and fail. Rewrites trailing
+        //      `.js` → `.ts` and `.jsx` → `.tsx` for imports made from within
+        //      workspace `src/` trees.
+        //
+        //  (b) The `development → ./src/*.ts` wildcard cannot express
+        //      "try .ts, fall back to .tsx". When a consumer imports e.g.
+        //      `@_linked/primitives/components/Button`, Vite resolves it to
+        //      `./src/components/Button.ts` — but most components are `.tsx`.
+        //      When the resolved path ends in `.ts` and that file does NOT
+        //      exist but a `.tsx` sibling DOES, return the `.tsx`. Scoped to
+        //      paths under workspace `src/` so we don't catch unrelated
+        //      consumers.
         isDev
           ? ({
               name: 'linked:resolve-workspace-ts',
               enforce: 'pre',
               async resolveId(id, importer) {
-                if (!importer) return null;
-                if (!importer.includes(`${path.sep}packages${path.sep}`)) return null;
-                if (!/\.(jsx?)$/.test(id) || id.startsWith('\0')) return null;
-                if (!id.startsWith('.') && !id.startsWith('/')) return null;
-                const importerDir = path.dirname(importer);
-                const base = path.resolve(importerDir, id);
-                const tsCandidate = base.replace(/\.jsx?$/, (m) =>
-                  m === '.jsx' ? '.tsx' : '.ts',
-                );
-                if (await fsExtra.pathExists(tsCandidate)) return tsCandidate;
+                if (id.startsWith('\0')) return null;
+
+                // (a) Workspace-internal .js → .ts/.tsx rewrite.
+                if (
+                  importer &&
+                  importer.includes(`${path.sep}packages${path.sep}`) &&
+                  /\.(jsx?)$/.test(id) &&
+                  (id.startsWith('.') || id.startsWith('/'))
+                ) {
+                  const importerDir = path.dirname(importer);
+                  const base = path.resolve(importerDir, id);
+                  const tsCandidate = base.replace(/\.jsx?$/, (m) =>
+                    m === '.jsx' ? '.tsx' : '.ts',
+                  );
+                  if (await fsExtra.pathExists(tsCandidate)) return tsCandidate;
+                  // also try .tsx when the import says .js but only .tsx exists
+                  const tsxCandidate = base.replace(/\.jsx?$/, '.tsx');
+                  if (await fsExtra.pathExists(tsxCandidate)) return tsxCandidate;
+                }
+
+                // (b) Conditional-exports .ts → .tsx fallback for paths
+                // resolved into a workspace src/ tree.
+                if (
+                  id.endsWith('.ts') &&
+                  id.includes(`${path.sep}packages${path.sep}`) &&
+                  id.includes(`${path.sep}src${path.sep}`) &&
+                  !(await fsExtra.pathExists(id))
+                ) {
+                  const tsxCandidate = id.slice(0, -3) + '.tsx';
+                  if (await fsExtra.pathExists(tsxCandidate)) return tsxCandidate;
+                }
+
                 return null;
               },
             } as Plugin)

@@ -44,6 +44,13 @@ async function discoverWorkspacePackages(cwd: string): Promise<WorkspacePackage[
     ? pkgJson.workspaces
     : pkgJson.workspaces?.packages ?? [];
   const out: WorkspacePackage[] = [];
+
+  // Include the root app itself so edits to <cwd>/src/* trigger HMR for
+  // the app's own providers (e.g. CN's src/backend.ts which registers ~25
+  // Express routes).
+  if (pkgJson.name && (await fsExtra.pathExists(path.join(cwd, 'src')))) {
+    out.push({name: pkgJson.name, root: cwd, srcDir: path.join(cwd, 'src')});
+  }
   for (const glob of workspaces) {
     // Workspaces only support trailing /* globs in npm/yarn/pnpm — we
     // expand by directory listing rather than a full glob library.
