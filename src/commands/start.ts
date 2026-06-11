@@ -13,11 +13,148 @@
 //   - Server changes still need full process restart for now (server HMR
 //     deferred to vite-node migration)
 import path from 'node:path';
+import fs from 'node:fs/promises';
+import {spawn} from 'node:child_process';
 import fsExtra from 'fs-extra';
 
 export interface StartOptions {
   env?: string;
   port?: number;
+}
+
+interface WorkspacePackage {
+  name: string;
+  root: string;
+  srcDir: string;
+}
+
+/**
+ * Plan-011 phase 3b — discover workspace packages from the app's
+ * `package.json` `workspaces` field. No hand-maintained list anywhere;
+ * adding a new linked package = appearing in the right glob.
+ *
+ * Returns each package's npm `name` (so we can call `onSourceChange(name)`),
+ * its absolute root, and its `src/` directory for fast prefix matching.
+ */
+async function discoverWorkspacePackages(cwd: string): Promise<WorkspacePackage[]> {
+  const pkgJsonPath = path.join(cwd, 'package.json');
+  if (!(await fsExtra.pathExists(pkgJsonPath))) return [];
+  const pkgJson = await fsExtra.readJson(pkgJsonPath);
+  const workspaces: string[] = Array.isArray(pkgJson.workspaces)
+    ? pkgJson.workspaces
+    : pkgJson.workspaces?.packages ?? [];
+  const out: WorkspacePackage[] = [];
+  for (const glob of workspaces) {
+    // Workspaces only support trailing /* globs in npm/yarn/pnpm — we
+    // expand by directory listing rather than a full glob library.
+    const m = glob.match(/^(.+?)\/\*$/);
+    const candidates: string[] = [];
+    if (m) {
+      const parent = path.join(cwd, m[1]);
+      if (await fsExtra.pathExists(parent)) {
+        const entries = await fs.readdir(parent, {withFileTypes: true});
+        for (const dirent of entries) {
+          if (dirent.isDirectory() || dirent.isSymbolicLink()) {
+            candidates.push(path.join(parent, dirent.name));
+          }
+        }
+      }
+    } else {
+      candidates.push(path.join(cwd, glob));
+    }
+    for (const root of candidates) {
+      const pkgPath = path.join(root, 'package.json');
+      if (!(await fsExtra.pathExists(pkgPath))) continue;
+      try {
+        const sub = await fsExtra.readJson(pkgPath);
+        if (sub.name) {
+          out.push({name: sub.name, root, srcDir: path.join(root, 'src')});
+        }
+      } catch {
+        // ignore broken package.json
+      }
+    }
+  }
+  return out;
+}
+
+function workspacePackageForPath(
+  filepath: string,
+  pkgs: WorkspacePackage[],
+): string | null {
+  for (const p of pkgs) {
+    if (filepath.startsWith(p.srcDir + path.sep) || filepath === p.srcDir) {
+      return p.name;
+    }
+  }
+  return null;
+}
+
+function openBrowser(url: string): void {
+  const cmd =
+    process.platform === 'darwin'
+      ? 'open'
+      : process.platform === 'win32'
+        ? 'start'
+        : 'xdg-open';
+  spawn(cmd, [url], {detached: true, stdio: 'ignore'}).unref();
+}
+
+function installShortcuts(opts: {url: string; onRestart: () => void}): void {
+  if (!process.stdin.isTTY) return;
+  let buf = '';
+  try {
+    process.stdin.setRawMode(true);
+  } catch {
+    return;
+  }
+  process.stdin.resume();
+  process.stdin.setEncoding('utf8');
+  const cleanup = () => {
+    try {
+      process.stdin.setRawMode(false);
+    } catch {}
+  };
+  process.on('exit', cleanup);
+  process.stdin.on('data', (chunk: string) => {
+    for (const ch of chunk) {
+      // Ctrl-C → graceful exit, restore terminal first.
+      if (ch === '') {
+        cleanup();
+        process.exit(0);
+      }
+      if (ch === '\r' || ch === '\n') {
+        const cmd = buf.trim();
+        buf = '';
+        if (cmd === 'r') {
+          console.log('[linked] restarting…');
+          opts.onRestart();
+        } else if (cmd === 'o') {
+          console.log(`[linked] opening ${opts.url}`);
+          openBrowser(opts.url);
+        }
+      } else {
+        buf += ch;
+      }
+    }
+  });
+  console.log(
+    `[linked] press r<enter> to restart · o<enter> to open ${opts.url}`,
+  );
+}
+
+function restartProcess(): void {
+  // nodemon-style respawn: launch a fresh process from the same argv,
+  // then exit. The new process inherits stdio so the dev experience is
+  // continuous.
+  const [node, ...argv] = process.argv;
+  const child = spawn(node, argv, {
+    stdio: 'inherit',
+    detached: true,
+    env: process.env,
+  });
+  child.unref();
+  process.exit(0);
 }
 
 export async function startWithVite(opts: StartOptions = {}): Promise<void> {
@@ -117,4 +254,38 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   });
 
   await server.start();
+
+  // Plan-011 phase 3b — watcher → onSourceChange wiring.
+  //
+  // Discover workspace packages once at boot. On each change, look up
+  // which workspace package the file belongs to and call onSourceChange
+  // with that package's npm name. LincdServer disposes the old providers,
+  // re-imports via vite.ssrLoadModule (transparent because Vite invalidated
+  // the module already), and re-instantiates. No process restart.
+  const workspacePackages = await discoverWorkspacePackages(cwd);
+  if (workspacePackages.length > 0) {
+    console.log(
+      `[linked] watching ${workspacePackages.length} workspace packages for HMR`,
+    );
+  }
+  vite.watcher.on('change', (filepath: string) => {
+    if (!/\.(tsx?|jsx?)$/.test(filepath)) return;
+    const pkg = workspacePackageForPath(filepath, workspacePackages);
+    if (!pkg) return;
+    if (typeof (server as any).onSourceChange !== 'function') return;
+    void (server as any)
+      .onSourceChange(pkg)
+      .catch((err: any) => {
+        console.warn(
+          `[linked] reload of ${pkg} failed: ${err?.message ?? err}`,
+        );
+      });
+  });
+
+  // Plan-011 phase 3c — r/o keyboard shortcuts.
+  const port = (linkedConfig.server as any).port ?? opts.port ?? 4040;
+  installShortcuts({
+    url: `http://localhost:${port}/`,
+    onRestart: restartProcess,
+  });
 }
