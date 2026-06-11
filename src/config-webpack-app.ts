@@ -8,7 +8,7 @@ import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
 import {WebpackManifestPlugin} from 'webpack-manifest-plugin';
-import {LinkedConfig} from './interfaces.js';
+import type {LinkedConfig} from './interfaces.js';
 import {generateScopedName} from './utils.js';
 
 import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';

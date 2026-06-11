@@ -1,5 +1,5 @@
 import * as colors from 'colors';
-import {AdjustedModuleConfig} from './interfaces';
+import type {AdjustedModuleConfig} from './interfaces';
 import DeclarationPlugin from './plugins/declaration-plugin';
 import externaliseModules from './plugins/externalise-modules';
 import WatchRunPlugin from './plugins/watch-run';

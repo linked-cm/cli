@@ -29,7 +29,7 @@ userTsconfigRaw.compilerOptions.experimentalDecorators = true;
 const tsconfigRaw = JSON.stringify(userTsconfigRaw);
 
 const TS_EXT = /\.(tsx?|mts|cts)$/;
-const TS_RESOLUTION_EXTS = ['.ts', '.tsx', '.mts', '.cts'];
+const TS_RESOLUTION_EXTS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs'];
 
 // Node's default ESM resolver requires explicit extensions on relative
 // specifiers. App code (and the cli's user-app imports) routinely omits
@@ -71,9 +71,14 @@ export async function resolve(
 
   // Extension-less relative specifier — backfill the extension by probing
   // the disk. App code routinely omits `.ts`/`.tsx` on intra-app imports.
+  // `path.extname` treats any text after the last dot as an extension, so
+  // `./tailwind.config` looks "extended" by `.config`; only treat the
+  // specifier as resolved when the suffix matches a known JS/TS ext.
+  const ext = path.extname(specifier);
+  const knownExt = TS_RESOLUTION_EXTS.includes(ext);
   if (
     (specifier.startsWith('./') || specifier.startsWith('../')) &&
-    !path.extname(specifier)
+    !knownExt
   ) {
     const parentUrl = context.parentURL;
     if (parentUrl) {
@@ -118,6 +123,10 @@ export async function load(
     sourcefile: filePath,
     sourcemap: 'inline',
     tsconfigRaw,
+    // Honour `"jsx": "react-jsx"` from tsconfig — esbuild doesn't
+    // always pick it up via tsconfigRaw, leaving SSR with "React is
+    // not defined". Forcing `automatic` injects the jsx-runtime import.
+    jsx: 'automatic',
     // Keep `import x from './data.json' with { type: 'json' }` syntax in
     // the output — Node 22+ requires the attribute on JSON imports and
     // esbuild strips it by default when downleveling below esnext.
