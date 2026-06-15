@@ -1512,6 +1512,20 @@ export const checkImports = async (
   for (const file of dir) {
     const filename = path.join(sourceFolder, file);
 
+    // plan-011 §P7 — skip test sources. Test files (and their helpers/probes)
+    // are not part of the shipped ESM contract, so the missing-extension rule
+    // isn't load-bearing for them; enforcing it only blocks `linked build`
+    // (the real ESM-output gate stays in force for shipped source). This is
+    // what makes `linked build` green for packages whose tests use
+    // extensionless imports (e.g. @_linked/core).
+    if (
+      /(?:^|[\\/])(?:tests?|__tests__|test-helpers)(?:[\\/]|$)/.test(filename) ||
+      /\.(?:test|spec)\.tsx?$/.test(file) ||
+      /^type-probe.*\.tsx?$/.test(file)
+    ) {
+      continue;
+    }
+
     // File is either a directory, or not a .ts(x)
     // INFO: For future use - if this part fails, it could be due to user permissions
     //  i.e. the program not having access to check the file metadata
