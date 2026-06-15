@@ -237,10 +237,20 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     return paths;
   };
 
-  // Storage config bootstrap: legacy startServer() calls this so that
-  // linked.backend.storage.ts wires up its FusekiStore aliases.
-  const {loadBackendStorageConfig} = await import('../lifecycle.js');
-  await loadBackendStorageConfig();
+  // plan-011 §P5 (2A) — load the storage config through Vite SSR so it
+  // configures the SAME LinkedStorage instance the rest of the SSR graph
+  // (LincdServer, CN providers) uses. Replaces the former Node-direct
+  // `loadBackendStorageConfig()` (which resolved @_linked/core via the
+  // `default`→lib condition, a SEPARATE instance). Safe now that core's lib
+  // `initTree` is idempotent (§P1). `loadBackendStorageConfig` stays in
+  // lifecycle.ts for the Node-only CLI commands (`script`/`call`) that have no
+  // Vite server (contract C5).
+  for (const rel of ['/linked.backend.storage.ts', '/linked.backend.storage.js']) {
+    if (fsExtra.existsSync(path.join(cwd, rel.slice(1)))) {
+      await vite.ssrLoadModule(rel);
+      break;
+    }
+  }
 
   // Plan-011 — load LincdServer through Vite SSR so it shares the SAME
   // module instances as everything else in the SSR call graph. Without
