@@ -1207,7 +1207,9 @@ export const createOntology = async (
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
-const addLineToIndex = function (
+// Exported for Shape-Builder reuse (plan-010 T1d.4): CodeShapeSyncService adds
+// the `import './shapes/<Shape>.js';` line to a generated app package's index.
+export const addLineToIndex = function (
   line,
   insertMatchString: string,
   root: string = process.cwd(),
@@ -1221,6 +1223,11 @@ const addLineToIndex = function (
     });
   if (indexPath) {
     let indexContents = fs.readFileSync(indexPath, 'utf-8');
+    // Idempotent: if the exact line is already present, do nothing (re-running
+    // a shape edit must not append a duplicate import).
+    if (indexContents.split(/\n/g).some((l) => l.trim() === line.trim())) {
+      return indexPath;
+    }
     let lines = indexContents.split(/\n/g);
     let newContents;
     for (var key in lines) {
