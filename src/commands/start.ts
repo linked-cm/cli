@@ -185,26 +185,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     );
   }
 
-  const {createServer: createViteServer, createLogger} = await import('vite');
-
-  // plan-011 §P8 — quiet the recurring "dynamic import cannot be analyzed by
-  // Vite" SSR warning. It comes from code-generated ontology `loadData()`
-  // helpers (`import(dataFile)` — an intentional variable specifier) across
-  // many packages; patching each generated file is fragile (regeneration
-  // reverts it), so we filter the one message here. All other warnings pass
-  // through unchanged.
-  const baseLogger = createLogger();
-  const quietLogger = {
-    ...baseLogger,
-    warn(msg: string, opts?: any) {
-      if (typeof msg === 'string' && msg.includes('dynamic import cannot be analyzed')) return;
-      baseLogger.warn(msg, opts);
-    },
-    warnOnce(msg: string, opts?: any) {
-      if (typeof msg === 'string' && msg.includes('dynamic import cannot be analyzed')) return;
-      baseLogger.warnOnce(msg, opts);
-    },
-  };
+  const {createServer: createViteServer} = await import('vite');
 
   // Load user's linked.config.js (legacy hook). It still drives things
   // like server.cachePaths and the rest of LincdServer's options.
@@ -219,7 +200,6 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     root: cwd,
     server: {middlewareMode: true},
     appType: 'custom',
-    customLogger: quietLogger,
   });
 
   // Inject Vite into LincdServer's config:
