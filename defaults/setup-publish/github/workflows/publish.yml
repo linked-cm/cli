@@ -48,6 +48,9 @@ jobs:
           publish: npx changeset publish
           title: 'chore: release'
           commit: 'chore: release'
+        # npm auth uses the npm token below. Do NOT switch to OIDC trusted publishing
+        # (id-token: write + publishConfig.provenance) unless you FIRST register this package's
+        # trusted publisher on npmjs.com — otherwise publishes fail with 404 / permission errors.
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NODE_AUTH_TOKEN: ${{ secrets.{{NPM_SECRET_NAME}} }}
