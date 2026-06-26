@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.1
+
+### Patch Changes
+
+- [#54](https://github.com/linked-cm/cli/pull/54) [`5d475c7`](https://github.com/linked-cm/cli/commit/5d475c718a5435ebf8d9ce0db358ebcb84a91642) Thanks [@flyon](https://github.com/flyon)! - `setup-publish` now generates publish workflows that author the changesets "Version Packages"
+  PR (and, for dual-branch, the post-release sync) via an org **GitHub App token**
+  (`actions/create-github-app-token`, org secrets `RELEASE_APP_ID` / `RELEASE_APP_PRIVATE_KEY`)
+  instead of the default `GITHUB_TOKEN` — so those PRs' checks run without a manual "Approve and
+  run" gate. The dual-branch template's version-only `sync-version-to-dev` job is replaced by a full
+  **back-merge `main -> dev`** (carrying the version bump, CHANGELOG, and changeset deletions, so dev
+  never re-releases consumed changesets). `--configure-github` also enables "Allow auto-merge" so the
+  back-merge PR self-merges once checks pass.
+
 ## 1.8.0
 
 ### Minor Changes
