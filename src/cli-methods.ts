@@ -23,7 +23,7 @@ import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
 import {statSync} from 'fs';
 import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
-import type {PackageDetails} from './interfaces';
+import type {PackageDetails} from './interfaces.js';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;
 // const config = require('@_linked/server/site.webpack.config');

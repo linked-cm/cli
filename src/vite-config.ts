@@ -47,37 +47,73 @@ interface WorkspaceEntry {
 async function discoverWorkspaces(): Promise<WorkspaceEntry[]> {
   const fs = await import('node:fs/promises');
   const cwd = process.cwd();
-  const pkgPath = path.join(cwd, 'package.json');
-  if (!(await fsExtra.pathExists(pkgPath))) return [];
-  const pkg = await fsExtra.readJson(pkgPath);
-  const patterns: string[] = Array.isArray(pkg.workspaces)
-    ? pkg.workspaces
-    : pkg.workspaces?.packages ?? [];
   const out: WorkspaceEntry[] = [];
-  for (const pattern of patterns) {
-    const m = pattern.match(/^(.+?)\/\*$/);
-    const candidates: string[] = [];
-    if (m) {
-      const parent = path.join(cwd, m[1]);
-      if (await fsExtra.pathExists(parent)) {
-        for (const ent of await fs.readdir(parent, {withFileTypes: true})) {
-          if (ent.isDirectory() || ent.isSymbolicLink()) {
-            candidates.push(path.join(parent, ent.name));
+  const seen = new Set<string>();
+  // Register a package root iff it ships a `src/` dir (source install). Published
+  // packages have only `lib/` and are skipped — they resolve via their exports.
+  const addFromRoot = async (root: string): Promise<void> => {
+    const subPkgPath = path.join(root, 'package.json');
+    if (!(await fsExtra.pathExists(subPkgPath))) return;
+    const srcDir = path.join(root, 'src');
+    if (!(await fsExtra.pathExists(srcDir))) return;
+    try {
+      const sub = await fsExtra.readJson(subPkgPath);
+      if (sub.name && !seen.has(sub.name)) {
+        seen.add(sub.name);
+        out.push({name: sub.name, srcDir});
+      }
+    } catch {}
+  };
+
+  // 1. The app's own `workspaces` globs — the monorepo-root case (CN, or any app
+  //    that is itself a workspace root). Only trailing `/*` patterns.
+  const pkgPath = path.join(cwd, 'package.json');
+  if (await fsExtra.pathExists(pkgPath)) {
+    const pkg = await fsExtra.readJson(pkgPath);
+    const patterns: string[] = Array.isArray(pkg.workspaces)
+      ? pkg.workspaces
+      : pkg.workspaces?.packages ?? [];
+    for (const pattern of patterns) {
+      const m = pattern.match(/^(.+?)\/\*$/);
+      if (m) {
+        const parent = path.join(cwd, m[1]);
+        if (await fsExtra.pathExists(parent)) {
+          for (const ent of await fs.readdir(parent, {withFileTypes: true})) {
+            if (ent.isDirectory() || ent.isSymbolicLink()) {
+              await addFromRoot(path.join(parent, ent.name));
+            }
           }
         }
+      } else {
+        await addFromRoot(path.join(cwd, pattern));
       }
-    } else {
-      candidates.push(path.join(cwd, pattern));
     }
-    for (const root of candidates) {
-      const subPkgPath = path.join(root, 'package.json');
-      if (!(await fsExtra.pathExists(subPkgPath))) continue;
-      try {
-        const sub = await fsExtra.readJson(subPkgPath);
-        if (sub.name) {
-          out.push({name: sub.name, srcDir: path.join(root, 'src')});
-        }
-      } catch {}
+  }
+
+  // 2. Linked framework packages resolved via `node_modules` that ship SOURCE —
+  //    a symlinked workspace clone, or a `link:`/`portal:` dev install. This is
+  //    what lets a STANDALONE app (not itself a workspace root — e.g. a per-branch
+  //    clone under /apps) resolve `@_linked/*` `.tsx` sources with extension
+  //    probing, instead of falling through to the package's
+  //    `development → ./src/*.ts` export (which misses `.tsx` like LincdServer).
+  //    A prod/ejected app installs PUBLISHED packages (no `src/`) → skipped here,
+  //    resolved via each package's `lib`.
+  const nm = path.join(cwd, 'node_modules');
+  for (const scope of ['@_linked', '@linked.cm']) {
+    const scopeDir = path.join(nm, scope);
+    if (!(await fsExtra.pathExists(scopeDir))) continue;
+    for (const ent of await fs.readdir(scopeDir, {withFileTypes: true})) {
+      if (ent.isDirectory() || ent.isSymbolicLink()) {
+        await addFromRoot(path.join(scopeDir, ent.name));
+      }
+    }
+  }
+  // Legacy unscoped lincd-* packages installed with source.
+  if (await fsExtra.pathExists(nm)) {
+    for (const ent of await fs.readdir(nm, {withFileTypes: true})) {
+      if ((ent.isDirectory() || ent.isSymbolicLink()) && ent.name.startsWith('lincd-')) {
+        await addFromRoot(path.join(nm, ent.name));
+      }
     }
   }
   return out;
