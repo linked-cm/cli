@@ -90,32 +90,64 @@ async function discoverWorkspaces(): Promise<WorkspaceEntry[]> {
     }
   }
 
-  // 2. Linked framework packages resolved via `node_modules` that ship SOURCE —
-  //    a symlinked workspace clone, or a `link:`/`portal:` dev install. This is
-  //    what lets a STANDALONE app (not itself a workspace root — e.g. a per-branch
-  //    clone under /apps) resolve `@_linked/*` `.tsx` sources with extension
-  //    probing, instead of falling through to the package's
-  //    `development → ./src/*.ts` export (which misses `.tsx` like LinkedServer).
-  //    A prod/ejected app installs PUBLISHED packages (no `src/`) → skipped here,
-  //    resolved via each package's `lib`.
+  // 2. Dependency-graph traversal from the app's package.json. Starting from the
+  //    app's own `dependencies` (+ `devDependencies`), keep the deps whose
+  //    resolved package.json is marked `"linkedPackage": true` — the same marker
+  //    the CLI keys on (see cli-methods.ts) — and recurse into THOSE packages'
+  //    `dependencies`, with a visited-set to avoid cycles/rework.
+  //
+  //    A dep is REGISTERED only if it ships `src/` (a symlinked workspace clone,
+  //    or a `link:`/`portal:` dev install) — that's what lets a STANDALONE app
+  //    (not itself a workspace root — e.g. a per-branch clone under /apps) resolve
+  //    a linked package's `.tsx` sources with extension probing, instead of
+  //    falling through to the package's `development → ./src/*.ts` export (which
+  //    misses `.tsx` like LinkedServer). A prod/ejected app installs PUBLISHED
+  //    packages (no `src/`) → not registered, resolved via each package's `lib`.
+  //
+  //    The marker — NOT the npm scope — drives discovery, so a user's own
+  //    custom-scope published linked package (e.g. `@acme/foo` with
+  //    `linkedPackage:true`) is picked up too, and linked packages present in
+  //    node_modules but not depended upon are ignored.
   const nm = path.join(cwd, 'node_modules');
-  for (const scope of ['@_linked', '@linked.cm']) {
-    const scopeDir = path.join(nm, scope);
-    if (!(await fsExtra.pathExists(scopeDir))) continue;
-    for (const ent of await fs.readdir(scopeDir, {withFileTypes: true})) {
-      if (ent.isDirectory() || ent.isSymbolicLink()) {
-        await addFromRoot(path.join(scopeDir, ent.name));
-      }
+
+  // Resolve a dependency name to its installed package.json path. A symlinked
+  // workspace clone resolves under the app's node_modules just like a normal
+  // install. Returns null when the package isn't installed (e.g. an optional
+  // or unhoisted dep) — we skip rather than throw.
+  const readInstalledPkg = async (
+    name: string,
+  ): Promise<{root: string; json: any} | null> => {
+    const root = path.join(nm, name);
+    const pkgJson = path.join(root, 'package.json');
+    if (!(await fsExtra.pathExists(pkgJson))) return null;
+    try {
+      return {root, json: await fsExtra.readJson(pkgJson)};
+    } catch {
+      return null;
     }
-  }
-  // Legacy unscoped lincd-* packages installed with source.
-  if (await fsExtra.pathExists(nm)) {
-    for (const ent of await fs.readdir(nm, {withFileTypes: true})) {
-      if ((ent.isDirectory() || ent.isSymbolicLink()) && ent.name.startsWith('lincd-')) {
-        await addFromRoot(path.join(nm, ent.name));
-      }
+  };
+
+  const visited = new Set<string>();
+  const walk = async (deps: Record<string, string> | undefined): Promise<void> => {
+    for (const name of Object.keys(deps ?? {})) {
+      if (visited.has(name)) continue;
+      visited.add(name);
+      const resolved = await readInstalledPkg(name);
+      if (!resolved) continue;
+      if (resolved.json.linkedPackage !== true) continue;
+      // Register if it ships source (addFromRoot gates on src/ existing).
+      await addFromRoot(resolved.root);
+      // Recurse into this linked package's own dependencies.
+      await walk(resolved.json.dependencies);
     }
+  };
+
+  if (await fsExtra.pathExists(pkgPath)) {
+    const appPkg = await fsExtra.readJson(pkgPath);
+    await walk(appPkg.dependencies);
+    await walk(appPkg.devDependencies);
   }
+
   return out;
 }
 
