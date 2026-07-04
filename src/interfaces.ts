@@ -136,4 +136,14 @@ export interface LinkedConfig {
    * Server configuration
    */
   server?: LinkedServerConfig;
+
+  /**
+   * Materialize this app's registered shapes into its data store as SHACL
+   * (`sh:NodeShape`) on boot — so its app-data holds the shapes its instances
+   * validate/query against. Runs in LinkedServer.start()/initOnly().
+   * @default true
+   * Set `false` for a server whose default dataset is a context-router (e.g. CN),
+   * or an app that manages its own shape/dataset lifecycle.
+   */
+  syncShapesOnBoot?: boolean;
 }
