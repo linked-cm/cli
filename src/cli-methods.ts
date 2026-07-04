@@ -1748,8 +1748,8 @@ export const runMethod = async (
     }
 
     //@ts-ignore
-    const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
-      .LincdServer;
+    const ServerClass = (await import('@_linked/server/shapes/LinkedServer'))
+      .LinkedServer;
     await loadBackendStorageConfig();
     let server = new ServerClass(linkedConfig);
     //init the server
@@ -1793,7 +1793,7 @@ export const runMethod = async (
         });
     });
   } else {
-    //reuse the existing running LincdServer instance.
+    //reuse the existing running LinkedServer instance.
     //make a HTTP call
     //'/call/:pkg/:method',
     fetch(process.env.SITE_ROOT + '/call/' + packageName + '/' + method, {
@@ -1854,7 +1854,7 @@ export const startServer = async (
 
   if (!ServerClass) {
     //@ts-ignore
-    ServerClass = (await import('@_linked/server/shapes/LincdServer')).LincdServer;
+    ServerClass = (await import('@_linked/server/shapes/LinkedServer')).LinkedServer;
   }
   await loadBackendStorageConfig();
 

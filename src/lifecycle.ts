@@ -97,7 +97,7 @@ export async function loadBackendStorageConfig(): Promise<any> {
  * Walk the app's `package.json` `workspaces` field and return every
  * workspace package that declares `"linkedPackage": true`.
  *
- * Lives here (not in cli-methods.ts) so consumers like LincdServer can
+ * Lives here (not in cli-methods.ts) so consumers like LinkedServer can
  * import it without dragging the rest of the legacy webpack flow into
  * Vite's SSR module graph.
  */

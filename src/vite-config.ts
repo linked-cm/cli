@@ -95,7 +95,7 @@ async function discoverWorkspaces(): Promise<WorkspaceEntry[]> {
   //    what lets a STANDALONE app (not itself a workspace root — e.g. a per-branch
   //    clone under /apps) resolve `@_linked/*` `.tsx` sources with extension
   //    probing, instead of falling through to the package's
-  //    `development → ./src/*.ts` export (which misses `.tsx` like LincdServer).
+  //    `development → ./src/*.ts` export (which misses `.tsx` like LinkedServer).
   //    A prod/ejected app installs PUBLISHED packages (no `src/`) → skipped here,
   //    resolved via each package's `lib`.
   const nm = path.join(cwd, 'node_modules');

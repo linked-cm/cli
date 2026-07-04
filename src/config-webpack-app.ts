@@ -423,7 +423,7 @@ export const getWebpackAppConfig = async () => {
       },
       // traceResolution: true
     },
-    //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
+    //Cache is now overwritten in LinkedServer based on config, the other value for type would be 'filesystem'
     //see also https://webpack.js.org/configuration/other-options/#cache
     cache: config.webpack?.cache
       ? {type: 'filesystem' as 'filesystem'}

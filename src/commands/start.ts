@@ -2,12 +2,12 @@
 //
 // Follows the existing startServer() flow from cli-methods.ts but injects
 // a Vite dev server in middleware mode + overrides loadAppComponent /
-// loadRoutes to use vite.ssrLoadModule. This means LincdServer's existing
+// loadRoutes to use vite.ssrLoadModule. This means LinkedServer's existing
 // initialization works unchanged; we just route module loading through
 // Vite instead of webpack/Node-direct.
 //
 // What's different vs the legacy startServer():
-//   - No webpack-dev-middleware (LincdServer skips when viteMiddleware set)
+//   - No webpack-dev-middleware (LinkedServer skips when viteMiddleware set)
 //   - Vite handles the client transform + HMR
 //   - ssrLoadModule handles the server transform (decorators, jsx, ts)
 //   - Server changes still need full process restart for now (server HMR
@@ -188,7 +188,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   const {createServer: createViteServer} = await import('vite');
 
   // Load user's linked.config.js (legacy hook). It still drives things
-  // like server.cachePaths and the rest of LincdServer's options.
+  // like server.cachePaths and the rest of LinkedServer's options.
   const linkedConfigPath = path.join(cwd, 'linked.config.js');
   let linkedConfig: any = {};
   if (fsExtra.existsSync(linkedConfigPath)) {
@@ -202,7 +202,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     appType: 'custom',
   });
 
-  // Inject Vite into LincdServer's config:
+  // Inject Vite into LinkedServer's config:
   //   - vite: handle for ssrLoadModule (used to load app's backend.ts via self-reference)
   //   - viteMiddleware: mounted instead of webpack-dev-middleware
   //   - loadAppComponent: route through vite.ssrLoadModule for SSR transform
@@ -218,7 +218,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   };
 
   // Vite SSR CSS collection support (plan-010 iter1 gap A):
-  // List all `src/pages/*.{ts,tsx}` files so LincdServer can ssrLoadModule
+  // List all `src/pages/*.{ts,tsx}` files so LinkedServer can ssrLoadModule
   // each into Vite's moduleGraph BEFORE the first render of a session.
   // React.lazy() doesn't auto-fire — without this, only App's eager
   // imports' CSS is collected; lazy pages' CSS arrives after hydration
@@ -239,7 +239,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
 
   // plan-011 §P5 (2A) — load the storage config through Vite SSR so it
   // configures the SAME LinkedStorage instance the rest of the SSR graph
-  // (LincdServer, CN providers) uses. Replaces the former Node-direct
+  // (LinkedServer, CN providers) uses. Replaces the former Node-direct
   // `loadBackendStorageConfig()` (which resolved @_linked/core via the
   // `default`→lib condition, a SEPARATE instance). Safe now that core's lib
   // `initTree` is idempotent (§P1). `loadBackendStorageConfig` stays in
@@ -252,16 +252,16 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     }
   }
 
-  // Plan-011 — load LincdServer through Vite SSR so it shares the SAME
+  // Plan-011 — load LinkedServer through Vite SSR so it shares the SAME
   // module instances as everything else in the SSR call graph. Without
-  // this, LincdServer is loaded by Node (→ lib/esm) while CN's App.tsx +
+  // this, LinkedServer is loaded by Node (→ lib/esm) while CN's App.tsx +
   // its transitive imports are loaded by Vite (→ src/). React contexts
   // created in one tree don't reach consumers in the other, causing
   // "Cannot destructure property 'isNativeApp' of useAppContext()" type
   // errors on every SSR render.
   const ServerClass = (
-    await vite.ssrLoadModule('@_linked/server/shapes/LincdServer')
-  ).LincdServer;
+    await vite.ssrLoadModule('@_linked/server/shapes/LinkedServer')
+  ).LinkedServer;
 
   const server = new (ServerClass as any)(linkedConfig);
 
@@ -283,7 +283,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   //
   // Discover workspace packages once at boot. On each change, look up
   // which workspace package the file belongs to and call onSourceChange
-  // with that package's npm name. LincdServer disposes the old providers,
+  // with that package's npm name. LinkedServer disposes the old providers,
   // re-imports via vite.ssrLoadModule (transparent because Vite invalidated
   // the module already), and re-instantiates. No process restart.
   const workspacePackages = await discoverWorkspacePackages(cwd);
