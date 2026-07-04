@@ -167,8 +167,23 @@ function restartProcess(): void {
 export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   const cwd = process.cwd();
 
-  // Ensure env-cmd vars are loaded just like startServer() does.
-  // We piggyback on the same helper for consistency.
+  // Load the app's own `.env` (Node 20.12+ `process.loadEnvFile`) if present — the
+  // standard, dependency-free env source for a linked app. Node does NOT override
+  // vars already set in the environment, so CN's injected per-(project,branch) vars
+  // (PORT, FUSEKI_DATASET, CN_APP_ADMIN_SECRET, …) take precedence over the file.
+  try {
+    const envPath = path.join(cwd, '.env');
+    if (
+      (await fsExtra.pathExists(envPath)) &&
+      typeof (process as {loadEnvFile?: (p: string) => void}).loadEnvFile === 'function'
+    ) {
+      (process as {loadEnvFile: (p: string) => void}).loadEnvFile(envPath);
+    }
+  } catch {
+    // best-effort — a missing/invalid .env never blocks start
+  }
+
+  // `--env` still loads env-cmd (`.env-cmdrc.json`) for CN's own start:local flow.
   const {ensureEnvironmentLoaded} = await import('../lifecycle.js');
   await ensureEnvironmentLoaded();
 
