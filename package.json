@@ -2,24 +2,22 @@
   "name": "@_linked/cli",
   "version": "1.8.2",
   "description": "Command line tools for the @_linked/* packages and apps",
-  "main": "lib/cjs/index.js",
+  "main": "lib/esm/index.js",
+  "types": "./lib/esm/index.d.ts",
   "module": "lib/esm/index.js",
   "exports": {
     ".": {
       "types": "./lib/esm/index.d.ts",
-      "import": "./lib/esm/index.js",
-      "require": "./lib/cjs/index.js"
+      "import": "./lib/esm/index.js"
     },
     "./*.css": "./lib/esm/*.css",
     "./*.js": {
       "types": "./lib/esm/*.d.ts",
-      "import": "./lib/esm/*.js",
-      "require": "./lib/cjs/*.js"
+      "import": "./lib/esm/*.js"
     },
     "./*": {
       "types": "./lib/esm/*.d.ts",
-      "import": "./lib/esm/*.js",
-      "require": "./lib/cjs/*.js"
+      "import": "./lib/esm/*.js"
     }
   },
   "typesVersions": {
@@ -30,13 +28,10 @@
     }
   },
   "scripts": {
-    "build": "rimraf ./lib && yarn build-esm && yarn build-cjs && yarn copy-to-lib && yarn dual-package",
-    "build-cjs": "echo \"compiling CJS\" && rimraf ./lib/cjs && yarn tsc -p tsconfig-cjs.json",
+    "build": "rimraf ./lib && yarn build-esm && yarn copy-to-lib",
     "build-esm": "echo \"compiling ESM\" && rimraf ./lib/esm && yarn tsc -p tsconfig-esm.json",
-    "dual-package": "echo 'adding package.json to each lib folder for dual output support' && yarn tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json",
-    "copy-to-lib": "echo '💫 Copying CSS assets to lib folder' && yarn copyfiles -u 1 'src/**/*.css' lib/esm && yarn copyfiles -u 1 'src/**/*.css' lib/cjs",
+    "copy-to-lib": "echo '💫 Copying CSS assets to lib folder' && yarn copyfiles -u 1 'src/**/*.css' lib/esm",
     "dev": "yarn tsc -p tsconfig-esm.json -w",
-    "dev-cjs": "yarn tsc -p tsconfig-cjs.json -w",
     "test": "yarn test:unit && yarn test:e2e",
     "test:unit": "jest --config jest.config.cjs",
     "test:e2e": "playwright test --config playwright.config.ts",
@@ -136,7 +131,6 @@
     "ts-loader": "^9.5.1",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "tsconfig-to-dual-package": "^1.2.0",
-    "tsx": "^4.19.3",
     "typescript": "^5.4.0",
     "typescript-plugin-css-modules": "^5.1.0",
     "vite": "^6.0.0",

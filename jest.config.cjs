@@ -1,9 +1,10 @@
 // Jest config for @_linked/cli unit tests.
 //
-// Tests target the compiled CJS output in lib/cjs, not raw src/. This avoids
-// configuring jest's ESM mode (notoriously fiddly with our mixed tsx/ESM
-// runtime) and keeps the test runner identical to what npm consumers see.
-// Run `yarn build` before `yarn test:unit` so lib/cjs exists.
+// The cli is now ESM-only (no lib/cjs). Rather than configure jest's ESM mode
+// (notoriously fiddly), tests import raw `src/` .ts and let babel-jest
+// transpile ESM→CJS. The `moduleNameMapper` below strips the `.js` suffix from
+// relative specifiers (src uses the published-output `./foo.js` convention) so
+// they resolve back to the `.ts` source.
 //
 // E2E specs live in tests/e2e/ and run under Playwright (see
 // playwright.config.ts), not Jest.
@@ -24,6 +25,9 @@ module.exports = {
         ],
       },
     ],
+  },
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
 };
