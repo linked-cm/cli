@@ -2,7 +2,7 @@
 // command and the parsed args, then returns without executing yarn or
 // touching mrgit-related lockfiles. Covers a deferred gap from
 // docs/backlog/010-cli-test-harness.md.
-import {safeYarn} from '../../lib/cjs/commands/safe-yarn.js';
+import {safeYarn} from '../../lib/esm/commands/safe-yarn.js';
 
 describe('safeYarn (dry-run)', () => {
   const originalEnv = process.env.LINKED_YARN_DRY_RUN;
