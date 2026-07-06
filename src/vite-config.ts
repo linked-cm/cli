@@ -366,6 +366,14 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
           'scheduler',
           'express',
         ],
+        // Vite 7 auto-externalizes node_modules packages for SSR (loading them
+        // via Node → the `import`→`lib/esm` condition), which would bypass the
+        // `linked:resolve-workspace-ts` resolver and create a SECOND module
+        // instance of each workspace package (breaking the single-`src`-instance
+        // invariant — `LinkedStorage` state set on one instance, read on the
+        // other → "No query dispatch configured"). Force the workspace packages
+        // to be BUNDLED so they resolve via each package's `development → src`.
+        noExternal: [/^@_linked\//, /^lincd-/],
       },
       define: opts.define ?? {},
     };
