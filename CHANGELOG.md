@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.9.0
+
+### Minor Changes
+
+- [#59](https://github.com/linked-cm/cli/pull/59) [`98dbb5a`](https://github.com/linked-cm/cli/commit/98dbb5a7767aed3ee1da62009c096eeb76b2c377) Thanks [@flyon](https://github.com/flyon)! - ESM-only. Dropped the CommonJS build; ships ES modules only (`type: module`, no `require` export condition, no `lib/cjs`). Fixed the root `types` field. CJS consumers on Node 22+ can `require()` it (sync ESM) or use dynamic `import()`.
+
+- [#59](https://github.com/linked-cm/cli/pull/59) [`647417b`](https://github.com/linked-cm/cli/commit/647417bdcfbd5603daeb02ffd9ddc94f702a960e) Thanks [@flyon](https://github.com/flyon)! - Standalone dev + template git-clone scaffolding:
+
+  - **Standalone dev resolution** — `createViteConfig` now detects when an app is NOT inside a workspace (lib-only npm install of `@_linked/*`) and resolves those deps via `import → lib/esm` (conditions `['module','node']`) instead of the `development → src` export they don't ship. Fixes "Failed to load `@_linked/server/shapes/LinkedServer`" on a clean install. Monorepo/workspace dev is unchanged.
+  - **`create-app` clones the template repo** — new apps are scaffolded by `git clone`-ing `linked-cm/app-template` (single source of truth, same repo CN's server-side project creation uses) instead of copying a bundled defaults tree. The bundled `defaults/app-with-backend` is removed.
+  - Removed the orphaned tsx `register`/`register-css-only` loaders (+ `tsx` dep); apps run plain `linked start` (Vite handles TS transform).
+
 ## 1.8.2
 
 ### Patch Changes
