@@ -193,6 +193,14 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
   return defineConfig(async ({mode}) => {
     const isDev = mode === 'development';
     const workspaces = isDev ? await discoverWorkspaces() : [];
+    // STANDALONE = dev mode with no source-shipping workspaces discovered
+    // (an app installed from npm outside the monorepo — its `@_linked/*` /
+    // `lincd-*` deps are lib-only). discoverWorkspaces() only registers
+    // packages that ship `src/` on disk, so `length === 0` is the exact
+    // standalone signal used elsewhere in this file. In WORKSPACE mode
+    // (CN monorepo or its workspace-member clones) this is false and none
+    // of the standalone-gated branches below apply.
+    const isStandalone = isDev && workspaces.length === 0;
     const config: UserConfig = {
       server: {
         port: opts.port ?? 4040,
@@ -304,6 +312,16 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
                   if (resolved) return resolved;
                 }
 
+                // STANDALONE (no workspaces): the linked packages are installed
+                // from npm as lib-only (no `src`). We DON'T intercept them here —
+                // instead the standalone `resolve.conditions` / `ssr.resolve.conditions`
+                // (set on the config below, dropping Vite's `development` token)
+                // let Vite's normal resolver pick each package's `import → lib/esm`
+                // export. Bundling those lib files through the SSR runner works
+                // (they're plain ESM); marking them external instead would leave a
+                // bare specifier that `vite.ssrLoadModule` can't load
+                // ("Failed to load url @_linked/server/shapes/LinkedServer").
+
                 return null;
               },
             } as Plugin)
@@ -348,6 +366,31 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         },
         jsx: 'automatic',
       },
+      // STANDALONE resolve conditions.
+      //
+      // The published `@_linked/*` / `lincd-*` packages export
+      //   "development": "./src/*.ts",  "import": "./lib/esm/*.js"
+      // In dev, Vite expands its special `development|production` condition
+      // token to `development`, so it resolves these to `./src/*.ts` — which
+      // doesn't exist in a lib-only npm install → boot crash
+      // ("Failed to load @_linked/server/shapes/LinkedServer").
+      //
+      // Dropping the dev/prod token from the condition list means Vite never
+      // adds `development`; `import` (always appended last by Vite) wins, so
+      // these packages resolve to `./lib/esm/*.js`. We start from Vite's
+      // default SERVER conditions (`module`, `node`, `development|production`)
+      // minus the dev/prod token. This governs BOTH the plugin pipeline
+      // (`resolve.conditions`) and the SSR module runner used by
+      // `ssrLoadModule('@_linked/server/shapes/LinkedServer')` in
+      // commands/start.ts (`ssr.resolve.conditions`).
+      //
+      // WORKSPACE-GATED: only applied standalone. In monorepo dev the packages
+      // ship `src`, and we WANT `development → src` for HMR — so we leave
+      // conditions at Vite's defaults there (undefined = untouched), keeping
+      // CN dev byte-for-byte unchanged.
+      ...(isStandalone
+        ? {resolve: {conditions: ['module', 'node']}}
+        : {}),
       // Plan-011 phase 3a — `ssr.external` is now a minimal allowlist of
       // npm deps that genuinely can't (or shouldn't) go through Vite's
       // SSR transform. Workspace packages (`@_linked/*`, `lincd-*`) are
@@ -358,6 +401,10 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
       // "Multiple LINCD" warnings may resurface during the interim until
       // LINCD eradication completes (plan-011 §I2 — accepted).
       ssr: {
+        // NOTE: Vite's `ssr.external` only accepts exact package-name strings
+        // (not regex). Standalone `@_linked/*` / `lincd-*` are NOT force-listed
+        // here — they auto-externalize (or bundle) and resolve via the
+        // standalone `import → lib/esm` conditions set below.
         external: [
           'react',
           'react-dom',
@@ -373,7 +420,24 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // invariant — `LinkedStorage` state set on one instance, read on the
         // other → "No query dispatch configured"). Force the workspace packages
         // to be BUNDLED so they resolve via each package's `development → src`.
-        noExternal: [/^@_linked\//, /^lincd-/],
+        //
+        // WORKSPACE-GATED: only force-bundle when workspaces are actually
+        // present (the monorepo / CN + CN's workspace-member clones, where the
+        // `@_linked/*` packages have `src` on disk). A STANDALONE app (CLI-
+        // created, no workspaces) installs `@_linked/*` from npm as lib-only —
+        // those have NO `src`, so bundling them via the `development → src`
+        // condition fails ("Failed to load @_linked/server/shapes/LinkedServer").
+        // Leaving them EXTERNAL lets Node resolve `import → lib/esm`. Single-
+        // instance is not a concern standalone (one node_modules copy each) and
+        // core's query dispatch is global-backed regardless.
+        noExternal: workspaces.length > 0 ? [/^@_linked\//, /^lincd-/] : [],
+        // STANDALONE: the SSR module runner (`vite.ssrLoadModule`, used to
+        // load LinkedServer + the app graph in commands/start.ts) has its OWN
+        // condition list, defaulting to `resolve.conditions`. Set it
+        // explicitly so `development` is excluded there too and the lib-only
+        // packages resolve via `import → lib/esm`. Omitted (defaults kept) in
+        // workspace mode so monorepo SSR still resolves `development → src`.
+        ...(isStandalone ? {resolve: {conditions: ['module', 'node']}} : {}),
       },
       define: opts.define ?? {},
     };

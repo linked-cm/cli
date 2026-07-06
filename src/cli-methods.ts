@@ -137,24 +137,27 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     fs.mkdirSync(targetFolder);
   }
 
-  fs.copySync(
-    path.join(dirname__, '..', '..', 'defaults', 'app-with-backend'),
-    targetFolder,
-  );
+  // Scaffold from the canonical template repo (single source of truth; CN's
+  // server-side createProject clones the same repo). Shallow clone, then drop
+  // .git so the new app starts with clean history.
+  await execPromise(`git clone --depth 1 https://github.com/linked-cm/app-template.git "${targetFolder}"`, false, false);
+  fs.removeSync(path.join(targetFolder, '.git'));
   //make sure the data folder exists (even though its empty).. copying empty folders does not work with fs.copySync
   fs.mkdirSync(path.join(targetFolder, 'data'), {recursive: true});
   fs.mkdirSync(path.join(targetFolder, 'data/uploads/resized'), {
     recursive: true,
   });
 
-  fs.renameSync(
-    path.join(targetFolder, 'gitignore.template'),
-    path.join(targetFolder, '.gitignore'),
-  );
-  fs.renameSync(
-    path.join(targetFolder, 'yarnrc.yml.template'),
-    path.join(targetFolder, '.yarnrc.yml'),
-  );
+  // The template repo now ships real dotfiles; guard the legacy
+  // `*.template` renames so they no-op when the dotfile already exists.
+  const gitignoreTemplate = path.join(targetFolder, 'gitignore.template');
+  if (fs.existsSync(gitignoreTemplate)) {
+    fs.renameSync(gitignoreTemplate, path.join(targetFolder, '.gitignore'));
+  }
+  const yarnrcTemplate = path.join(targetFolder, 'yarnrc.yml.template');
+  if (fs.existsSync(yarnrcTemplate)) {
+    fs.renameSync(yarnrcTemplate, path.join(targetFolder, '.yarnrc.yml'));
+  }
 
   // Mark the new app as a self-contained Yarn project root. Without this,
   // Yarn climbs ancestor dirs looking for the project root and may decide

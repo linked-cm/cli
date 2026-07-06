@@ -131,7 +131,6 @@
     "ts-loader": "^9.5.1",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "tsconfig-to-dual-package": "^1.2.0",
-    "tsx": "^4.19.3",
     "typescript": "^5.4.0",
     "typescript-plugin-css-modules": "^5.1.0",
     "vite": "^6.0.0",
