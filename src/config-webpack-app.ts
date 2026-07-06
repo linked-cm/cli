@@ -8,7 +8,7 @@ import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 import {BundleAnalyzerPlugin} from 'webpack-bundle-analyzer';
 import {WebpackManifestPlugin} from 'webpack-manifest-plugin';
-import {LinkedConfig} from './interfaces.js';
+import type {LinkedConfig} from './interfaces.js';
 import {generateScopedName} from './utils.js';
 
 import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
@@ -423,7 +423,7 @@ export const getWebpackAppConfig = async () => {
       },
       // traceResolution: true
     },
-    //Cache is now overwritten in LincdServer based on config, the other value for type would be 'filesystem'
+    //Cache is now overwritten in LinkedServer based on config, the other value for type would be 'filesystem'
     //see also https://webpack.js.org/configuration/other-options/#cache
     cache: config.webpack?.cache
       ? {type: 'filesystem' as 'filesystem'}

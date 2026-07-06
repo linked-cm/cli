@@ -1,4 +1,4 @@
-import {LinkedConfig} from './interfaces';
+import type {LinkedConfig} from './interfaces.js';
 
 /**
  * Define a Linked configuration with type checking and autocomplete

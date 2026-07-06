@@ -6,7 +6,7 @@ export {default as externaliseModules} from './plugins/externalise-modules';
 // config-webpack.ts.
 export {default as tailwindConfig} from './tailwind.config';
 // export {buildMetadata} from './metadata';
-import {generateWebpackConfig} from './config-webpack';
+import {generateWebpackConfig} from './config-webpack.js';
 
 export {generateWebpackConfig};
 export * from './utils';

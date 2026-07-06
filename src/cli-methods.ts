@@ -23,7 +23,7 @@ import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
 import {statSync} from 'fs';
 import {LinkedFileStorage} from '@_linked/core/utils/LinkedFileStorage';
-import {PackageDetails} from './interfaces';
+import type {PackageDetails} from './interfaces.js';
 // import pkg from 'lincd/utils/LinkedFileStorage';
 // const { LinkedFileStorage } = pkg;
 // const config = require('@_linked/server/site.webpack.config');
@@ -46,32 +46,16 @@ let dirname__ =
  * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
  * app clones keep booting through the rename.
  */
-async function loadBackendStorageConfig(): Promise<any> {
-  const cwd = process.cwd();
-  const candidates = [
-    // Iter4 canonical:
-    path.join(cwd, 'linked.backend.storage.ts'),
-    path.join(cwd, 'linked.backend.storage.js'),
-    // Iter3:
-    path.join(cwd, 'backend-storage-config.ts'),
-    path.join(cwd, 'backend-storage-config.js'),
-    path.join(cwd, 'scripts', 'backend-storage-config.js'),
-    path.join(cwd, 'scripts', 'backend-storage-config.ts'),
-    // legacy pre-rename:
-    path.join(cwd, 'scripts', 'storage-config.js'),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return import(candidate);
-    }
-  }
-  console.warn(
-    chalk.yellow(
-      '[linked.backend.storage] no linked.backend.storage.{ts,js} found at app root.',
-    ),
-  );
-  return undefined;
-}
+// Plan-011: extracted to ./lifecycle.ts so the Vite SSR loader doesn't
+// have to graph-walk the rest of cli-methods.ts (which contains many
+// dynamic imports Vite can't analyze). We import for internal callers
+// AND re-export so external consumers can keep importing from here.
+import {
+  ensureEnvironmentLoaded,
+  loadBackendStorageConfig,
+  getLincdPackages,
+} from './lifecycle.js';
+export {ensureEnvironmentLoaded, loadBackendStorageConfig, getLincdPackages};
 
 var variables = {};
 /**
@@ -1085,32 +1069,7 @@ function getLocalLincdModules(rootPath = './'): PackageDetails[] {
   });
 }
 
-export function getLincdPackages(rootPath = process.cwd()): PackageDetails[] {
-  let pack = getPackageJSON(rootPath);
-  if (!pack || !pack.workspaces) {
-    const originalRoot = rootPath;
-    for (let i = 0; i <= 3; i++) {
-      rootPath = path.join(originalRoot, ...Array(i).fill('..'));
-
-      pack = getPackageJSON(rootPath);
-      if (pack && pack.workspaces) {
-        // log('Found workspace at '+packagePath);
-        break;
-      }
-    }
-  }
-
-  if (!pack || !pack.workspaces) {
-    // Standalone apps (scaffolded with `linked create-app`) don't have
-    // workspaces — that's expected, just no local packages to scan.
-    return [];
-  }
-  // console.log(pack.workspaces);
-
-  let res = [];
-  checkWorkspaces(rootPath, pack.workspaces, res);
-  return res;
-}
+// getLincdPackages moved to ./lifecycle.ts and re-exported above.
 
 function setVariable(name, replacement) {
   //prepare name for regexp
@@ -1248,7 +1207,9 @@ export const createOntology = async (
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
-const addLineToIndex = function (
+// Exported for Shape-Builder reuse (plan-010 T1d.4): CodeShapeSyncService adds
+// the `import './shapes/<Shape>.js';` line to a generated app package's index.
+export const addLineToIndex = function (
   line,
   insertMatchString: string,
   root: string = process.cwd(),
@@ -1262,6 +1223,11 @@ const addLineToIndex = function (
     });
   if (indexPath) {
     let indexContents = fs.readFileSync(indexPath, 'utf-8');
+    // Idempotent: if the exact line is already present, do nothing (re-running
+    // a shape edit must not append a duplicate import).
+    if (indexContents.split(/\n/g).some((l) => l.trim() === line.trim())) {
+      return indexPath;
+    }
     let lines = indexContents.split(/\n/g);
     let newContents;
     for (var key in lines) {
@@ -1553,6 +1519,20 @@ export const checkImports = async (
   for (const file of dir) {
     const filename = path.join(sourceFolder, file);
 
+    // plan-011 §P7 — skip test sources. Test files (and their helpers/probes)
+    // are not part of the shipped ESM contract, so the missing-extension rule
+    // isn't load-bearing for them; enforcing it only blocks `linked build`
+    // (the real ESM-output gate stays in force for shipped source). This is
+    // what makes `linked build` green for packages whose tests use
+    // extensionless imports (e.g. @_linked/core).
+    if (
+      /(?:^|[\\/])(?:tests?|__tests__|test-helpers)(?:[\\/]|$)/.test(filename) ||
+      /\.(?:test|spec)\.tsx?$/.test(file) ||
+      /^type-probe.*\.tsx?$/.test(file)
+    ) {
+      continue;
+    }
+
     // File is either a directory, or not a .ts(x)
     // INFO: For future use - if this part fails, it could be due to user permissions
     //  i.e. the program not having access to check the file metadata
@@ -1716,59 +1696,7 @@ export const depCheck = async (packagePath: string = process.cwd()) => {
     });
   });
 };
-export const ensureEnvironmentLoaded = async () => {
-  if (!process.env.ENV_VARS_LOADED) {
-    //load env-cmd for development environment
-    let {GetEnvVars} = await import('env-cmd');
-    let envCmdrcPath = path.join(process.cwd(), '.env-cmdrc.json');
-    if (!fs.existsSync(envCmdrcPath)) {
-      console.warn(
-        'No .env-cmdrc.json found in this folder. Are you running this command from the root of a LINCD app?',
-      );
-      process.exit();
-    }
-    let vars = await GetEnvVars({
-      envFile: {
-        filePath: envCmdrcPath,
-      },
-    });
-    let environments = Object.keys(vars);
-
-    // Snapshot the original shell environment so it always takes highest priority
-    let shellEnv = {...process.env};
-
-    //if _main is present, load it first
-    if (environments.includes('_main')) {
-      process.env = {...process.env, ...vars._main};
-    }
-    //if --env is passed, load that environment
-    let args = process.argv.splice(2);
-    if (args.includes('--env')) {
-      let envIndex = args.indexOf('--env');
-      let env = args[envIndex + 1];
-      env.split(',').forEach((singleEnvironment) => {
-        if (environments.includes(singleEnvironment)) {
-          console.log('Environment: ' + singleEnvironment);
-          process.env = {...process.env, ...vars[singleEnvironment]};
-        } else {
-          console.warn(
-            'Environment ' +
-              singleEnvironment +
-              ' not found in .env-cmdrc.json. Available environments: ' +
-              environments.join(', '),
-          );
-        }
-      });
-    } else {
-      //chose development by default
-      process.env = {...process.env, ...vars.development};
-      console.log('No environment specified, using development');
-    }
-    // Re-apply original shell env vars so they always win over .env-cmdrc.json
-    process.env = {...process.env, ...shellEnv};
-    process.env.ENV_VARS_LOADED = 'true';
-  }
-};
+// ensureEnvironmentLoaded moved to ./lifecycle.ts and re-exported above.
 export const runScript = async (
   scriptName: string,
   options: {spawn: boolean},
@@ -1820,8 +1748,8 @@ export const runMethod = async (
     }
 
     //@ts-ignore
-    const ServerClass = (await import('@_linked/server/shapes/LincdServer'))
-      .LincdServer;
+    const ServerClass = (await import('@_linked/server/shapes/LinkedServer'))
+      .LinkedServer;
     await loadBackendStorageConfig();
     let server = new ServerClass(linkedConfig);
     //init the server
@@ -1865,7 +1793,7 @@ export const runMethod = async (
         });
     });
   } else {
-    //reuse the existing running LincdServer instance.
+    //reuse the existing running LinkedServer instance.
     //make a HTTP call
     //'/call/:pkg/:method',
     fetch(process.env.SITE_ROOT + '/call/' + packageName + '/' + method, {
@@ -1926,7 +1854,7 @@ export const startServer = async (
 
   if (!ServerClass) {
     //@ts-ignore
-    ServerClass = (await import('@_linked/server/shapes/LincdServer')).LincdServer;
+    ServerClass = (await import('@_linked/server/shapes/LinkedServer')).LinkedServer;
   }
   await loadBackendStorageConfig();
 
@@ -1977,8 +1905,12 @@ export const buildApp = async () => {
 };
 export const buildFrontend = async () => {
   await ensureEnvironmentLoaded();
+  // @vite-ignore — the webpack build path is legacy code, only reached
+  // by `linked build-frontend` which is not part of the Vite dev/SSR
+  // flow. Tell Vite not to graph-walk into it so we don't emit
+  // import-analysis warnings for a file we never load via SSR.
   const webpackAppConfig = await (
-    await import('./config-webpack-app.js')
+    await import(/* @vite-ignore */ './config-webpack-app.js')
   ).getWebpackAppConfig();
 
   console.log(

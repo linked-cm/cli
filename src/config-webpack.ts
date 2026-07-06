@@ -1,9 +1,9 @@
 import * as colors from 'colors';
-import {AdjustedModuleConfig} from './interfaces';
-import DeclarationPlugin from './plugins/declaration-plugin';
-import externaliseModules from './plugins/externalise-modules';
-import WatchRunPlugin from './plugins/watch-run';
-import {generateScopedName, getPackageJSON, warn} from './utils';
+import type {AdjustedModuleConfig} from './interfaces.js';
+import DeclarationPlugin from './plugins/declaration-plugin.js';
+import externaliseModules from './plugins/externalise-modules.js';
+import WatchRunPlugin from './plugins/watch-run.js';
+import {generateScopedName, getPackageJSON, warn} from './utils.js';
 // console.log('Webpack '+require('webpack/package.json').version);
 // console.log('ts-loader '+require('ts-loader/package.json').version);
 

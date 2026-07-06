@@ -1,6 +1,15 @@
-import {NamedNode} from 'lincd/models';
-import {JSONLD} from 'lincd-jsonld/utils/JSONLD';
-import {createNameSpace} from 'lincd/utils/NameSpace';
+// TODO(plan-1.5 / Phase 2 — Ontology Manager review): this template uses
+// the legacy NamedNode-as-class pattern (`ns('ExampleClass')` returns a
+// NamedNode, properties annotated as `: NamedNode`). Modern @_linked/*
+// ontologies don't use NamedNode classes — they reference properties as
+// IRI strings via createNameSpace's returned builder. The template
+// needs a rewrite as part of the Ontology Manager review. Import paths
+// updated to @_linked/core to signal intent.
+//
+// JSONLD import: legacy `lincd-jsonld` is unused in this template (no
+// runtime reference); removed.
+import {NamedNode} from '@_linked/core';
+import {createNameSpace} from '@_linked/core/utils/NameSpace';
 import {linkedOntology} from '../package.js';
 //import all the exports of this file as one variable called _this (we need this at the end)
 import * as _this from './${hyphen_name}.js';
