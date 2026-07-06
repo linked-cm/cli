@@ -303,6 +303,22 @@ async function configureGithub(repoSlug: string): Promise<void> {
     console.warn(chalk.yellow('  ⚠ Failed to set branch protection. Do it manually:'));
     console.warn(chalk.yellow(`    https://github.com/${repoSlug}/settings/branches`));
   }
+
+  // Enable "Allow auto-merge" so the post-release back-merge PR (dual-branch) self-merges once
+  // checks pass. Harmless for single-branch repos. The publish workflow authors release/back-merge
+  // PRs via the org App token (org secrets RELEASE_APP_ID / RELEASE_APP_PRIVATE_KEY) so their CI
+  // runs without a manual approval gate.
+  try {
+    await execPromise(
+      `gh api -X PATCH /repos/${repoSlug} -F allow_auto_merge=true`,
+      false,
+      false,
+    );
+    console.log(chalk.green('  ✓') + ` auto-merge enabled on ${repoSlug}`);
+  } catch (err) {
+    console.warn(chalk.yellow('  ⚠ Failed to enable auto-merge. Enable it manually:'));
+    console.warn(chalk.yellow(`    https://github.com/${repoSlug}/settings (General → Allow auto-merge)`));
+  }
 }
 
 async function grantTeamAccess(repoSlug: string, teamSlug: string): Promise<void> {
