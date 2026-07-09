@@ -440,6 +440,17 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         ...(isStandalone ? {resolve: {conditions: ['module', 'node']}} : {}),
       },
       define: opts.define ?? {},
+      // In WORKSPACE mode, the discovered source-shipping packages (@_linked/*,
+      // lincd-*) are resolved to their `src/` by the `linked:resolve-workspace-ts`
+      // plugin. In the CN monorepo they live under `packages/*` so esbuild's dep
+      // optimizer skips them; but in a workspace-member CLONE (e.g. a per-branch
+      // /apps clone) they resolve via `node_modules` SYMLINKS, so esbuild tries to
+      // pre-bundle them and fails resolving their subpaths through `exports`
+      // ("No known conditions for ./shapes/SHACL …"). Exclude them from
+      // optimizeDeps so the workspace-ts plugin owns their resolution instead.
+      ...(workspaces.length > 0
+        ? {optimizeDeps: {exclude: workspaces.map((w) => w.name)}}
+        : {}),
     };
 
     // Tailwind plugin (only if explicitly enabled — adds a heavy plugin).
