@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.1
+
+### Patch Changes
+
+- [#62](https://github.com/linked-cm/cli/pull/62) [`61be66a`](https://github.com/linked-cm/cli/commit/61be66a63d915e80fb0b2c1d12820a23dfbff17a) Thanks [@flyon](https://github.com/flyon)! - Workspace-member clones (e.g. per-branch `apps/<app>/<branch>` checkouts with symlinked `@_linked/*` sources) now boot under `linked start`: their linked deps are excluded from Vite's dep optimizer so the workspace source resolver handles them, instead of esbuild failing to pre-bundle symlinked package subpaths (`No known conditions for ./shapes/SHACL`).
+
 ## 1.9.0
 
 ### Minor Changes
