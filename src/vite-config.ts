@@ -201,6 +201,26 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
     // (CN monorepo or its workspace-member clones) this is false and none
     // of the standalone-gated branches below apply.
     const isStandalone = isDev && workspaces.length === 0;
+
+    // Standalone dedup: the app's published `@_linked/*` / `lincd-*` deps. Vite's
+    // dep-optimizer bundles each SUBPATH import into its own chunk
+    // (`@_linked_schema_shapes_Person.js`, `@_linked_core_utils_LinkedStorage.js`,
+    // …), and each chunk that transitively pulls a framework class gets its OWN
+    // copy → the class is duplicated (`Person` → `Person2`/`3`) and its shape is
+    // registered multiple times. `resolve.dedupe` forces one resolution per
+    // package so the framework packages are single instances.
+    const linkedDeps: string[] = [];
+    if (isStandalone) {
+      try {
+        const appPkg = await fsExtra.readJson(path.join(process.cwd(), 'package.json'));
+        const allDeps = {...appPkg.dependencies, ...appPkg.devDependencies};
+        for (const name of Object.keys(allDeps)) {
+          if (name.startsWith('@_linked/') || name.startsWith('lincd-')) linkedDeps.push(name);
+        }
+      } catch {
+        /* best-effort — no package.json is fine */
+      }
+    }
     const config: UserConfig = {
       server: {
         port: opts.port ?? 4040,
@@ -437,9 +457,38 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // explicitly so `development` is excluded there too and the lib-only
         // packages resolve via `import → lib/esm`. Omitted (defaults kept) in
         // workspace mode so monorepo SSR still resolves `development → src`.
-        ...(isStandalone ? {resolve: {conditions: ['module', 'node']}} : {}),
+        ...(isStandalone
+          ? {resolve: {conditions: ['module', 'node'], dedupe: linkedDeps}}
+          : {}),
       },
-      define: opts.define ?? {},
+      define: {
+        // The FRAMEWORK's only client-side env dependency: `@_linked/server-utils`'s
+        // `Server.ts` reads `process.env.SITE_ROOT` to target the backend. The
+        // browser has no `process`, and Vite (unlike webpack's EnvironmentPlugin)
+        // doesn't auto-inline `process.env.X`, so we define SITE_ROOT here — it's
+        // always the app's own origin, defaulted to `http://localhost:<port>` (an
+        // explicit `SITE_ROOT` env, e.g. from `.env-cmdrc`, still wins). NODE_ENV
+        // is a common client guard, so define it too.
+        //
+        // We define only these SPECIFIC tokens (never a whole-object `process.env`
+        // replacement): Vite's `define` also hits the SSR transform, and the backend
+        // reads `process.env` at runtime (e.g. passes the whole object to
+        // `parseDatasetsConfig`) — clobbering bare `process.env` would strip the
+        // server's env.
+        //
+        // Apps expose their OWN frontend env vars by adding to `define` in their
+        // `vite.config.ts`, e.g.:
+        //   createViteConfig({ define: {
+        //     'process.env.MY_PUBLIC_KEY': JSON.stringify(process.env.MY_PUBLIC_KEY),
+        //   }})
+        // (only reference PUBLIC vars in client code — a defined secret would be
+        // inlined into the browser bundle).
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
+        'process.env.SITE_ROOT': JSON.stringify(
+          process.env.SITE_ROOT ?? `http://localhost:${process.env.PORT ?? opts.port ?? 4040}`,
+        ),
+        ...(opts.define ?? {}),
+      },
       // In WORKSPACE mode, the discovered source-shipping packages (@_linked/*,
       // lincd-*) are resolved to their `src/` by the `linked:resolve-workspace-ts`
       // plugin. In the CN monorepo they live under `packages/*` so esbuild's dep
