@@ -498,14 +498,13 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
       // STANDALONE mode: exclude the published `@_linked/*` / `lincd-*` deps from
       // esbuild's pre-bundler so the browser's native ESM graph loads ONE copy of
       // `@_linked/core` (no per-subpath duplication → stable class names → shape URIs
-      // match the backend — see `linkedDeps` above). `include: ['classnames']`
-      // force-pre-bundles the one CJS transitive dep the excluded packages pull, so
-      // its `import classNames from 'classnames'` keeps esbuild's CJS→ESM interop
-      // (excluded packages are served as native ESM, which a bare CJS module isn't).
+      // match the backend — see `linkedDeps` above). These packages are ESM with no
+      // bare CJS runtime deps (e.g. `classnames` is inlined in `@_linked/react`), so
+      // serving them as native ESM needs no `optimizeDeps.include` interop shim.
       ...(workspaces.length > 0
         ? {optimizeDeps: {exclude: workspaces.map((w) => w.name)}}
         : isStandalone && linkedDeps.length > 0
-          ? {optimizeDeps: {exclude: linkedDeps, include: ['classnames']}}
+          ? {optimizeDeps: {exclude: linkedDeps}}
           : {}),
     };
 
