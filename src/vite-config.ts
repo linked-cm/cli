@@ -202,13 +202,14 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
     // of the standalone-gated branches below apply.
     const isStandalone = isDev && workspaces.length === 0;
 
-    // Standalone dedup: the app's published `@_linked/*` / `lincd-*` deps. Vite's
-    // dep-optimizer bundles each SUBPATH import into its own chunk
-    // (`@_linked_schema_shapes_Person.js`, `@_linked_core_utils_LinkedStorage.js`,
-    // …), and each chunk that transitively pulls a framework class gets its OWN
-    // copy → the class is duplicated (`Person` → `Person2`/`3`) and its shape is
-    // registered multiple times. `resolve.dedupe` forces one resolution per
-    // package so the framework packages are single instances.
+    // The app's published `@_linked/*` / `lincd-*` deps — deduplicated via
+    // `resolve.dedupe` below so the browser resolves ONE copy of each. Without it,
+    // Vite's dep-optimizer inlines a duplicate `@_linked/core` into each per-subpath
+    // chunk (`@_linked_schema_shapes_Person.js`, `@_linked_core_utils_LinkedStorage.js`,
+    // …), duplicating framework classes (`Person` → `Person2`/`3`), so their shapes
+    // register under mangled URIs that no longer match the backend's (one clean copy
+    // via Node). `dedupe` (not `optimizeDeps.exclude`) keeps the CJS→ESM interop that
+    // pre-bundling provides for transitive CJS deps like `classnames`.
     const linkedDeps: string[] = [];
     if (isStandalone) {
       try {
@@ -458,7 +459,7 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // packages resolve via `import → lib/esm`. Omitted (defaults kept) in
         // workspace mode so monorepo SSR still resolves `development → src`.
         ...(isStandalone
-          ? {resolve: {conditions: ['module', 'node'], dedupe: linkedDeps}}
+          ? {resolve: {conditions: ['module', 'node']}}
           : {}),
       },
       define: {
@@ -489,17 +490,23 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         ),
         ...(opts.define ?? {}),
       },
-      // In WORKSPACE mode, the discovered source-shipping packages (@_linked/*,
-      // lincd-*) are resolved to their `src/` by the `linked:resolve-workspace-ts`
-      // plugin. In the CN monorepo they live under `packages/*` so esbuild's dep
-      // optimizer skips them; but in a workspace-member CLONE (e.g. a per-branch
-      // /apps clone) they resolve via `node_modules` SYMLINKS, so esbuild tries to
-      // pre-bundle them and fails resolving their subpaths through `exports`
-      // ("No known conditions for ./shapes/SHACL …"). Exclude them from
-      // optimizeDeps so the workspace-ts plugin owns their resolution instead.
+      // WORKSPACE mode: exclude the source-shipping workspace packages (@_linked/*,
+      // lincd-*) from esbuild's dep pre-bundler. They resolve to `src/` via the
+      // `linked:resolve-workspace-ts` plugin; in a workspace-member CLONE they'd
+      // otherwise resolve via `node_modules` SYMLINKS and esbuild fails on their
+      // subpath `exports` ("No known conditions for ./shapes/SHACL …").
+      // STANDALONE mode: exclude the published `@_linked/*` / `lincd-*` deps from
+      // esbuild's pre-bundler so the browser's native ESM graph loads ONE copy of
+      // `@_linked/core` (no per-subpath duplication → stable class names → shape URIs
+      // match the backend — see `linkedDeps` above). `include: ['classnames']`
+      // force-pre-bundles the one CJS transitive dep the excluded packages pull, so
+      // its `import classNames from 'classnames'` keeps esbuild's CJS→ESM interop
+      // (excluded packages are served as native ESM, which a bare CJS module isn't).
       ...(workspaces.length > 0
         ? {optimizeDeps: {exclude: workspaces.map((w) => w.name)}}
-        : {}),
+        : isStandalone && linkedDeps.length > 0
+          ? {optimizeDeps: {exclude: linkedDeps, include: ['classnames']}}
+          : {}),
     };
 
     // Tailwind plugin (only if explicitly enabled — adds a heavy plugin).
