@@ -16,6 +16,19 @@ import path from 'node:path';
 import {generateScopedName} from './utils.js';
 import type {Plugin, UserConfig} from 'vite';
 
+/**
+ * Framework packages that MUST be single-instance per runtime — they hold
+ * module-level state (`@_linked/core`'s shape registry, `LinkedStorage`, the query
+ * context) or register shapes into it. Two copies in one runtime split that state
+ * and mangle shape identity (`Person`→`Person2`). This ONE list is the single source
+ * of truth for every single-instance lever below — the standalone `optimizeDeps.exclude`
+ * (`linkedDeps`) and `ssr.noExternal`. Add a new stateful framework scope here and it's
+ * covered everywhere.
+ */
+const FRAMEWORK_PKG_PATTERNS: RegExp[] = [/^@_linked\//, /^lincd-/];
+const isFrameworkPkg = (name: string): boolean =>
+  FRAMEWORK_PKG_PATTERNS.some((re) => re.test(name));
+
 export interface LinkedViteConfigOptions {
   /** Dev server port. Default 4040. */
   port?: number;
@@ -201,6 +214,28 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
     // (CN monorepo or its workspace-member clones) this is false and none
     // of the standalone-gated branches below apply.
     const isStandalone = isDev && workspaces.length === 0;
+
+    // The app's published framework deps — excluded from Vite's dep-optimizer below
+    // (`optimizeDeps.exclude`) so the browser's native ESM graph loads ONE copy of each.
+    // Without the exclude, esbuild inlines a duplicate `@_linked/core` into each
+    // per-subpath chunk (`@_linked_schema_shapes_Person.js`,
+    // `@_linked_core_utils_LinkedStorage.js`, …), duplicating framework classes
+    // (`Person` → `Person2`/`3`), so their shapes register under mangled URIs that no
+    // longer match the backend's (one clean copy via Node). These packages are ESM with
+    // no bare CJS runtime deps (e.g. `classnames` is inlined in `@_linked/react`), so
+    // native-ESM serving needs no interop shim.
+    const linkedDeps: string[] = [];
+    if (isStandalone) {
+      try {
+        const appPkg = await fsExtra.readJson(path.join(process.cwd(), 'package.json'));
+        const allDeps = {...appPkg.dependencies, ...appPkg.devDependencies};
+        for (const name of Object.keys(allDeps)) {
+          if (isFrameworkPkg(name)) linkedDeps.push(name);
+        }
+      } catch {
+        /* best-effort — no package.json is fine */
+      }
+    }
     const config: UserConfig = {
       server: {
         port: opts.port ?? 4040,
@@ -430,27 +465,61 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // Leaving them EXTERNAL lets Node resolve `import → lib/esm`. Single-
         // instance is not a concern standalone (one node_modules copy each) and
         // core's query dispatch is global-backed regardless.
-        noExternal: workspaces.length > 0 ? [/^@_linked\//, /^lincd-/] : [],
+        noExternal: workspaces.length > 0 ? FRAMEWORK_PKG_PATTERNS : [],
         // STANDALONE: the SSR module runner (`vite.ssrLoadModule`, used to
         // load LinkedServer + the app graph in commands/start.ts) has its OWN
         // condition list, defaulting to `resolve.conditions`. Set it
         // explicitly so `development` is excluded there too and the lib-only
         // packages resolve via `import → lib/esm`. Omitted (defaults kept) in
         // workspace mode so monorepo SSR still resolves `development → src`.
-        ...(isStandalone ? {resolve: {conditions: ['module', 'node']}} : {}),
+        ...(isStandalone
+          ? {resolve: {conditions: ['module', 'node']}}
+          : {}),
       },
-      define: opts.define ?? {},
-      // In WORKSPACE mode, the discovered source-shipping packages (@_linked/*,
-      // lincd-*) are resolved to their `src/` by the `linked:resolve-workspace-ts`
-      // plugin. In the CN monorepo they live under `packages/*` so esbuild's dep
-      // optimizer skips them; but in a workspace-member CLONE (e.g. a per-branch
-      // /apps clone) they resolve via `node_modules` SYMLINKS, so esbuild tries to
-      // pre-bundle them and fails resolving their subpaths through `exports`
-      // ("No known conditions for ./shapes/SHACL …"). Exclude them from
-      // optimizeDeps so the workspace-ts plugin owns their resolution instead.
+      define: {
+        // The FRAMEWORK's only client-side env dependency: `@_linked/server-utils`'s
+        // `Server.ts` reads `process.env.SITE_ROOT` to target the backend. The
+        // browser has no `process`, and Vite (unlike webpack's EnvironmentPlugin)
+        // doesn't auto-inline `process.env.X`, so we define SITE_ROOT here — it's
+        // always the app's own origin, defaulted to `http://localhost:<port>` (an
+        // explicit `SITE_ROOT` env, e.g. from `.env-cmdrc`, still wins). NODE_ENV
+        // is a common client guard, so define it too.
+        //
+        // We define only these SPECIFIC tokens (never a whole-object `process.env`
+        // replacement): Vite's `define` also hits the SSR transform, and the backend
+        // reads `process.env` at runtime (e.g. passes the whole object to
+        // `parseDatasetsConfig`) — clobbering bare `process.env` would strip the
+        // server's env.
+        //
+        // Apps expose their OWN frontend env vars by adding to `define` in their
+        // `vite.config.ts`, e.g.:
+        //   createViteConfig({ define: {
+        //     'process.env.MY_PUBLIC_KEY': JSON.stringify(process.env.MY_PUBLIC_KEY),
+        //   }})
+        // (only reference PUBLIC vars in client code — a defined secret would be
+        // inlined into the browser bundle).
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
+        'process.env.SITE_ROOT': JSON.stringify(
+          process.env.SITE_ROOT ?? `http://localhost:${process.env.PORT ?? opts.port ?? 4040}`,
+        ),
+        ...(opts.define ?? {}),
+      },
+      // WORKSPACE mode: exclude the source-shipping workspace packages (@_linked/*,
+      // lincd-*) from esbuild's dep pre-bundler. They resolve to `src/` via the
+      // `linked:resolve-workspace-ts` plugin; in a workspace-member CLONE they'd
+      // otherwise resolve via `node_modules` SYMLINKS and esbuild fails on their
+      // subpath `exports` ("No known conditions for ./shapes/SHACL …").
+      // STANDALONE mode: exclude the published `@_linked/*` / `lincd-*` deps from
+      // esbuild's pre-bundler so the browser's native ESM graph loads ONE copy of
+      // `@_linked/core` (no per-subpath duplication → stable class names → shape URIs
+      // match the backend — see `linkedDeps` above). These packages are ESM with no
+      // bare CJS runtime deps (e.g. `classnames` is inlined in `@_linked/react`), so
+      // serving them as native ESM needs no `optimizeDeps.include` interop shim.
       ...(workspaces.length > 0
         ? {optimizeDeps: {exclude: workspaces.map((w) => w.name)}}
-        : {}),
+        : isStandalone && linkedDeps.length > 0
+          ? {optimizeDeps: {exclude: linkedDeps}}
+          : {}),
     };
 
     // Tailwind plugin (only if explicitly enabled — adds a heavy plugin).
