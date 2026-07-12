@@ -16,6 +16,19 @@ import path from 'node:path';
 import {generateScopedName} from './utils.js';
 import type {Plugin, UserConfig} from 'vite';
 
+/**
+ * Framework packages that MUST be single-instance per runtime — they hold
+ * module-level state (`@_linked/core`'s shape registry, `LinkedStorage`, the query
+ * context) or register shapes into it. Two copies in one runtime split that state
+ * and mangle shape identity (`Person`→`Person2`). This ONE list is the single source
+ * of truth for every single-instance lever below — the standalone `optimizeDeps.exclude`
+ * (`linkedDeps`) and `ssr.noExternal`. Add a new stateful framework scope here and it's
+ * covered everywhere.
+ */
+const FRAMEWORK_PKG_PATTERNS: RegExp[] = [/^@_linked\//, /^lincd-/];
+const isFrameworkPkg = (name: string): boolean =>
+  FRAMEWORK_PKG_PATTERNS.some((re) => re.test(name));
+
 export interface LinkedViteConfigOptions {
   /** Dev server port. Default 4040. */
   port?: number;
@@ -202,21 +215,22 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
     // of the standalone-gated branches below apply.
     const isStandalone = isDev && workspaces.length === 0;
 
-    // The app's published `@_linked/*` / `lincd-*` deps — deduplicated via
-    // `resolve.dedupe` below so the browser resolves ONE copy of each. Without it,
-    // Vite's dep-optimizer inlines a duplicate `@_linked/core` into each per-subpath
-    // chunk (`@_linked_schema_shapes_Person.js`, `@_linked_core_utils_LinkedStorage.js`,
-    // …), duplicating framework classes (`Person` → `Person2`/`3`), so their shapes
-    // register under mangled URIs that no longer match the backend's (one clean copy
-    // via Node). `dedupe` (not `optimizeDeps.exclude`) keeps the CJS→ESM interop that
-    // pre-bundling provides for transitive CJS deps like `classnames`.
+    // The app's published framework deps — excluded from Vite's dep-optimizer below
+    // (`optimizeDeps.exclude`) so the browser's native ESM graph loads ONE copy of each.
+    // Without the exclude, esbuild inlines a duplicate `@_linked/core` into each
+    // per-subpath chunk (`@_linked_schema_shapes_Person.js`,
+    // `@_linked_core_utils_LinkedStorage.js`, …), duplicating framework classes
+    // (`Person` → `Person2`/`3`), so their shapes register under mangled URIs that no
+    // longer match the backend's (one clean copy via Node). These packages are ESM with
+    // no bare CJS runtime deps (e.g. `classnames` is inlined in `@_linked/react`), so
+    // native-ESM serving needs no interop shim.
     const linkedDeps: string[] = [];
     if (isStandalone) {
       try {
         const appPkg = await fsExtra.readJson(path.join(process.cwd(), 'package.json'));
         const allDeps = {...appPkg.dependencies, ...appPkg.devDependencies};
         for (const name of Object.keys(allDeps)) {
-          if (name.startsWith('@_linked/') || name.startsWith('lincd-')) linkedDeps.push(name);
+          if (isFrameworkPkg(name)) linkedDeps.push(name);
         }
       } catch {
         /* best-effort — no package.json is fine */
@@ -451,7 +465,7 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // Leaving them EXTERNAL lets Node resolve `import → lib/esm`. Single-
         // instance is not a concern standalone (one node_modules copy each) and
         // core's query dispatch is global-backed regardless.
-        noExternal: workspaces.length > 0 ? [/^@_linked\//, /^lincd-/] : [],
+        noExternal: workspaces.length > 0 ? FRAMEWORK_PKG_PATTERNS : [],
         // STANDALONE: the SSR module runner (`vite.ssrLoadModule`, used to
         // load LinkedServer + the app graph in commands/start.ts) has its OWN
         // condition list, defaulting to `resolve.conditions`. Set it
