@@ -13,26 +13,57 @@ import {getPackageJSON} from './utils.js';
 import type {PackageDetails} from './interfaces.js';
 
 /**
- * Read the app's `.env-cmdrc.json`, apply the requested `--env` profile
- * to `process.env`, snapshot the original shell env so it still wins on
- * conflict. Idempotent — runs at most once per process.
+ * Load the app's environment into `process.env`, then re-apply the original
+ * shell env so it always wins on conflict. Idempotent — runs at most once.
+ *
+ * Two sources, tried in this order:
+ *   1. `.env-cmdrc.json` (legacy, via `env-cmd`) — profile-based; honours
+ *      `--env a,b` and merges `_main` + the named profiles. CN and existing
+ *      apps rely on this (e.g. `--env development,local`).
+ *   2. `.env` (Node-native `process.loadEnvFile`, no dependency) — a flat file.
+ *      This is what the app template ships. `--env` is not consulted here: a
+ *      flat `.env` has no profiles, so NODE_ENV comes from the file or the shell.
+ *
+ * If neither file exists we skip silently — CN-hosted apps have their env
+ * injected into the child process at spawn time, so there's nothing to read
+ * from disk.
  */
 export const ensureEnvironmentLoaded = async (): Promise<void> => {
   if (process.env.ENV_VARS_LOADED) return;
+  const cwd = process.cwd();
+  const envCmdrcPath = path.join(cwd, '.env-cmdrc.json');
+  const dotEnvPath = path.join(cwd, '.env');
+
+  // Snapshot the original shell env — it should always take priority over
+  // whatever a file sets (so injected/production env wins over dev defaults).
+  const shellEnv = {...process.env};
+
+  if (fs.existsSync(envCmdrcPath)) {
+    await loadEnvCmdrc(envCmdrcPath);
+  } else if (fs.existsSync(dotEnvPath)) {
+    // Native flat-file loader (Node 20.12+). Populates process.env from `.env`.
+    process.loadEnvFile(dotEnvPath);
+  } else {
+    console.warn(
+      'No .env or .env-cmdrc.json found in this folder — relying on the ambient environment.',
+    );
+  }
+
+  // Re-apply shell env so it always wins over file values.
+  process.env = {...process.env, ...shellEnv};
+  process.env.ENV_VARS_LOADED = 'true';
+};
+
+/**
+ * Legacy loader: reads `.env-cmdrc.json`, merges `_main` plus the profile(s)
+ * named by `--env a,b` (default `development`). Kept for CN and existing apps
+ * until they migrate to a flat `.env`.
+ */
+const loadEnvCmdrc = async (envCmdrcPath: string): Promise<void> => {
   // env-cmd ships ESM; literal specifier is fine for Vite's analyzer.
   const {GetEnvVars} = await import('env-cmd');
-  const envCmdrcPath = path.join(process.cwd(), '.env-cmdrc.json');
-  if (!fs.existsSync(envCmdrcPath)) {
-    console.warn(
-      'No .env-cmdrc.json found in this folder. Are you running this command from the root of a Linked app?',
-    );
-    process.exit();
-  }
   const vars = await GetEnvVars({envFile: {filePath: envCmdrcPath}});
   const environments = Object.keys(vars);
-
-  // Snapshot the original shell env — it should always take priority.
-  const shellEnv = {...process.env};
 
   if (environments.includes('_main')) {
     process.env = {...process.env, ...vars._main};
@@ -55,9 +86,6 @@ export const ensureEnvironmentLoaded = async (): Promise<void> => {
     process.env = {...process.env, ...vars.development};
     console.log('No environment specified, using development');
   }
-  // Re-apply shell env so it always wins over .env-cmdrc.json.
-  process.env = {...process.env, ...shellEnv};
-  process.env.ENV_VARS_LOADED = 'true';
 };
 
 /**

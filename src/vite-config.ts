@@ -424,7 +424,16 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
       // conditions at Vite's defaults there (undefined = untouched), keeping
       // CN dev byte-for-byte unchanged.
       ...(isStandalone
-        ? {resolve: {conditions: ['module', 'node']}}
+        ? {
+            resolve: {
+              conditions: ['module', 'node'],
+              // Dedupe the context-holding packages so the two `ssrLoadModule` loads
+              // (LinkedServer + the app graph) resolve to ONE `server-utils`/`react`
+              // instance — otherwise their `AppContext` objects differ and
+              // `useAppContext()` returns null. Pairs with `ssr.noExternal` below.
+              dedupe: ['@_linked/server-utils', '@_linked/react'],
+            },
+          }
         : {}),
       // Plan-011 phase 3a — `ssr.external` is now a minimal allowlist of
       // npm deps that genuinely can't (or shouldn't) go through Vite's
@@ -465,7 +474,19 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // Leaving them EXTERNAL lets Node resolve `import → lib/esm`. Single-
         // instance is not a concern standalone (one node_modules copy each) and
         // core's query dispatch is global-backed regardless.
-        noExternal: workspaces.length > 0 ? FRAMEWORK_PKG_PATTERNS : [],
+        // STANDALONE: force-bundle the framework packages that hold React context /
+        // shared singletons the SSR tree must agree on — `server-utils` (`AppContext`,
+        // read by `AppRoot`) and `react`. If left external, LinkedServer's
+        // `AppContextProvider` and the app's `AppRoot` (`useAppContext`) can resolve to
+        // DIFFERENT module instances → two `AppContext` objects → `useAppContext()` sees
+        // no provider (null) → "Cannot destructure 'isNativeApp'" and a blank "SSR timed
+        // out". Bundling makes them one instance in Vite's SSR module graph (matching how
+        // workspace mode bundles everything). Native-dep packages (`server`/`fuseki`) stay
+        // external so their prebuilt binaries load via Node.
+        noExternal:
+          workspaces.length > 0
+            ? FRAMEWORK_PKG_PATTERNS
+            : [/^@_linked\/server-utils$/, /^@_linked\/react$/],
         // STANDALONE: the SSR module runner (`vite.ssrLoadModule`, used to
         // load LinkedServer + the app graph in commands/start.ts) has its OWN
         // condition list, defaulting to `resolve.conditions`. Set it
@@ -502,6 +523,11 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         'process.env.SITE_ROOT': JSON.stringify(
           process.env.SITE_ROOT ?? `http://localhost:${process.env.PORT ?? opts.port ?? 4040}`,
         ),
+        // The app's display name, so client components (e.g. the header) can read it
+        // like the SSR <title> does (server-utils Html reads process.env.APP_NAME). The
+        // browser has no `process`, so inline it; falls back to a generic label when
+        // unset so a bare checkout never renders `undefined`.
+        'process.env.APP_NAME': JSON.stringify(process.env.APP_NAME ?? 'Linked App'),
         ...(opts.define ?? {}),
       },
       // WORKSPACE mode: exclude the source-shipping workspace packages (@_linked/*,
