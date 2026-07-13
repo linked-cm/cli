@@ -523,6 +523,11 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         'process.env.SITE_ROOT': JSON.stringify(
           process.env.SITE_ROOT ?? `http://localhost:${process.env.PORT ?? opts.port ?? 4040}`,
         ),
+        // The app's display name, so client components (e.g. the header) can read it
+        // like the SSR <title> does (server-utils Html reads process.env.APP_NAME). The
+        // browser has no `process`, so inline it; falls back to a generic label when
+        // unset so a bare checkout never renders `undefined`.
+        'process.env.APP_NAME': JSON.stringify(process.env.APP_NAME ?? 'Linked App'),
         ...(opts.define ?? {}),
       },
       // WORKSPACE mode: exclude the source-shipping workspace packages (@_linked/*,
