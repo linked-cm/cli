@@ -187,6 +187,11 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   //replace variables in some copied files
   await replaceVariablesInFolder(targetFolder);
 
+  // The template ships placeholder-free (so a raw clone boots on defaults), so
+  // create-app stamps this app's identity into the clone directly rather than
+  // relying on ${var} substitution.
+  applyAppIdentity(targetFolder, {appName, appPrefix, hyphenName});
+
   // Pick a package manager. When both are available and the user is running
   // create-app interactively, ask. Carry the choice through both the install
   // step AND the final "next command" message so the user can copy-paste.
@@ -255,6 +260,77 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     `  ${chalk.blueBright(`cd ${hyphenName} && ${startCommand}`)}`,
   );
 };
+
+/** Set or append a `KEY=value` line in a `.env`-style text blob. */
+function setEnvVar(envText: string, key: string, value: string): string {
+  const line = `${key}=${value}`;
+  const re = new RegExp(`^${key}=.*$`, 'm');
+  return re.test(envText)
+    ? envText.replace(re, line)
+    : envText.replace(/\n?$/, `\n${line}\n`);
+}
+
+/**
+ * Stamp the new app's identity into the freshly-cloned template. The template
+ * ships without `${var}` placeholders (so a raw CN clone boots on defaults), so
+ * create-app writes the real per-app values here:
+ *  - `.env.example` (committed defaults for this app) + `.env` (local): APP_NAME
+ *    drives the display name; APP_PREFIX names data files.
+ *  - `package.json`: `name` (hyphenated id) + `displayName` (human name).
+ *  - `src/package.ts`: the runtime `linkedPackage` id — shape URIs derive from it.
+ *  - pm2 process names + the VS Code launch name (cosmetic, but should match).
+ */
+function applyAppIdentity(
+  targetFolder: string,
+  ids: {appName: string; appPrefix: string; hyphenName: string},
+) {
+  const {appName, appPrefix, hyphenName} = ids;
+
+  // 1. .env.example (+ seed .env from it so the first `yarn start` is correct).
+  const envExample = path.join(targetFolder, '.env.example');
+  if (fs.existsSync(envExample)) {
+    let env = fs.readFileSync(envExample, 'utf8');
+    env = setEnvVar(env, 'APP_NAME', appName);
+    env = setEnvVar(env, 'APP_PREFIX', appPrefix);
+    fs.writeFileSync(envExample, env);
+    const envReal = path.join(targetFolder, '.env');
+    if (!fs.existsSync(envReal)) fs.writeFileSync(envReal, env);
+  }
+
+  // 2. package.json — name + displayName.
+  const pkgPath = path.join(targetFolder, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    pkg.name = hyphenName;
+    pkg.displayName = appName;
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  }
+
+  // 3. src/package.ts — the runtime linkedPackage id.
+  const packageTs = path.join(targetFolder, 'src', 'package.ts');
+  if (fs.existsSync(packageTs)) {
+    const src = fs.readFileSync(packageTs, 'utf8');
+    fs.writeFileSync(
+      packageTs,
+      src.replace(
+        /linkedPackage\(\s*['"][^'"]*['"]\s*\)/,
+        `linkedPackage('${hyphenName}')`,
+      ),
+    );
+  }
+
+  // 4. pm2 process names + VS Code launch name (template hardcodes 'app').
+  const renames: Array<[string, RegExp, string]> = [
+    ['pm2.config.js', /name:\s*'app'/, `name: '${hyphenName}'`],
+    ['pm2-staging.config.js', /name:\s*'app-staging'/, `name: '${hyphenName}-staging'`],
+    [path.join('.vscode', 'launch.json'), /"name":\s*"Run app"/, `"name": "Run ${hyphenName}"`],
+  ];
+  for (const [rel, re, replacement] of renames) {
+    const f = path.join(targetFolder, rel);
+    if (!fs.existsSync(f)) continue;
+    fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(re, replacement));
+  }
+}
 
 function logHelp() {
   execp('yarn exec lincd help');
