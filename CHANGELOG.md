@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.11.1
+
+### Patch Changes
+
+- [#68](https://github.com/linked-cm/cli/pull/68) [`441372f`](https://github.com/linked-cm/cli/commit/441372f82706abb7b89d08d5b3b4348df04c5554) Thanks [@flyon](https://github.com/flyon)! - `linked create-app` now stamps the chosen app identity into the scaffolded app. The app template ships without `${var}` scaffold placeholders (so a raw clone boots on defaults), so create-app writes the real per-app values after cloning: `.env`/`.env.example` (`APP_NAME`, `APP_PREFIX`), `package.json` `name`/`displayName`, the runtime `linkedPackage(...)` id in `src/package.ts`, and the pm2 / VS Code launch names. Both the `--app-name` flag and the interactive prompt now produce an app that carries the chosen name (previously every scaffolded app inherited the template defaults).
+
 ## 1.11.0
 
 ### Minor Changes
