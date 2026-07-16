@@ -44,6 +44,20 @@ export interface LinkedViteConfigOptions {
   postcssPlugins?: unknown[];
   /** Extra `define` entries (used to bridge legacy `process.env.X` refs to client). */
   define?: Record<string, string>;
+  /**
+   * Extra workspace globs (trailing `/*`, or a direct package dir) resolved
+   * RELATIVE TO the app's cwd, in ADDITION to the app's own `workspaces` field.
+   *
+   * For apps whose linked-package sources live OUTSIDE their own workspace tree
+   * — e.g. an app consumes `packages/lincd.org/modules/*`, which sit one level
+   * up (`../lincd.org/modules/*`) when the app runs inside the CN monorepo, and under
+   * `packages/lincd.org/modules/*` when the app runs from its own root. Pass BOTH
+   * candidate layouts; only globs whose parent dir actually exists are scanned,
+   * so the same config works in either checkout. Each glob's packages are
+   * registered as source workspaces (resolved to `src/` for HMR + single-instance),
+   * exactly like the app's own `workspaces` field.
+   */
+  workspaceGlobs?: string[];
 }
 
 interface WorkspaceEntry {
@@ -57,7 +71,7 @@ interface WorkspaceEntry {
  * to map bare specifiers like `@_linked/foo/bar` directly to source.
  * No glob library: workspaces only support trailing `/*` patterns.
  */
-async function discoverWorkspaces(): Promise<WorkspaceEntry[]> {
+async function discoverWorkspaces(extraGlobs: string[] = []): Promise<WorkspaceEntry[]> {
   const fs = await import('node:fs/promises');
   const cwd = process.cwd();
   const out: WorkspaceEntry[] = [];
@@ -83,9 +97,13 @@ async function discoverWorkspaces(): Promise<WorkspaceEntry[]> {
   const pkgPath = path.join(cwd, 'package.json');
   if (await fsExtra.pathExists(pkgPath)) {
     const pkg = await fsExtra.readJson(pkgPath);
-    const patterns: string[] = Array.isArray(pkg.workspaces)
+    const ownPatterns: string[] = Array.isArray(pkg.workspaces)
       ? pkg.workspaces
       : pkg.workspaces?.packages ?? [];
+    // Merge the app's own `workspaces` globs with any caller-supplied
+    // `workspaceGlobs` (e.g. `../lincd.org/modules/*`). Non-existent parents
+    // are skipped below, so passing both nested + standalone layouts is safe.
+    const patterns = [...ownPatterns, ...extraGlobs];
     for (const pattern of patterns) {
       const m = pattern.match(/^(.+?)\/\*$/);
       if (m) {
@@ -205,7 +223,7 @@ async function resolveWorkspaceSpecifier(
 export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType<typeof defineConfig> {
   return defineConfig(async ({mode}) => {
     const isDev = mode === 'development';
-    const workspaces = isDev ? await discoverWorkspaces() : [];
+    const workspaces = isDev ? await discoverWorkspaces(opts.workspaceGlobs) : [];
     // STANDALONE = dev mode with no source-shipping workspaces discovered
     // (an app installed from npm outside the monorepo — its `@_linked/*` /
     // `lincd-*` deps are lib-only). discoverWorkspaces() only registers
