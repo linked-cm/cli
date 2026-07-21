@@ -201,10 +201,18 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
     // (CN monorepo or its workspace-member clones) this is false and none
     // of the standalone-gated branches below apply.
     const isStandalone = isDev && workspaces.length === 0;
+    // Unique HMR websocket port per app/worktree so parallel dev servers don't
+    // collide on Vite's default 24678 (every createViteConfig app defaulted to
+    // it, so any two running at once clashed — "Port 24678 is already in use").
+    // Derived from the runtime dev port (PORT env override wins, else opts.port),
+    // so each app that already uses a distinct port gets a distinct HMR port for
+    // free. Apps can still override via their own `server.hmr` in mergeConfig.
+    const devPort = Number(process.env.PORT ?? opts.port ?? 4040);
     const config: UserConfig = {
       server: {
         port: opts.port ?? 4040,
         middlewareMode: true,
+        hmr: {port: 24678 + (devPort - 4040)},
       },
       build: {
         outDir: opts.outDir ?? 'public/bundles',
