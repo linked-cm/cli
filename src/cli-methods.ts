@@ -1286,6 +1286,44 @@ export const createOntology = async (
     log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
   }
 };
+// The shapes barrel (src/shapes/index.ts) is imported by both the frontend index and
+// the backend entry, so every shape registers on both boot paths (and materializes into
+// app-data on boot). `create-shape` adds each new shape here — NOT to the main index.
+const SHAPES_BARREL_HEADER =
+  `// Shape registry — every shape is imported here so its @linkedShape decorator runs and\n` +
+  `// the shape registers on both boot paths (backend materialization + frontend). \`linked\n` +
+  `// create-shape\` maintains this list.\n//SHAPES\n`;
+
+const ensureBackendImportsShapes = function (root: string = process.cwd()) {
+  const backendPath = path.join(root, 'src', 'backend.ts');
+  if (!fs.existsSync(backendPath)) return;
+  let contents = fs.readFileSync(backendPath, 'utf-8');
+  if (contents.includes('./shapes/index')) return;
+  fs.writeFileSync(backendPath, `import './shapes/index.js';\n` + contents);
+};
+
+// Register a shape in the shapes barrel (src/shapes/index.ts), creating it if needed, and
+// make sure both the main index and backend.ts import the barrel. Idempotent.
+export const addShapeToBarrel = function (shapeHyphenName: string, root: string = process.cwd()) {
+  const shapesDir = path.join(root, 'src', 'shapes');
+  fs.ensureDirSync(shapesDir);
+  const barrelPath = path.join(shapesDir, 'index.ts');
+  let contents = fs.existsSync(barrelPath)
+    ? fs.readFileSync(barrelPath, 'utf-8')
+    : SHAPES_BARREL_HEADER;
+  const line = `import './${shapeHyphenName}.js';`;
+  if (!contents.split(/\n/g).some((l) => l.trim() === line.trim())) {
+    contents = contents.includes('//SHAPES')
+      ? contents.replace('//SHAPES', `//SHAPES\n${line}`)
+      : contents.replace(/\n*$/, '') + `\n${line}\n`;
+    fs.writeFileSync(barrelPath, contents);
+  }
+  // Both boot paths must load the barrel (idempotent).
+  addLineToIndex(`import './shapes/index.js';`, 'shapes', root);
+  ensureBackendImportsShapes(root);
+  return barrelPath;
+};
+
 // Exported for Shape-Builder reuse (plan-010 T1d.4): CodeShapeSyncService adds
 // the `import './shapes/<Shape>.js';` line to a generated app package's index.
 export const addLineToIndex = function (
@@ -1495,12 +1533,11 @@ export const createShape = async (name, basePath = process.cwd()) => {
     )}`,
   );
 
-  //if this is NOT a lincd app (but a lincd package)
-  let indexPath;
-  if (!sourceFolder.includes('frontend')) {
-    indexPath = addLineToIndex(`import './shapes/${hyphenName}.js';`, 'shapes');
-    log(`Added an import of this file from ${chalk.magenta(indexPath)}`);
-  }
+  // Register the shape in the shapes barrel (src/shapes/index.ts) — NOT the main index —
+  // and make sure the barrel is loaded on both boot paths. This is what makes the app
+  // materialize its own shapes on boot (plan-027 / plan-028 handover).
+  const barrelPath = addShapeToBarrel(hyphenName);
+  log(`Registered the shape in ${chalk.magenta(barrelPath.replace(basePath, ''))}`);
 };
 
 export const createSetComponent = async (name, basePath = process.cwd()) => {
