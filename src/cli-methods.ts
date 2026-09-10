@@ -2468,7 +2468,7 @@ export const createPackage = async (
     ? 'yarn install'
     : 'npm install';
   await execp(
-    `cd ${targetFolder} && ${installCommand} && npm exec lincd build`,
+    `cd ${targetFolder} && ${installCommand} && npm exec linked build`,
     true,
   ).catch((err) => {
     console.warn('Could not install dependencies');
