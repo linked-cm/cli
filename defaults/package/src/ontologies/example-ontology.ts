@@ -1,14 +1,4 @@
-// TODO(plan-1.5 / Phase 2 — Ontology Manager review): this template uses
-// the legacy NamedNode-as-class pattern (`ns('ExampleClass')` returns a
-// NamedNode, properties annotated as `: NamedNode`). Modern @_linked/*
-// ontologies don't use NamedNode classes — they reference properties as
-// IRI strings via createNameSpace's returned builder. The template
-// needs a rewrite as part of the Ontology Manager review. Import paths
-// updated to @_linked/core to signal intent.
-//
-// JSONLD import: legacy `lincd-jsonld` is unused in this template (no
-// runtime reference); removed.
-import {NamedNode} from '@_linked/core';
+import type {NodeReferenceValue} from '@_linked/core/utils/NodeReference';
 import {createNameSpace} from '@_linked/core/utils/NameSpace';
 import {linkedOntology} from '../package.js';
 //import all the exports of this file as one variable called _this (we need this at the end)
@@ -29,18 +19,18 @@ export var loadData = () => {
 };
 
 /**
- * The namespace of this ontology, which can be used to create NamedNodes with URI's not listed in this file
+ * The namespace of this ontology, which can be used to create NamedNodes with IRIs not listed in this file
  */
 export var ns = createNameSpace('${uri_base}');
 
 /**
- * The NamedNode of the ontology itself
+ * A reference to the ontology itself.
  */
-export var _self: NamedNode = ns('');
+export var _self: NodeReferenceValue = ns('');
 
-//A list of all the entities (Classes & Properties) of this ontology, each exported as a NamedNode
-// export var ExampleClass: NamedNode = ns('ExampleClass');
-// export var exampleProperty: NamedNode = ns('exampleProperty');
+//Every class and property of this ontology, each exported as a node reference.
+// export var ExampleClass: NodeReferenceValue = ns('ExampleClass');
+// export var exampleProperty: NodeReferenceValue = ns('exampleProperty');
 
 //An extra grouping object so all the entities can be accessed from the prefix/name
 export const ${camel_name} = {

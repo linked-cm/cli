@@ -1,4 +1,4 @@
-import './types';
+import './types.js';
 import './ontologies/${hyphen_name}.js';
 
 //SHAPES FIRST — all shapes register via the barrel
