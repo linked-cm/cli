@@ -9,9 +9,16 @@
     "esModuleInterop": true,
     "pretty": true,
     "jsx": "react",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "rootDir": "./src"
   },
   "files": [
-    "./src/types.ts","./src/index.ts"],
-  "include": ["./src/backend.ts"]
+    "./src/index.ts"
+  ],
+  "include": [
+    "./src/backend.ts",
+    "./types/**/*.d.ts"
+  ]
 }
