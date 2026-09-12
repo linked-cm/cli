@@ -307,18 +307,42 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
       `[linked] watching ${workspacePackages.length} workspace packages for HMR`,
     );
   }
+  // Reloads are DEBOUNCED and SERIALISED. `onSourceChange` disposes a
+  // package's providers and re-registers their express routes, i.e. it mutates
+  // the shared router stack. Firing it per file change (a multi-file save, a
+  // format-on-save, a branch switch) ran overlapping dispose/re-register
+  // cycles against that same stack with nothing ordering them. Collect the
+  // affected packages over a short window, then run the cycles one at a time.
+  const RELOAD_DEBOUNCE_MS = 150;
+  const pendingReloads = new Set<string>();
+  let reloadTimer: NodeJS.Timeout | undefined;
+  // Tail of the reload chain — each flush appends, so cycles never interleave.
+  let reloadChain: Promise<void> = Promise.resolve();
+
+  const flushReloads = () => {
+    const pkgs = [...pendingReloads];
+    pendingReloads.clear();
+    reloadChain = reloadChain.then(async () => {
+      for (const pkg of pkgs) {
+        try {
+          await (server as any).onSourceChange(pkg);
+        } catch (err: any) {
+          console.warn(
+            `[linked] reload of ${pkg} failed: ${err?.message ?? err}`,
+          );
+        }
+      }
+    });
+  };
+
   vite.watcher.on('change', (filepath: string) => {
     if (!/\.(tsx?|jsx?)$/.test(filepath)) return;
     const pkg = workspacePackageForPath(filepath, workspacePackages);
     if (!pkg) return;
     if (typeof (server as any).onSourceChange !== 'function') return;
-    void (server as any)
-      .onSourceChange(pkg)
-      .catch((err: any) => {
-        console.warn(
-          `[linked] reload of ${pkg} failed: ${err?.message ?? err}`,
-        );
-      });
+    pendingReloads.add(pkg);
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(flushReloads, RELOAD_DEBOUNCE_MS);
   });
 
   // Plan-011 phase 3c — r/o keyboard shortcuts.
