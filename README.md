@@ -145,6 +145,8 @@ workspaces monorepo for Expo SDK 57 / React Native 0.86 / React 19.2:
 
 What the scaffold does:
 
+- Refuses, before writing anything, a prefix that does not match `^[a-z][a-z0-9-]*$`, and a target folder that
+  exists and is not empty.
 - Renames `gitignore.template` files to `.gitignore`. npm strips real `.gitignore` files from the CLI tarball.
 - Renames `packages/app-shapes` to `packages/<prefix>-shapes`, and replaces the literal `app-shapes` token in
   every text file.
@@ -152,7 +154,8 @@ What the scaffold does:
   `expo.ios.bundleIdentifier`. The bundle ID is the reversed domain plus the prefix, e.g.
   `com.formaestudios.formae`.
 - Never runs the `${…}` placeholder substitution, so template literals in the sources are left alone.
-- Installs with `npm install` (never Yarn) unless `--skip-install` is given.
+- Installs with `npm install` (never Yarn) unless `--skip-install` is given. If the install fails, the files
+  stay and the command exits non-zero; run `npm install` in the folder to retry.
 
 `ios/` (and `android/`) are **generated, not committed**: `npx expo run:ios` (or `npx expo prebuild`) creates
 them from `app.json`, and `apps/mobile/.gitignore` ignores them.
@@ -166,7 +169,7 @@ cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export   # Me
 cd apps/mobile && npx expo run:ios              # build the dev client and run on the iOS Simulator
 ```
 
-Tests for this template in this repo: `yarn test:unit` covers the scaffold offline. It checks the fixture in
+Tests for this template in this repo: `yarn test:unit` covers the scaffold offline. It scaffolds the fixture in
 `tests/fixtures/app-react-native-min` and the real template. `npm run test:template` builds nothing itself. It
 runs the built CLI with install, then the three checks above. It needs network and takes several minutes.
 

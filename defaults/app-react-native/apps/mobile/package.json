@@ -14,10 +14,12 @@
     "@_linked/react": "1.4.2",
     "app-shapes": "*",
     "expo": "57.0.22",
+    "expo-dev-client": "57.0.19",
     "react": "19.2.3",
     "react-native": "0.86.3"
   },
   "devDependencies": {
+    "@react-native/jest-preset": "0.86.3",
     "@testing-library/react-native": "14.0.1",
     "@types/jest": "29.5.14",
     "@types/react": "19.2.18",

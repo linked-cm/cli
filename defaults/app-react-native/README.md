@@ -16,8 +16,11 @@ services/api/         backend stub
 ```bash
 npm install
 npm test -w apps/mobile          # Jest
-cd apps/mobile && npx expo run:ios   # generates ios/, builds the dev client, starts Metro
+cd apps/mobile && npx expo run:ios   # generates ios/, builds a development build with expo-dev-client, starts Metro
 ```
+
+`expo-dev-client` is a dependency of `apps/mobile`, so `expo run:ios` produces a custom dev client (not Expo Go),
+which is what native modules need.
 
 Requires Node `^22.13 || >=24`. iOS builds need macOS 26.2+ and Xcode 26.4+ with the iOS platform component
 installed.
