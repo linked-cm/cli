@@ -1,0 +1,6 @@
+node_modules/
+# Workspace packages are enumerated; `packages/*` (not `packages/`) so the negation below works.
+packages/*
+!packages/app-shapes/
+.expo/
+dist/

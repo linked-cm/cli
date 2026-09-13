@@ -1,0 +1,10 @@
+{
+  "name": "app-shapes",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@_linked/core": "2.18.0"
+  }
+}
