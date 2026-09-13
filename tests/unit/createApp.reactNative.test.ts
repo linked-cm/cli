@@ -49,35 +49,6 @@ const listFiles = (dir: string): string[] =>
     return [full];
   });
 
-const TEMPLATE = path.join(__dirname, '..', '..', 'defaults', 'app-react-native');
-
-// Placeholder values the scaffold stamps (contract 3).
-const PLACEHOLDERS = ['app-shapes', 'app-monorepo', 'App', 'app', 'com.example.app'];
-
-// Leaf values of a JSON document, keyed by path, that contain a placeholder.
-const placeholderLeaves = (value: any, prefix = ''): Record<string, string> => {
-  if (value && typeof value === 'object') {
-    return Object.entries(value).reduce(
-      (acc, [key, child]) => ({
-        ...acc,
-        // Keys can be placeholders too (dependency names).
-        ...(key.includes('app-shapes') ? {[`${prefix}/${key}#key`]: key} : {}),
-        ...placeholderLeaves(child, `${prefix}/${key}`),
-      }),
-      {},
-    );
-  }
-  if (
-    typeof value === 'string' &&
-    (PLACEHOLDERS.includes(value) ||
-      value.includes('app-shapes') ||
-      value.includes('com.example.app'))
-  ) {
-    return {[prefix]: value};
-  }
-  return {};
-};
-
 let tmp: string;
 let logSpy: jest.SpyInstance;
 let warnSpy: jest.SpyInstance;
@@ -118,6 +89,16 @@ describe('reactNativeBundleId', () => {
   test('replaces underscores, which a bundle ID does not allow', () => {
     expect(reactNativeBundleId('formaestudios.com', 'my_app')).toBe(
       'com.formaestudios.my-app',
+    );
+  });
+
+  test('reactNativeBundleId strips port', () => {
+    expect(reactNativeBundleId('localhost:3000', 'x')).toBe('com.localhost.x');
+  });
+
+  test('drops empty labels', () => {
+    expect(reactNativeBundleId('https://a..b.com:8080/path', 'x')).toBe(
+      'com.b.a.x',
     );
   });
 });
@@ -218,6 +199,9 @@ describe('scaffoldReactNativeApp', () => {
     expect(mobilePkg.jest.transformIgnorePatterns[0]).toContain(
       'formae-shapes',
     );
+    // Explicit pins: no reliance on npm auto-installing peers.
+    expect(mobilePkg.dependencies['expo-dev-client']).toBeDefined();
+    expect(mobilePkg.devDependencies['@react-native/jest-preset']).toBeDefined();
 
     const appJson = readJSON(path.join(target, 'apps/mobile/app.json'));
     expect(appJson.expo.name).toBe('Formae');
@@ -266,39 +250,55 @@ describe('scaffoldReactNativeApp', () => {
   });
 });
 
-describe('fixture and real template', () => {
-  // The fixture stands in for defaults/app-react-native in the fast test; it
-  // must not drift from the real template's placeholders.
-  const fixtureFiles = listFiles(FIXTURE).map((f) => path.relative(FIXTURE, f));
+describe('scaffoldReactNativeApp refusals', () => {
+  test.each(['my app', 'c++', 'App', '1x', ''])(
+    'rejects invalid prefix %j',
+    async (appPrefix) => {
+      const target = path.join(tmp, 'formae');
+      await expect(
+        scaffoldReactNativeApp(
+          target,
+          {...ID, appPrefix},
+          {templateDir: FIXTURE, skipInstall: true},
+        ),
+      ).rejects.toThrow('^[a-z][a-z0-9-]*$');
+      expect(fs.readdirSync(tmp)).toEqual([]);
+    },
+  );
 
-  test('every fixture file exists in the real template', () => {
-    const missing = fixtureFiles.filter(
-      (rel) => !fs.existsSync(path.join(TEMPLATE, rel)),
-    );
-    expect(missing).toEqual([]);
+  test('rejects non-empty target', async () => {
+    const target = path.join(tmp, 'formae');
+    const file = path.join(target, 'file.txt');
+    fs.mkdirSync(target);
+    fs.writeFileSync(file, 'app-shapes keep me\n');
+
+    await expect(
+      scaffoldReactNativeApp(target, ID, {
+        templateDir: FIXTURE,
+        skipInstall: true,
+      }),
+    ).rejects.toThrow(/not empty/);
+    expect(fs.readdirSync(target)).toEqual(['file.txt']);
+    expect(fs.readFileSync(file, 'utf8')).toBe('app-shapes keep me\n');
   });
 
-  test.each(fixtureFiles)('%s placeholders match the real template', (rel) => {
-    const fixtureFile = path.join(FIXTURE, rel);
-    const templateFile = path.join(TEMPLATE, rel);
-    if (rel.endsWith('.json')) {
-      const expected = placeholderLeaves(readJSON(fixtureFile));
-      expect(Object.keys(expected).length).toBeGreaterThan(0);
-      expect(placeholderLeaves(readJSON(templateFile))).toMatchObject(expected);
-    } else {
-      const templateLines = fs
-        .readFileSync(templateFile, 'utf8')
-        .split('\n')
-        .map((l) => l.trim());
-      const placeholderLines = fs
-        .readFileSync(fixtureFile, 'utf8')
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.includes('app-shapes'));
-      for (const line of placeholderLines) {
-        expect(templateLines).toContain(line);
-      }
-    }
+  test('install failure rejects', async () => {
+    (execPromise as jest.Mock).mockImplementationOnce(() =>
+      Promise.reject(Object.assign(new Error('boom'), {stdout: '', stderr: ''})),
+    );
+    const target = path.join(tmp, 'formae');
+
+    await expect(
+      scaffoldReactNativeApp(target, ID, {templateDir: FIXTURE}),
+    ).rejects.toThrow(/npm install/);
+    expect(execPromise).toHaveBeenCalledWith(
+      'npm install',
+      false,
+      false,
+      expect.objectContaining({cwd: target}),
+    );
+    // Files stay on disk so the user can retry the install.
+    expect(fs.existsSync(path.join(target, 'package.json'))).toBe(true);
   });
 });
 

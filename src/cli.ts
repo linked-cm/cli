@@ -5,6 +5,7 @@
 // import babelRegister from '@babel/register';
 // babelRegister({extensions: ['.ts', '.tsx']});
 
+import chalk from 'chalk';
 import {
   addCapacitor,
   buildAll,
@@ -49,6 +50,10 @@ program
       appDomain: options.appDomain,
       skipInstall: options.skipInstall,
       template: options.template,
+    }).catch((err) => {
+      // Report and fail the process without cutting off pending output.
+      console.error(chalk.red(err?.message ?? String(err)));
+      process.exitCode = 1;
     });
   })
   .description(

@@ -307,12 +307,37 @@ export function reactNativeBundleId(
     .trim()
     .toLowerCase()
     .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
-    .split(/[/?#]/)[0];
-  const labels = host.split('.').filter(Boolean).reverse();
-  return [...labels, appPrefix.toLowerCase()]
-    .join('.')
-    .replace(/_/g, '-')
-    .replace(/[^a-z0-9.-]/g, '');
+    .split(/[/?#]/)[0]
+    .replace(/:\d*$/, '');
+  const hostLabels = host.split('.').filter(Boolean);
+  // A bare host such as `localhost` gets a `com` top level: com.localhost.<prefix>.
+  if (hostLabels.length === 1) hostLabels.push('com');
+  return [...hostLabels.reverse(), appPrefix.toLowerCase()]
+    .map((label) => label.replace(/_/g, '-').replace(/[^a-z0-9-]/g, ''))
+    .filter(Boolean)
+    .join('.');
+}
+
+/**
+ * The prefix becomes a directory, an npm package name, a bundle-ID label and a
+ * literal inside a Jest regex; this form is valid in all four unescaped.
+ */
+export const RN_PREFIX_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+/** Throws when the prefix is invalid or the target folder is non-empty. */
+function assertReactNativeScaffoldable(targetFolder: string, appPrefix: string) {
+  if (typeof appPrefix !== 'string' || !RN_PREFIX_PATTERN.test(appPrefix)) {
+    throw new Error(
+      `Invalid app prefix "${appPrefix ?? ''}": it must match ${RN_PREFIX_PATTERN.source} ` +
+        '(start with a lowercase letter; only lowercase letters, digits and hyphens).',
+    );
+  }
+  if (fs.existsSync(targetFolder) && fs.readdirSync(targetFolder).length > 0) {
+    throw new Error(
+      `Target folder ${targetFolder} already exists and is not empty. ` +
+        'Choose another name or remove the folder.',
+    );
+  }
 }
 
 /** Placeholder name of the shapes package in defaults/app-react-native. */
@@ -358,6 +383,8 @@ export async function scaffoldReactNativeApp(
   options: {skipInstall?: boolean; templateDir?: string} = {},
 ): Promise<void> {
   const {appName, appPrefix, appDomain, hyphenName} = id;
+  // Validate before writing anything.
+  assertReactNativeScaffoldable(targetFolder, appPrefix);
   // lib/esm/ (built) is two levels below the package root; src/ (Jest) is one.
   const templateDir =
     options.templateDir ||
@@ -429,6 +456,10 @@ export async function scaffoldReactNativeApp(
       spinner.fail('Could not install dependencies');
       if (err?.stdout) process.stdout.write(err.stdout);
       if (err?.stderr) process.stderr.write(err.stderr);
+      throw new Error(
+        `npm install failed. The files are in ${targetFolder}; ` +
+          `run \`npm install\` there to retry.`,
+      );
     }
   }
 
