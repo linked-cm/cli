@@ -48,6 +48,7 @@ program
       appPrefix: options.appPrefix,
       appDomain: options.appDomain,
       skipInstall: options.skipInstall,
+      template: options.template,
     });
   })
   .description(
@@ -60,7 +61,11 @@ program
   .option('--app-name <name>', 'Display name for the app (skip interactive prompt)')
   .option('--app-prefix <prefix>', 'Short code prefix for data files (skip interactive prompt)')
   .option('--app-domain <domain>', 'Domain for the app (skip interactive prompt)')
-  .option('--skip-install', 'Skip running yarn/npm install after scaffolding');
+  .option('--skip-install', 'Skip running yarn/npm install after scaffolding')
+  .option(
+    '--template <template>',
+    'App template: "web" (default) or "react-native"',
+  );
 
 program
   .command('start')

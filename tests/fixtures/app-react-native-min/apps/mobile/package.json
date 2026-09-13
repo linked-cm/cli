@@ -1,0 +1,11 @@
+{
+  "name": "mobile",
+  "private": true,
+  "dependencies": {
+    "app-shapes": "*"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": ["node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@_linked/.*|app-shapes)"]
+  }
+}
