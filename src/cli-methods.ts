@@ -315,6 +315,33 @@ export function reactNativeBundleId(
     .replace(/[^a-z0-9.-]/g, '');
 }
 
+/** Placeholder name of the shapes package in defaults/app-react-native. */
+export const RN_SHAPES_TOKEN = 'app-shapes';
+
+/**
+ * Replace every occurrence of `token` in the text files under `folder`
+ * (node_modules and files containing a NUL byte are skipped). A literal token
+ * replacement, not the ${...} variable substitution.
+ */
+function replaceTokenInTextFiles(folder: string, token: string, value: string) {
+  if (token === value) return;
+  for (const entry of fs.readdirSync(folder, {withFileTypes: true})) {
+    const full = path.join(folder, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules' && entry.name !== '.git') {
+        replaceTokenInTextFiles(full, token, value);
+      }
+    } else if (entry.isFile()) {
+      const buffer = fs.readFileSync(full);
+      if (buffer.includes(0)) continue;
+      const text = buffer.toString('utf8');
+      if (text.includes(token)) {
+        fs.writeFileSync(full, text.split(token).join(value));
+      }
+    }
+  }
+}
+
 const readJSON = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const writeJSON = (file: string, data: any) =>
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
@@ -331,9 +358,16 @@ export async function scaffoldReactNativeApp(
   options: {skipInstall?: boolean; templateDir?: string} = {},
 ): Promise<void> {
   const {appName, appPrefix, appDomain, hyphenName} = id;
+  // lib/esm/ (built) is two levels below the package root; src/ (Jest) is one.
   const templateDir =
     options.templateDir ||
-    path.join(getScriptDir(), '..', '..', 'defaults', 'app-react-native');
+    [
+      path.join(getScriptDir(), '..', '..', 'defaults', 'app-react-native'),
+      path.join(getScriptDir(), '..', 'defaults', 'app-react-native'),
+    ].find((dir) => fs.existsSync(dir));
+  if (!templateDir) {
+    throw new Error('React Native template not found (defaults/app-react-native)');
+  }
   const shapesName = `${appPrefix}-shapes`;
 
   log("Creating new Linked React Native app '" + appName + "'");
@@ -345,75 +379,26 @@ export async function scaffoldReactNativeApp(
   renameShippedDotfiles(targetFolder);
 
   // 3. Rename the shapes package directory.
-  const oldShapesDir = path.join(targetFolder, 'packages', 'app-shapes');
+  const oldShapesDir = path.join(targetFolder, 'packages', RN_SHAPES_TOKEN);
   const shapesDir = path.join(targetFolder, 'packages', shapesName);
   if (fs.existsSync(oldShapesDir) && oldShapesDir !== shapesDir) {
     fs.renameSync(oldShapesDir, shapesDir);
   }
 
-  // 4. Stamp identity into the contract fields.
+  // 4a. Rename the shapes package token everywhere: workspaces, .gitignore
+  // negation, package names, dependency keys, Jest patterns, import specifiers,
+  // test expectations and docs. Only the literal `app-shapes` token is replaced.
+  replaceTokenInTextFiles(targetFolder, RN_SHAPES_TOKEN, shapesName);
+
+  // 4b. Stamp the identity fields that are not the shapes token.
   const rootPkgPath = path.join(targetFolder, 'package.json');
   if (fs.existsSync(rootPkgPath)) {
     const rootPkg = readJSON(rootPkgPath);
     rootPkg.name = `${hyphenName}-monorepo`;
-    if (Array.isArray(rootPkg.workspaces)) {
-      rootPkg.workspaces = rootPkg.workspaces.map((w: string) =>
-        w === 'packages/app-shapes' ? `packages/${shapesName}` : w,
-      );
-    }
     writeJSON(rootPkgPath, rootPkg);
   }
 
-  const gitignorePath = path.join(targetFolder, '.gitignore');
-  if (fs.existsSync(gitignorePath)) {
-    const gitignore = fs.readFileSync(gitignorePath, 'utf8');
-    fs.writeFileSync(
-      gitignorePath,
-      gitignore.split('!packages/app-shapes/').join(`!packages/${shapesName}/`),
-    );
-  }
-
-  const shapesPkgPath = path.join(shapesDir, 'package.json');
-  if (fs.existsSync(shapesPkgPath)) {
-    const shapesPkg = readJSON(shapesPkgPath);
-    shapesPkg.name = shapesName;
-    writeJSON(shapesPkgPath, shapesPkg);
-  }
-
-  const packageTsPath = path.join(shapesDir, 'src', 'package.ts');
-  if (fs.existsSync(packageTsPath)) {
-    const source = fs.readFileSync(packageTsPath, 'utf8');
-    fs.writeFileSync(
-      packageTsPath,
-      source
-        .split("linkedPackage('app-shapes')")
-        .join(`linkedPackage('${shapesName}')`),
-    );
-  }
-
   const mobileDir = path.join(targetFolder, 'apps', 'mobile');
-  const mobilePkgPath = path.join(mobileDir, 'package.json');
-  if (fs.existsSync(mobilePkgPath)) {
-    const mobilePkg = readJSON(mobilePkgPath);
-    for (const field of ['dependencies', 'devDependencies']) {
-      const deps = mobilePkg[field];
-      if (deps && 'app-shapes' in deps) {
-        const renamed = {};
-        for (const [key, value] of Object.entries(deps)) {
-          renamed[key === 'app-shapes' ? shapesName : key] = value;
-        }
-        mobilePkg[field] = renamed;
-      }
-    }
-    const patterns = mobilePkg.jest?.transformIgnorePatterns;
-    if (Array.isArray(patterns)) {
-      mobilePkg.jest.transformIgnorePatterns = patterns.map((p: string) =>
-        p.split('app-shapes').join(shapesName),
-      );
-    }
-    writeJSON(mobilePkgPath, mobilePkg);
-  }
-
   const appJsonPath = path.join(mobileDir, 'app.json');
   if (fs.existsSync(appJsonPath)) {
     const appJson = readJSON(appJsonPath);
