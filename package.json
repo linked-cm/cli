@@ -35,6 +35,7 @@
     "test": "yarn test:unit && yarn test:e2e",
     "test:unit": "jest --config jest.config.cjs",
     "test:e2e": "playwright test --config playwright.config.ts",
+    "test:template": "RUN_TEMPLATE_FULL=1 jest --config jest.template.config.cjs",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
     "format": "yarn prettier:fix && yarn lint:fix"
