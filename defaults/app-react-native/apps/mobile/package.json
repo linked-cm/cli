@@ -1,0 +1,39 @@
+{
+  "name": "mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@_linked/core": "2.18.0",
+    "@_linked/react": "1.4.2",
+    "app-shapes": "*",
+    "expo": "57.0.22",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "14.0.1",
+    "@types/jest": "29.5.14",
+    "@types/react": "19.2.18",
+    "jest": "29.7.0",
+    "jest-expo": "57.0.5",
+    "test-renderer": "1.2.0",
+    "typescript": "6.0.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|@_linked/.*|app-shapes))"
+    ],
+    "moduleNameMapper": {
+      "^@_linked/([^/]+)$": "<rootDir>/../../node_modules/@_linked/$1/lib/esm/index.js",
+      "^@_linked/([^/]+)/(.*)$": "<rootDir>/../../node_modules/@_linked/$1/lib/esm/$2.js"
+    }
+  }
+}
