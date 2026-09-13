@@ -18,6 +18,7 @@ import {
   isInvalidLINCDImport,
   needsRebuilding,
 } from './utils.js';
+import {renameShippedDotfiles} from './utils/shippedDotfiles.js';
 
 import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
@@ -75,7 +76,29 @@ function promptUser(question: string): Promise<string> {
   });
 }
 
-export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean} = {}) => {
+export type AppTemplate = 'web' | 'react-native';
+
+type AppIdentity = {
+  appName: string;
+  appPrefix: string;
+  appDomain: string;
+  hyphenName: string;
+};
+
+export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean, template?: AppTemplate} = {}) => {
+  // Reject unknown templates before prompting or writing anything.
+  const template = options.template;
+  if (
+    template !== undefined &&
+    template !== 'web' &&
+    template !== 'react-native'
+  ) {
+    console.warn(
+      chalk.red(`Unknown template "${template}". Use "web" or "react-native".`),
+    );
+    return;
+  }
+
   // If no name provided, prompt for folder name first
   if (!name) {
     console.log(chalk.blue('\n📁 Folder name for your app:\n'));
@@ -133,6 +156,17 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   setVariable('app_domain', appDomain);
 
   let targetFolder = path.join(basePath, hyphenName);
+
+  if (template === 'react-native') {
+    // Called through reactNativeInternals so tests can stub the scaffold step.
+    await reactNativeInternals.scaffoldReactNativeApp(
+      targetFolder,
+      {appName, appPrefix, appDomain, hyphenName},
+      {skipInstall: options.skipInstall},
+    );
+    return;
+  }
+
   if (!fs.existsSync(targetFolder)) {
     fs.mkdirSync(targetFolder);
   }
@@ -260,6 +294,171 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     `  ${chalk.blueBright(`cd ${hyphenName} && ${startCommand}`)}`,
   );
 };
+
+/**
+ * iOS bundle identifier from the app domain and prefix:
+ * ('formaestudios.com', 'formae') -> 'com.formaestudios.formae'.
+ */
+export function reactNativeBundleId(
+  appDomain: string,
+  appPrefix: string,
+): string {
+  const host = appDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .split(/[/?#]/)[0];
+  const labels = host.split('.').filter(Boolean).reverse();
+  return [...labels, appPrefix.toLowerCase()]
+    .join('.')
+    .replace(/_/g, '-')
+    .replace(/[^a-z0-9.-]/g, '');
+}
+
+const readJSON = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'));
+const writeJSON = (file: string, data: any) =>
+  fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
+
+/**
+ * Scaffold the React Native monorepo from defaults/app-react-native.
+ * Identity is stamped into named fields only; the global ${...} substitution
+ * (replaceVariablesInFolder) is never used, so template literals in TypeScript
+ * sources stay intact.
+ */
+export async function scaffoldReactNativeApp(
+  targetFolder: string,
+  id: AppIdentity,
+  options: {skipInstall?: boolean; templateDir?: string} = {},
+): Promise<void> {
+  const {appName, appPrefix, appDomain, hyphenName} = id;
+  const templateDir =
+    options.templateDir ||
+    path.join(getScriptDir(), '..', '..', 'defaults', 'app-react-native');
+  const shapesName = `${appPrefix}-shapes`;
+
+  log("Creating new Linked React Native app '" + appName + "'");
+
+  // 1. Copy the template.
+  fs.copySync(templateDir, targetFolder);
+
+  // 2. Restore dotfiles npm would strip from the CLI tarball.
+  renameShippedDotfiles(targetFolder);
+
+  // 3. Rename the shapes package directory.
+  const oldShapesDir = path.join(targetFolder, 'packages', 'app-shapes');
+  const shapesDir = path.join(targetFolder, 'packages', shapesName);
+  if (fs.existsSync(oldShapesDir) && oldShapesDir !== shapesDir) {
+    fs.renameSync(oldShapesDir, shapesDir);
+  }
+
+  // 4. Stamp identity into the contract fields.
+  const rootPkgPath = path.join(targetFolder, 'package.json');
+  if (fs.existsSync(rootPkgPath)) {
+    const rootPkg = readJSON(rootPkgPath);
+    rootPkg.name = `${hyphenName}-monorepo`;
+    if (Array.isArray(rootPkg.workspaces)) {
+      rootPkg.workspaces = rootPkg.workspaces.map((w: string) =>
+        w === 'packages/app-shapes' ? `packages/${shapesName}` : w,
+      );
+    }
+    writeJSON(rootPkgPath, rootPkg);
+  }
+
+  const gitignorePath = path.join(targetFolder, '.gitignore');
+  if (fs.existsSync(gitignorePath)) {
+    const gitignore = fs.readFileSync(gitignorePath, 'utf8');
+    fs.writeFileSync(
+      gitignorePath,
+      gitignore.split('!packages/app-shapes/').join(`!packages/${shapesName}/`),
+    );
+  }
+
+  const shapesPkgPath = path.join(shapesDir, 'package.json');
+  if (fs.existsSync(shapesPkgPath)) {
+    const shapesPkg = readJSON(shapesPkgPath);
+    shapesPkg.name = shapesName;
+    writeJSON(shapesPkgPath, shapesPkg);
+  }
+
+  const packageTsPath = path.join(shapesDir, 'src', 'package.ts');
+  if (fs.existsSync(packageTsPath)) {
+    const source = fs.readFileSync(packageTsPath, 'utf8');
+    fs.writeFileSync(
+      packageTsPath,
+      source
+        .split("linkedPackage('app-shapes')")
+        .join(`linkedPackage('${shapesName}')`),
+    );
+  }
+
+  const mobileDir = path.join(targetFolder, 'apps', 'mobile');
+  const mobilePkgPath = path.join(mobileDir, 'package.json');
+  if (fs.existsSync(mobilePkgPath)) {
+    const mobilePkg = readJSON(mobilePkgPath);
+    for (const field of ['dependencies', 'devDependencies']) {
+      const deps = mobilePkg[field];
+      if (deps && 'app-shapes' in deps) {
+        const renamed = {};
+        for (const [key, value] of Object.entries(deps)) {
+          renamed[key === 'app-shapes' ? shapesName : key] = value;
+        }
+        mobilePkg[field] = renamed;
+      }
+    }
+    const patterns = mobilePkg.jest?.transformIgnorePatterns;
+    if (Array.isArray(patterns)) {
+      mobilePkg.jest.transformIgnorePatterns = patterns.map((p: string) =>
+        p.split('app-shapes').join(shapesName),
+      );
+    }
+    writeJSON(mobilePkgPath, mobilePkg);
+  }
+
+  const appJsonPath = path.join(mobileDir, 'app.json');
+  if (fs.existsSync(appJsonPath)) {
+    const appJson = readJSON(appJsonPath);
+    appJson.expo = appJson.expo || {};
+    appJson.expo.name = appName;
+    appJson.expo.slug = hyphenName;
+    appJson.expo.ios = appJson.expo.ios || {};
+    appJson.expo.ios.bundleIdentifier = reactNativeBundleId(
+      appDomain,
+      appPrefix,
+    );
+    writeJSON(appJsonPath, appJson);
+  }
+
+  // 5. Install with npm: the template is an npm workspaces monorepo.
+  if (!options.skipInstall) {
+    const spinner = ora({
+      text: 'Installing dependencies (npm)...',
+      spinner: 'dots',
+    }).start();
+    try {
+      await execPromise('npm install', false, false, {
+        cwd: targetFolder,
+        maxBuffer: 50 * 1024 * 1024,
+      });
+      spinner.succeed('Dependencies installed (npm)');
+    } catch (err) {
+      spinner.fail('Could not install dependencies');
+      if (err?.stdout) process.stdout.write(err.stdout);
+      if (err?.stderr) process.stderr.write(err.stderr);
+    }
+  }
+
+  // 6. Next steps.
+  log(
+    `Your Linked React Native app is ready at ${chalk.blueBright(targetFolder)}`,
+    `\nNext steps:`,
+    `  ${chalk.blueBright(`cd ${path.basename(targetFolder)}`)}`,
+    `  ${chalk.blueBright('npm test -w apps/mobile')}`,
+    `  ${chalk.blueBright('cd apps/mobile && npx expo run:ios')}`,
+  );
+}
+
+// Indirection so tests can replace the scaffold step when exercising createApp.
+export const reactNativeInternals = {scaffoldReactNativeApp};
 
 /** Set or append a `KEY=value` line in a `.env`-style text blob. */
 function setEnvVar(envText: string, key: string, value: string): string {

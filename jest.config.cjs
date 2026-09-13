@@ -23,6 +23,8 @@ module.exports = {
           ['@babel/preset-env', { targets: { node: 'current' } }],
           '@babel/preset-typescript',
         ],
+        // Rewrites `import.meta` (a syntax error in CommonJS) so cli-methods.ts loads.
+        plugins: [require('path').join(__dirname, 'tests', 'babel-plugin-import-meta.cjs')],
       },
     ],
   },
