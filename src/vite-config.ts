@@ -71,9 +71,11 @@ interface WorkspaceEntry {
  * to map bare specifiers like `@_linked/foo/bar` directly to source.
  * No glob library: workspaces only support trailing `/*` patterns.
  */
-async function discoverWorkspaces(extraGlobs: string[] = []): Promise<WorkspaceEntry[]> {
+export async function discoverWorkspaces(
+  extraGlobs: string[] = [],
+  cwd: string = process.cwd(),
+): Promise<WorkspaceEntry[]> {
   const fs = await import('node:fs/promises');
-  const cwd = process.cwd();
   const out: WorkspaceEntry[] = [];
   const seen = new Set<string>();
   // Register a package root iff it ships a `src/` dir (source install). Published
@@ -139,44 +141,70 @@ async function discoverWorkspaces(extraGlobs: string[] = []): Promise<WorkspaceE
   //    custom-scope published linked package (e.g. `@acme/foo` with
   //    `linkedPackage:true`) is picked up too, and linked packages present in
   //    node_modules but not depended upon are ignored.
-  const nm = path.join(cwd, 'node_modules');
-
-  // Resolve a dependency name to its installed package.json path. A symlinked
-  // workspace clone resolves under the app's node_modules just like a normal
-  // install. Returns null when the package isn't installed (e.g. an optional
-  // or unhoisted dep) — we skip rather than throw.
+  // Resolve a dependency name to its installed package.json the way Node does:
+  // look in `<dir>/node_modules/<name>`, then each parent directory's
+  // node_modules, starting from the requiring package's directory. This finds
+  // deps that npm/yarn workspaces HOISTED to the monorepo root (an app under
+  // `services/api` whose dep lives in `<root>/node_modules`). The walk stops
+  // after the nearest directory whose package.json declares `workspaces` (the
+  // workspace root), or at the filesystem root. Returns null when the package
+  // isn't installed (e.g. an optional dep) — we skip rather than throw.
+  const isWorkspaceRoot = async (dir: string): Promise<boolean> => {
+    try {
+      const json = await fsExtra.readJson(path.join(dir, 'package.json'));
+      return !!json.workspaces;
+    } catch {
+      return false;
+    }
+  };
   const readInstalledPkg = async (
     name: string,
+    fromDir: string,
   ): Promise<{root: string; json: any} | null> => {
-    const root = path.join(nm, name);
-    const pkgJson = path.join(root, 'package.json');
-    if (!(await fsExtra.pathExists(pkgJson))) return null;
-    try {
-      return {root, json: await fsExtra.readJson(pkgJson)};
-    } catch {
-      return null;
+    let dir = path.resolve(fromDir);
+    while (true) {
+      const root = path.join(dir, 'node_modules', name);
+      const pkgJson = path.join(root, 'package.json');
+      if (await fsExtra.pathExists(pkgJson)) {
+        try {
+          return {root, json: await fsExtra.readJson(pkgJson)};
+        } catch {
+          return null;
+        }
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir || (await isWorkspaceRoot(dir))) return null;
+      dir = parent;
     }
   };
 
   const visited = new Set<string>();
-  const walk = async (deps: Record<string, string> | undefined): Promise<void> => {
+  const walk = async (
+    deps: Record<string, string> | undefined,
+    fromDir: string,
+  ): Promise<void> => {
     for (const name of Object.keys(deps ?? {})) {
       if (visited.has(name)) continue;
       visited.add(name);
-      const resolved = await readInstalledPkg(name);
+      const resolved = await readInstalledPkg(name, fromDir);
       if (!resolved) continue;
       if (resolved.json.linkedPackage !== true) continue;
       // Register if it ships source (addFromRoot gates on src/ existing).
       await addFromRoot(resolved.root);
-      // Recurse into this linked package's own dependencies.
-      await walk(resolved.json.dependencies);
+      // Recurse into this linked package's own dependencies, resolved from its
+      // real location (a symlinked workspace clone resolves from its source dir).
+      let realRoot = resolved.root;
+      try {
+        realRoot = await fs.realpath(resolved.root);
+      } catch {}
+      await walk(resolved.json.dependencies, realRoot);
     }
   };
 
   if (await fsExtra.pathExists(pkgPath)) {
     const appPkg = await fsExtra.readJson(pkgPath);
-    await walk(appPkg.dependencies);
-    await walk(appPkg.devDependencies);
+    await walk(appPkg.dependencies, cwd);
+    await walk(appPkg.devDependencies, cwd);
   }
 
   return out;

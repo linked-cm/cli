@@ -14,3 +14,5 @@ Add `"linked": {"extensionlessImports": true}` to a package's `package.json` for
 - `linked build` skips the "Checking imports" step for that package and logs that it did.
 - After compiling ESM, it appends `.js` (or `/index.js` for a directory) to extensionless `./` and `../` specifiers of static imports, exports and `import()` calls in `lib/esm/**/*.js`, so the output loads under Node. Specifiers it cannot resolve are left unchanged with a warning. `.d.ts` files are not rewritten.
 - Packages without the field build exactly as before.
+
+Fix linked-package discovery in `linked start` for apps inside an npm/yarn workspaces monorepo: dependencies are now resolved the way Node resolves them, walking up parent `node_modules` directories to the workspace root. A linked package hoisted to the root `node_modules` is found, so the app no longer falls into standalone mode (which dropped the `development` export condition).
