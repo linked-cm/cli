@@ -7,5 +7,5 @@ dist/
 # Docker Compose overrides (e.g. FUSEKI_PORT); see services/api/README.md.
 /.env
 services/api/.env
-services/api/*-files/
+services/api/data/
 packages/app-shapes/lib/

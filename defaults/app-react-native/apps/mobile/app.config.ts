@@ -1,8 +1,12 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
-// The API port the backend listens on (services/api/.env.example PORT). src/shell/env.ts combines it with the
-// dev machine's host when EXPO_PUBLIC_API_URL is not set, so the Simulator and a device on the LAN both work.
-const API_PORT = 4000;
+// The default API port lives in src/shell/apiPort.json (services/api/.env.example PORT), shared with env.ts. JSON,
+// because Expo's config loader cannot import a TypeScript module.
+import { defaultApiPort } from './src/shell/apiPort.json';
+
+// src/shell/env.ts combines the API port with the dev machine's host when EXPO_PUBLIC_API_URL is not set, so the
+// Simulator and a device on the LAN both work.
+const API_PORT = defaultApiPort;
 
 // The static app identity (name, slug, bundle identifier) stays in app.json; Expo passes it in as `config`.
 export default ({ config }: ConfigContext): ExpoConfig => ({

@@ -99,6 +99,8 @@ describeFull('create-app --template react-native (full)', () => {
       'apps/mobile/app.config.ts',
       'apps/mobile/src/shell/env.ts',
       'apps/mobile/src/shell/storage.ts',
+      'apps/mobile/src/shell/apiPort.json',
+      'apps/mobile/__tests__/storage.test.ts',
       'apps/mobile/src/components/PersonOverview.tsx',
       'apps/mobile/src/components/PersonPreview.tsx',
       'apps/mobile/src/components/PersonOverviewContext.tsx',
@@ -109,12 +111,15 @@ describeFull('create-app --template react-native (full)', () => {
       'services/api/linked.backend.storage.ts',
       'services/api/linked.backend.datasets.json',
       'services/api/scripts/wait-for-fuseki.mjs',
+      'services/api/test/waitForFuseki.test.mjs',
       'services/api/src/backend.ts',
     ]) {
       expect([file, fs.existsSync(path.join(app, file))]).toEqual([file, true]);
     }
     expect(fs.existsSync(path.join(app, '.github'))).toBe(false);
     expect(fs.existsSync(path.join(app, 'services/api/env.example.template'))).toBe(false);
+    expect(read(app, '.gitignore')).toContain('services/api/data/');
+    expect(read(app, 'apps/mobile/src/shell/storage.ts')).toContain("import './env';");
   });
 
   test('the shapes package builds with extensionless imports', () => {
@@ -159,6 +164,8 @@ describeFull('create-app --template react-native (full)', () => {
       expect(Number(jest![1].match(/(\d+) passed/)?.[1] ?? 0)).toBeGreaterThan(0);
       // node --test: no failures, at least one test passed.
       expect(out).toMatch(/# fail 0\b/);
+      // Includes the storage load-order test and the wait-for-fuseki test.
+      expect(out).toMatch(/storage\.test\.ts/);
       expect(Number(out.match(/# pass (\d+)/)?.[1] ?? 0)).toBeGreaterThan(0);
     },
     TEN_MINUTES,

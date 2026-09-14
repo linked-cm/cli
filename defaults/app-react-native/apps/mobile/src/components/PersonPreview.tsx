@@ -4,6 +4,9 @@
 // patches local query state for optimistic UI; on delete, the parent
 // list re-runs via the PersonListRefresh context.
 // A React Native port of the web app-template's example (linked-cm/app-template).
+// Storage is imported first, so the row's queries go to the API store however this module is reached.
+import '../shell/storage';
+
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { linkedComponent } from '@_linked/react';

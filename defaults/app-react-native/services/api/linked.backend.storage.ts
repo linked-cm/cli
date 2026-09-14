@@ -18,6 +18,9 @@ const appData = stores.appData as FusekiStore;
 await appData.ensureDatasetExists();
 LinkedStorage.setDefaultDataset(appData);
 
+// The S3 branch is not yet verified against a real bucket.
+// LocalFileStore's name only forms its URI. Its directory is `data/uploads`, relative to the working directory, and
+// `linked start` runs in services/api, so files land in services/api/data/uploads/ (gitignored).
 const fileStore = hasS3Env(env)
   ? new S3FileStore('files', {
       bucketName: env.S3_FILES_BUCKET_NAME,

@@ -1,8 +1,6 @@
-// Import order matters: env sets SITE_ROOT/DATA_ROOT before any Linked import; @_linked/react/native installs
-// React Native render defaults; storage registers the API store before shapes and linked components are used.
-import './src/shell/env';
+// @_linked/react/native first: it installs the React Native render defaults before any component renders. Modules
+// that need the API store import ./src/shell/storage themselves, which imports ./src/shell/env.
 import '@_linked/react/native';
-import './src/shell/storage';
 import { Example } from 'app-shapes';
 
 import { StyleSheet, Text, View } from 'react-native';

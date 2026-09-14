@@ -1,21 +1,20 @@
 /// <reference types="node" />
-// Stops the API started by globalSetup (its whole process group).
+// Stops the API started by globalSetup (its whole process group) and removes its exit and signal handlers.
 import type { ChildProcess } from 'node:child_process';
 
+type StartedApi = { api: ChildProcess; stop: () => void; killGroup: (signal: NodeJS.Signals) => void };
+
 export default async function globalTeardown() {
-  const api: ChildProcess | undefined = (globalThis as any).__LINKED_API__;
-  if (!api?.pid || api.exitCode !== null) return;
-  const exited = new Promise((r) => api.once('exit', r));
-  try {
-    process.kill(-api.pid, 'SIGTERM');
-  } catch {
+  const started: StartedApi | undefined = (globalThis as any).__LINKED_API__;
+  if (!started) return;
+  const { api, stop, killGroup } = started;
+  if (!api.pid || api.exitCode !== null || api.signalCode !== null) {
+    stop();
     return;
   }
-  const timer = setTimeout(() => {
-    try {
-      process.kill(-api.pid!, 'SIGKILL');
-    } catch {}
-  }, 5000);
+  const exited = new Promise((r) => api.once('exit', r));
+  stop();
+  const timer = setTimeout(() => killGroup('SIGKILL'), 5000);
   await exited;
   clearTimeout(timer);
 }

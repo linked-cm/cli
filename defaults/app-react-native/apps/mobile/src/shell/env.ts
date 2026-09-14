@@ -1,6 +1,8 @@
 // Resolves the API URL and exposes it to @_linked/server's BackendAPIStore, which reads process.env.SITE_ROOT and
-// DATA_ROOT at runtime. App.tsx imports this module first, before any Linked import.
+// DATA_ROOT at runtime. ./storage imports this module, so the variables are set before the store is constructed.
 import Constants from 'expo-constants';
+
+import { defaultApiPort } from './apiPort.json';
 
 export type ApiUrlInput = {
   // `unknown`: the dev-client manifest serializes `apiUrl: null` from app.config.ts as `{}`.
@@ -8,15 +10,13 @@ export type ApiUrlInput = {
   hostUri?: string | null;
 };
 
-const DEFAULT_API_PORT = 4000;
-
 /**
  * `extra.apiUrl` (EXPO_PUBLIC_API_URL) if it is a non-empty string; otherwise the dev machine's host from Expo's
  * `hostUri` (`192.168.1.5:8081`) with the API port; otherwise localhost.
  */
 export function resolveApiUrl({ extra, hostUri }: ApiUrlInput): string {
   if (typeof extra?.apiUrl === 'string' && extra.apiUrl) return extra.apiUrl;
-  const port = extra?.apiPort ?? DEFAULT_API_PORT;
+  const port = extra?.apiPort ?? defaultApiPort;
   const host = hostUri ? hostUri.split(':')[0] : '';
   return `http://${host || 'localhost'}:${port}`;
 }

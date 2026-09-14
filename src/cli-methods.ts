@@ -2143,6 +2143,12 @@ export const runMethod = async (
         .then(() => {
           console.log('Done');
           process.exit();
+        })
+        // An unmatched method (ServerCallError 501) or a provider error rejects; report it instead of an
+        // unhandled rejection.
+        .catch((err) => {
+          console.error(err?.message ?? err);
+          process.exit(1);
         });
     });
   } else {

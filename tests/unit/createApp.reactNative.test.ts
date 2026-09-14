@@ -231,11 +231,13 @@ describe('scaffoldReactNativeApp', () => {
       'apps/mobile/app.config.ts',
       'apps/mobile/src/shell/env.ts',
       'apps/mobile/src/shell/storage.ts',
+      'apps/mobile/src/shell/apiPort.json',
       'apps/mobile/src/components/PersonOverview.tsx',
       'apps/mobile/src/components/PersonPreview.tsx',
       'apps/mobile/src/components/PersonOverviewContext.tsx',
       'apps/mobile/__tests__/shapes.test.ts',
       'apps/mobile/__tests__/env.test.ts',
+      'apps/mobile/__tests__/storage.test.ts',
       'apps/mobile/__tests__/stripJsonImportAttributes.test.ts',
       'apps/mobile/babel.config.js',
       'apps/mobile/babel/stripJsonImportAttributes.js',
@@ -248,6 +250,7 @@ describe('scaffoldReactNativeApp', () => {
       'services/api/linked.backend.storage.ts',
       'services/api/linked.backend.datasets.json',
       'services/api/scripts/wait-for-fuseki.mjs',
+      'services/api/test/waitForFuseki.test.mjs',
       'services/api/.env.example',
       'docker-compose.yml',
       'eslint.config.js',
@@ -258,9 +261,36 @@ describe('scaffoldReactNativeApp', () => {
     expect(
       fs.existsSync(path.join(target, 'apps/mobile/src/shell/linkedDefaults.tsx')),
     ).toBe(false);
+    const appTsx = fs.readFileSync(path.join(target, 'apps/mobile/App.tsx'), 'utf8');
+    expect(appTsx).toContain("from 'demo-shapes'");
+
+    // Load order is enforced by imports: render defaults first in App.tsx; storage pulls env; linked components
+    // pull storage.
+    expect(appTsx.match(/^import .*$/m)?.[0]).toBe("import '@_linked/react/native';");
+    expect(appTsx).not.toContain("import './src/shell/storage'");
     expect(
-      fs.readFileSync(path.join(target, 'apps/mobile/App.tsx'), 'utf8'),
-    ).toContain("from 'demo-shapes'");
+      fs.readFileSync(path.join(target, 'apps/mobile/src/shell/storage.ts'), 'utf8'),
+    ).toContain("import './env';");
+    for (const component of ['PersonOverview', 'PersonPreview']) {
+      expect(
+        fs.readFileSync(path.join(target, `apps/mobile/src/components/${component}.tsx`), 'utf8'),
+      ).toContain("import '../shell/storage';");
+    }
+    expect(readJSON(path.join(target, 'apps/mobile/src/shell/apiPort.json'))).toEqual({defaultApiPort: 4000});
+
+    // Uploads land in services/api/data/, which is ignored; no NODE_ENV-files directory any more.
+    const rootIgnore = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
+    expect(rootIgnore).toContain('services/api/data/');
+    expect(rootIgnore).not.toContain('-files/');
+
+    // The integration setup refuses a foreign Fuseki before it resets anything.
+    const globalSetup = fs.readFileSync(
+      path.join(target, 'apps/mobile/__tests__/integration/globalSetup.ts'),
+      'utf8',
+    );
+    expect(globalSetup).toContain("['compose', 'port', 'fuseki', '3030']");
+    expect(globalSetup).toContain('delete env.AWS_REGION');
+    expect(globalSetup).toContain('INTEGRATION_API_BIN');
 
     const shapes = readJSON(path.join(target, 'packages/demo-shapes/package.json'));
     expect(shapes.linkedPackage).toBe(true);

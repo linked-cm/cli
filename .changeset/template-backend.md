@@ -14,5 +14,9 @@
 - The shapes package sets `"linked": {"extensionlessImports": true}`, so `linked build` emits Node-loadable `lib/esm`.
 - With `linked.extensionlessImports`, `linked build` fails when `lib/esm` was not emitted (no `tsconfig-esm.json`), finishes "with warnings" listing every relative specifier it could not resolve, and handles `'.'`, `'..'` and `'./dir/'`. `linked build` now exits non-zero when the build fails.
 - README: documents `linked start --api-only` / `server.apiOnly`, the `extensionlessImports` flag, and the react-native template as it is now.
+- Integration tests only reset a Fuseki that is this repo's Compose `fuseki` on localhost (`docker compose port fuseki 3030`) with a `-test` dataset. They read `services/api/.env` (the shell wins), pass every `FUSEKI_*` variable to the API explicitly, blank the S3 variables (removing `AWS_REGION`, which `@_linked/s3` rejects when empty), and kill the API's process group on timeout, early exit, SIGINT, SIGTERM and exit. `INTEGRATION_API_BIN` and `INTEGRATION_API_TIMEOUT_MS` exist for testing that cleanup.
+- Load order is enforced by imports: `storage.ts` imports `env.ts`, and the example linked components import `storage.ts`. The default API port is shared from `apps/mobile/src/shell/apiPort.json`.
+- `wait-for-fuseki.mjs` honours `WAIT_FOR_FUSEKI_TIMEOUT_MS`. New tests: `storage.test.ts` (load order) and `waitForFuseki.test.mjs`. Local uploads go to `services/api/data/uploads/`, which is gitignored.
+- `linked call` (a direct `callBackendMethod`) now prints the error and exits 1 when the method is unmatched or fails, instead of an unhandled rejection.
 - The Fuseki dataset names (`<prefix>-dev`, `<prefix>-test`) are stamped from the app prefix.
 - Shipped dotfiles are restored at any depth, and `env.example.template` becomes `.env.example`.

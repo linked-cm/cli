@@ -1,20 +1,16 @@
 // The example PersonOverview screen with the real BackendAPIStore and real fetch, against the API started by
 // globalSetup on the reset app-test dataset: list 0, add (1), edit (the name changes and persists), delete (0).
+import '@_linked/react/native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
+import { PersonOverview } from '../../src/components/PersonOverview';
 import { API_URL } from './apiEnv';
 
-// env.ts resolves the API URL from Expo's config; point it at the test API.
+// env.ts resolves the API URL from Expo's config; point it at the test API. (jest.mock is hoisted above imports.)
 jest.mock('expo-constants', () => ({
   __esModule: true,
   default: { expoConfig: { extra: { apiUrl: 'http://localhost:4100', apiPort: 4000 } } },
 }));
-
-// Same order as App.tsx: env, render defaults, storage, then the components.
-require('../../src/shell/env');
-require('@_linked/react/native');
-require('../../src/shell/storage');
-const { PersonOverview } = require('../../src/components/PersonOverview');
 
 const WAIT = { timeout: 10000 };
 

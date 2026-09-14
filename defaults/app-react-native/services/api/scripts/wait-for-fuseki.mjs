@@ -1,5 +1,6 @@
 // Fails fast when Fuseki is down, instead of letting the API or the integration tests time out.
 // Reads FUSEKI_BASE_URL from the environment, then from services/api/.env, then defaults to localhost:3030.
+// WAIT_FOR_FUSEKI_TIMEOUT_MS overrides the 5 s wait (the tests use a short one).
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +10,7 @@ if (!process.env.FUSEKI_BASE_URL && existsSync(envFile)) process.loadEnvFile(env
 
 const baseUrl = (process.env.FUSEKI_BASE_URL || 'http://localhost:3030').replace(/\/$/, '');
 const pingUrl = `${baseUrl}/$/ping`;
-const deadline = Date.now() + 5000;
+const deadline = Date.now() + (Number(process.env.WAIT_FOR_FUSEKI_TIMEOUT_MS) || 5000);
 
 while (Date.now() < deadline) {
   try {

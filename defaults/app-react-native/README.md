@@ -76,13 +76,13 @@ cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export
 - **Render defaults.** `@_linked/react`'s root loader and error elements are `<svg>`, which crash on React
   Native. Importing `@_linked/react/native` installs React Native defaults; `__tests__/nativeDefaults.test.tsx`
   guards it.
-- **API URL.** `app.config.ts` passes `EXPO_PUBLIC_API_URL` (if set) and the API port to `src/shell/env.ts`,
+- **API URL.** `app.config.ts` passes `EXPO_PUBLIC_API_URL` (if set) and the API port (`defaultApiPort` in
+  `src/shell/apiPort.json`, shared with `env.ts`) to `src/shell/env.ts`,
   which falls back to the dev machine's host from Expo's `hostUri`, then `localhost`, and sets
   `process.env.SITE_ROOT` and `DATA_ROOT` for `BackendAPIStore`. The app identity (name, slug, bundle id) stays in
   `app.json`.
-- **Import order** in `App.tsx`: `./src/shell/env`, `@_linked/react/native`, `./src/shell/storage`, then shapes
-  and linked components. `BackendAPIStore` reads `SITE_ROOT` once, and linked components check storage when their
-  module loads.
+- **Load order is enforced by imports:** `App.tsx` imports `@_linked/react/native` first, and every module that
+  needs the API store imports `src/shell/storage`, which imports `src/shell/env`.
 - **`@_linked/server` by subpath only** in `apps/mobile` (for example
   `@_linked/server/shapes/quadstores/BackendAPIStore`): the root barrel pulls express, webpack and react-dom.
   ESLint `no-restricted-imports` enforces it.
@@ -90,7 +90,7 @@ cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export
   map `.js` specifiers to `.ts` source. `"linked": {"extensionlessImports": true}` in its `package.json` makes
   `linked build` skip the import check and add `.js` to the emitted `lib/esm` specifiers. The app, Jest and the
   API in development consume `src/` through the `react-native` and `development` export conditions.
-- **Decorators** work with the stock `babel-preset-expo`.
-- **JSON import attributes.** Metro rejects `import('x.json', { with: { type: 'json' } })`, which Linked ontology
-  packages use. `apps/mobile/babel.config.js` registers `babel/stripJsonImportAttributes.js`, which drops the
-  options argument for static `.json` specifiers; `__tests__/stripJsonImportAttributes.test.ts` covers it.
+- **Decorators** work with the stock `babel-preset-expo`. The one custom Babel plugin,
+  `apps/mobile/babel/stripJsonImportAttributes.js`, strips `with { type: 'json' }` from dynamic `import()`, which
+  Metro rejects and Linked ontology packages use; `__tests__/stripJsonImportAttributes.test.ts` covers it. After
+  editing `babel.config.js` or the plugin, restart with `npx expo start --clear`.

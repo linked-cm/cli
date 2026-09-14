@@ -4,9 +4,10 @@
 // After Person.create the form calls _refresh() to re-run the list query.
 // A React Native port of the web app-template's example (linked-cm/app-template).
 //
-// `linkedSetComponent` checks LinkedStorage when this module loads, so App.tsx imports
-// ./shell/env, @_linked/react/native and ./shell/storage before it.
+// `linkedSetComponent` checks LinkedStorage when this module loads, so storage is imported first.
 // Replace or extend this with your own shapes (see https://linked.cm).
+import '../shell/storage';
+
 import React, { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { linkedSetComponent } from '@_linked/react';
