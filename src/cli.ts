@@ -75,7 +75,7 @@ program
 program
   .command('start')
   .action(async (options) => {
-    // Plan-010 iter1: Vite is the default. The pre-Vite webpack path
+    // Vite is the default. The pre-Vite webpack path
     // lives in cli-methods startServer for now as `--legacy` escape
     // hatch during the migration window (Phase 7 deletes it).
     if (options?.legacy) {
@@ -253,8 +253,11 @@ program
 
 program
   .command('build [target] [target2]', {isDefault: true})
-  .action((target, target2, options) => {
-    buildPackage(target, target2, process.cwd(), !options?.silent);
+  .action(async (target, target2, options) => {
+    const result = await buildPackage(target, target2, process.cwd(), !options?.silent);
+    if (result !== true) {
+      process.exitCode = 1;
+    }
   })
   .option('--silent', 'No output to console unless errors occur');
 
@@ -273,7 +276,7 @@ program.command('build-metadata').action(() => {
 program
   .command('build-app')
   .action(async (options) => {
-    // Plan-010 iter1 gap B: if vite.config.{ts,js,mjs} exists in cwd,
+    // If vite.config.{ts,js,mjs} exists in cwd,
     // run `vite build` for the client bundle. Falls back to webpack
     // buildApp() when no Vite config (legacy apps).
     const fs = await import('fs');

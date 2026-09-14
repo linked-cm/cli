@@ -1,4 +1,4 @@
-# Local Fuseki for services/api. Same pinned image as @_linked/core and CI.
+# Local Fuseki for services/api. Same pinned image as @_linked/core.
 # `npm run fuseki:up` starts it and waits for the healthcheck; `npm run fuseki:down` stops it (data persists).
 services:
   fuseki:

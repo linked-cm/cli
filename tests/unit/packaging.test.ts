@@ -1,6 +1,6 @@
 // Guards the CLI tarball against nested ignore files under defaults/. npm
 // honours a nested .npmignore (and strips .gitignore) when packing the CLI, which
-// silently dropped defaults/package/src from the published package (D15a).
+// silently dropped defaults/package/src from the published package.
 import fs from 'fs';
 import os from 'os';
 import path from 'path';

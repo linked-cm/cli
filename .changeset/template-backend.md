@@ -12,5 +12,7 @@
 - `apps/mobile` imports `@_linked/react/native` (1.5.0) instead of its own render defaults, resolves the API URL in `app.config.ts` and `src/shell/env.ts`, and sends queries to the API through `BackendAPIStore`. The root `overrides` entry is gone.
 - An example add/edit/delete screen (`PersonOverview`, `PersonPreview`), ported from the web app-template to React Native with `@_linked/schema`'s `Person`, with a Jest integration test against the running API and Fuseki.
 - The shapes package sets `"linked": {"extensionlessImports": true}`, so `linked build` emits Node-loadable `lib/esm`.
+- With `linked.extensionlessImports`, `linked build` fails when `lib/esm` was not emitted (no `tsconfig-esm.json`), finishes "with warnings" listing every relative specifier it could not resolve, and handles `'.'`, `'..'` and `'./dir/'`. `linked build` now exits non-zero when the build fails.
+- README: documents `linked start --api-only` / `server.apiOnly`, the `extensionlessImports` flag, and the react-native template as it is now.
 - The Fuseki dataset names (`<prefix>-dev`, `<prefix>-test`) are stamped from the app prefix.
 - Shipped dotfiles are restored at any depth, and `env.example.template` becomes `.env.example`.

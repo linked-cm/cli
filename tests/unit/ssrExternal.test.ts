@@ -93,7 +93,7 @@ describe('ssr.noExternal', () => {
     fs.symlinkSync(target, at, 'dir');
   };
 
-  it('formae layout: published core, so fuseki stays external', async () => {
+  it('published-core layout: published core, so fuseki stays external', async () => {
     writeJson(path.join(tmp, 'package.json'), {name: 'root', workspaces: ['packages/*', 'services/*']});
     const shapes = path.join(tmp, 'packages', 'shapes');
     sourcePkg(shapes, {name: 'shapes', linkedPackage: true, dependencies: {'@_linked/core': '1'}});

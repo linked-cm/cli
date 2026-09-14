@@ -49,7 +49,7 @@ let dirname__ =
  * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
  * app clones keep booting through the rename.
  */
-// Plan-011: extracted to ./lifecycle.ts so the Vite SSR loader doesn't
+// Extracted to ./lifecycle.ts so the Vite SSR loader doesn't
 // have to graph-walk the rest of cli-methods.ts (which contains many
 // dynamic imports Vite can't analyze). We import for internal callers
 // AND re-export so external consumers can keep importing from here.
@@ -299,7 +299,7 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
 
 /**
  * iOS bundle identifier from the app domain and prefix:
- * ('formaestudios.com', 'formae') -> 'com.formaestudios.formae'.
+ * ('example.com', 'demo') -> 'com.example.demo'.
  */
 export function reactNativeBundleId(
   appDomain: string,
@@ -1561,7 +1561,7 @@ export const addShapeToBarrel = function (shapeHyphenName: string, root: string 
   return barrelPath;
 };
 
-// Exported for Shape-Builder reuse (plan-010 T1d.4): CodeShapeSyncService adds
+// Exported for Shape-Builder reuse: CodeShapeSyncService adds
 // the `import './shapes/<Shape>.js';` line to a generated app package's index.
 export const addLineToIndex = function (
   line,
@@ -1772,7 +1772,7 @@ export const createShape = async (name, basePath = process.cwd()) => {
 
   // Register the shape in the shapes barrel (src/shapes/index.ts) — NOT the main index —
   // and make sure the barrel is loaded on both boot paths. This is what makes the app
-  // materialize its own shapes on boot (plan-027 / plan-028 handover).
+  // materialize its own shapes on boot.
   const barrelPath = addShapeToBarrel(hyphenName);
   log(`Registered the shape in ${chalk.magenta(barrelPath.replace(basePath, ''))}`);
 };
@@ -1872,7 +1872,7 @@ export const checkImports = async (
   for (const file of dir) {
     const filename = path.join(sourceFolder, file);
 
-    // plan-011 §P7 — skip test sources. Test files (and their helpers/probes)
+    // Skip test sources. Test files (and their helpers/probes)
     // are not part of the shipped ESM contract, so the missing-extension rule
     // isn't load-bearing for them; enforcing it only blocks `linked build`
     // (the real ESM-output gate stays in force for shipped source). This is
@@ -2873,6 +2873,7 @@ export const buildPackage = async (
     }).start();
   }
   let buildProcess: Promise<boolean | string | void> = Promise.resolve(true);
+  let warned = false;
   let buildStep = (step) => {
     buildProcess = buildProcess.then((previousResult) => {
       if (!previousResult) {
@@ -2886,10 +2887,12 @@ export const buildPackage = async (
         //if a build step returns a string,
         //a warning is shown but the build is still successful with warnings
         if (typeof stepResult === 'string') {
-          // spinner.text = step.name + ' - ' + stepResult;
+          warned = true;
           if (logResults) {
             spinner.warn(step.name + ' - ' + stepResult);
             spinner.stop();
+          } else {
+            console.warn(chalk.yellow(step.name + ' - ' + stepResult));
           }
           //can still continue
           return true;
@@ -2902,6 +2905,8 @@ export const buildPackage = async (
           if (logResults) {
             spinner.fail(step.name + ' - ' + stepResult.error);
             spinner.stop();
+          } else {
+            console.error(chalk.red(step.name + ' - ' + stepResult.error));
           }
           //failed and should stop
           return false;
@@ -2942,7 +2947,7 @@ export const buildPackage = async (
       spinner.stopAndPersist({
         symbol: chalk.greenBright('✔'),
         text:
-          success === true
+          success === true && !warned
             ? 'Build successful'
             : 'Build successful with warnings',
       });
@@ -2987,8 +2992,15 @@ export const planBuildSteps = (pkgJson, packagePath: string): BuildStep[] => {
       name: 'Rewriting ESM import specifiers',
       apply: async () => {
         const libEsm = path.join(packagePath, 'lib', 'esm');
-        if (fs.existsSync(libEsm)) {
-          await rewriteExtensionlessImports(libEsm);
+        if (!fs.existsSync(libEsm)) {
+          return {
+            error:
+              "lib/esm was not emitted. 'linked.extensionlessImports' needs an ESM build: add tsconfig-esm.json to the package.",
+          };
+        }
+        const {unresolved} = await rewriteExtensionlessImports(libEsm);
+        if (unresolved.length > 0) {
+          return `could not resolve ${unresolved.length} import(s), left unchanged: ${unresolved.join(', ')}`;
         }
         return true;
       },
