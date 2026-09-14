@@ -4,10 +4,12 @@ import path from 'path';
 const SHIPPED_DOTFILES: Record<string, string> = {
   'gitignore.template': '.gitignore',
   'npmignore.template': '.npmignore',
+  'env.example.template': '.env.example',
 };
 
 // npm strips .gitignore files and honours nested .npmignore files when packing
-// the CLI, so templates ship them under neutral names and scaffolding restores them.
+// the CLI, so templates ship dotfiles under neutral names and scaffolding
+// restores them, at any depth.
 export function renameShippedDotfiles(folder: string): void {
   for (const entry of fs.readdirSync(folder, {withFileTypes: true})) {
     const full = path.join(folder, entry.name);

@@ -1,12 +1,10 @@
-// Asserts the cause of the React Native crash in @_linked/react's default loader and error
-// elements: they render DOM host elements (<svg>), which have no native view config.
-// Removing the import below must make both tests fail with Received: ["svg", ...].
-import '../src/shell/linkedDefaults';
-
+// Asserts the cause of the React Native crash in @_linked/react's root loader and error elements: they render
+// DOM host elements (<svg>), which have no native view config. @_linked/react/native replaces them on import;
+// importing linkedComponent from the root barrel instead must make both tests fail with Received: ["svg", ...].
 import { act, render, screen } from '@testing-library/react-native';
 import { LinkedStorage } from '@_linked/core/utils/LinkedStorage';
 import { setQueryDispatch } from '@_linked/core/queries/queryDispatch';
-import { linkedComponent } from '@_linked/react';
+import { linkedComponent } from '@_linked/react/native';
 import { Text } from 'react-native';
 import { Example } from 'app-shapes';
 
@@ -44,7 +42,7 @@ function lowercaseHostTypes(tree: Node | Node[] | null): string[] {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-describe('Linked render defaults on React Native', () => {
+describe('@_linked/react/native render defaults', () => {
   test('a loading component renders only React Native elements', async () => {
     mode = 'loading';
     await render(<ExampleLabel of={{ id: 'urn:example:1' }} />);

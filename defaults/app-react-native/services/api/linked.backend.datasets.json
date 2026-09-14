@@ -1,0 +1,15 @@
+{
+  "datasets": {
+    "appData": {
+      "store": "@_linked/fuseki/shapes/FusekiStore",
+      "config": {
+        "endpoint": "${FUSEKI_BASE_URL:-http://localhost:3030}/${FUSEKI_DATASET:-app-dev}",
+        "credentials": {
+          "type": "basic",
+          "username": "${FUSEKI_USER:-admin}",
+          "password": "${FUSEKI_PASSWORD:-admin}"
+        }
+      }
+    }
+  }
+}

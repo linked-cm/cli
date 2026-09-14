@@ -49,7 +49,7 @@ let dirname__ =
  * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
  * app clones keep booting through the rename.
  */
-// Plan-011: extracted to ./lifecycle.ts so the Vite SSR loader doesn't
+// Extracted to ./lifecycle.ts so the Vite SSR loader doesn't
 // have to graph-walk the rest of cli-methods.ts (which contains many
 // dynamic imports Vite can't analyze). We import for internal callers
 // AND re-export so external consumers can keep importing from here.
@@ -299,7 +299,7 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
 
 /**
  * iOS bundle identifier from the app domain and prefix:
- * ('formaestudios.com', 'formae') -> 'com.formaestudios.formae'.
+ * ('example.com', 'demo') -> 'com.example.demo'.
  */
 export function reactNativeBundleId(
   appDomain: string,
@@ -344,6 +344,18 @@ function assertReactNativeScaffoldable(targetFolder: string, appPrefix: string) 
 
 /** Placeholder name of the shapes package in defaults/app-react-native. */
 export const RN_SHAPES_TOKEN = 'app-shapes';
+
+/**
+ * Literal tokens in defaults/app-react-native that are replaced by names
+ * derived from the app prefix: the shapes package and the Fuseki datasets.
+ */
+export function reactNativeTokens(appPrefix: string): Record<string, string> {
+  return {
+    [RN_SHAPES_TOKEN]: `${appPrefix}-shapes`,
+    'app-dev': `${appPrefix}-dev`,
+    'app-test': `${appPrefix}-test`,
+  };
+}
 
 /**
  * Replace every occurrence of `token` in the text files under `folder`
@@ -416,8 +428,11 @@ export async function scaffoldReactNativeApp(
 
   // 4a. Rename the shapes package token everywhere: workspaces, .gitignore
   // negation, package names, dependency keys, Jest patterns, import specifiers,
-  // test expectations and docs. Only the literal `app-shapes` token is replaced.
-  replaceTokenInTextFiles(targetFolder, RN_SHAPES_TOKEN, shapesName);
+  // test expectations and docs. The Fuseki dataset tokens (`app-dev`,
+  // `app-test`) are replaced the same way. Only these literal tokens change.
+  for (const [token, value] of Object.entries(reactNativeTokens(appPrefix))) {
+    replaceTokenInTextFiles(targetFolder, token, value);
+  }
 
   // 4b. Stamp the identity fields that are not the shapes token.
   const rootPkgPath = path.join(targetFolder, 'package.json');
@@ -470,8 +485,13 @@ export async function scaffoldReactNativeApp(
     `Your Linked React Native app is ready at ${chalk.blueBright(targetFolder)}`,
     `\nNext steps:`,
     `  ${chalk.blueBright(`cd ${path.basename(targetFolder)}`)}`,
-    `  ${chalk.blueBright('npm test -w apps/mobile')}`,
+    `  ${chalk.blueBright('npm test')}                                        app and API unit tests`,
+    `  ${chalk.blueBright('cp services/api/.env.example services/api/.env')}  once`,
+    `  ${chalk.blueBright('npm run fuseki:up')}                               Fuseki on :3030 (Docker)`,
+    `  ${chalk.blueBright('npm run api')}                                     API-only backend on :4000`,
+    `  ${chalk.blueBright('npm run test:integration')}                        round trip against Fuseki`,
     `  ${chalk.blueBright('cd apps/mobile && npx expo run:ios')}`,
+    `See README.md (and services/api/README.md if port 3030 is taken).`,
   );
 }
 
@@ -1541,7 +1561,7 @@ export const addShapeToBarrel = function (shapeHyphenName: string, root: string 
   return barrelPath;
 };
 
-// Exported for Shape-Builder reuse (plan-010 T1d.4): CodeShapeSyncService adds
+// Exported for Shape-Builder reuse: CodeShapeSyncService adds
 // the `import './shapes/<Shape>.js';` line to a generated app package's index.
 export const addLineToIndex = function (
   line,
@@ -1752,7 +1772,7 @@ export const createShape = async (name, basePath = process.cwd()) => {
 
   // Register the shape in the shapes barrel (src/shapes/index.ts) — NOT the main index —
   // and make sure the barrel is loaded on both boot paths. This is what makes the app
-  // materialize its own shapes on boot (plan-027 / plan-028 handover).
+  // materialize its own shapes on boot.
   const barrelPath = addShapeToBarrel(hyphenName);
   log(`Registered the shape in ${chalk.magenta(barrelPath.replace(basePath, ''))}`);
 };
@@ -1852,7 +1872,7 @@ export const checkImports = async (
   for (const file of dir) {
     const filename = path.join(sourceFolder, file);
 
-    // plan-011 §P7 — skip test sources. Test files (and their helpers/probes)
+    // Skip test sources. Test files (and their helpers/probes)
     // are not part of the shipped ESM contract, so the missing-extension rule
     // isn't load-bearing for them; enforcing it only blocks `linked build`
     // (the real ESM-output gate stays in force for shipped source). This is
@@ -2123,6 +2143,12 @@ export const runMethod = async (
         .then(() => {
           console.log('Done');
           process.exit();
+        })
+        // An unmatched method (ServerCallError 501) or a provider error rejects; report it instead of an
+        // unhandled rejection.
+        .catch((err) => {
+          console.error(err?.message ?? err);
+          process.exit(1);
         });
     });
   } else {
@@ -2853,6 +2879,7 @@ export const buildPackage = async (
     }).start();
   }
   let buildProcess: Promise<boolean | string | void> = Promise.resolve(true);
+  let warned = false;
   let buildStep = (step) => {
     buildProcess = buildProcess.then((previousResult) => {
       if (!previousResult) {
@@ -2866,10 +2893,12 @@ export const buildPackage = async (
         //if a build step returns a string,
         //a warning is shown but the build is still successful with warnings
         if (typeof stepResult === 'string') {
-          // spinner.text = step.name + ' - ' + stepResult;
+          warned = true;
           if (logResults) {
             spinner.warn(step.name + ' - ' + stepResult);
             spinner.stop();
+          } else {
+            console.warn(chalk.yellow(step.name + ' - ' + stepResult));
           }
           //can still continue
           return true;
@@ -2882,6 +2911,8 @@ export const buildPackage = async (
           if (logResults) {
             spinner.fail(step.name + ' - ' + stepResult.error);
             spinner.stop();
+          } else {
+            console.error(chalk.red(step.name + ' - ' + stepResult.error));
           }
           //failed and should stop
           return false;
@@ -2922,7 +2953,7 @@ export const buildPackage = async (
       spinner.stopAndPersist({
         symbol: chalk.greenBright('✔'),
         text:
-          success === true
+          success === true && !warned
             ? 'Build successful'
             : 'Build successful with warnings',
       });
@@ -2967,8 +2998,15 @@ export const planBuildSteps = (pkgJson, packagePath: string): BuildStep[] => {
       name: 'Rewriting ESM import specifiers',
       apply: async () => {
         const libEsm = path.join(packagePath, 'lib', 'esm');
-        if (fs.existsSync(libEsm)) {
-          await rewriteExtensionlessImports(libEsm);
+        if (!fs.existsSync(libEsm)) {
+          return {
+            error:
+              "lib/esm was not emitted. 'linked.extensionlessImports' needs an ESM build: add tsconfig-esm.json to the package.",
+          };
+        }
+        const {unresolved} = await rewriteExtensionlessImports(libEsm);
+        if (unresolved.length > 0) {
+          return `could not resolve ${unresolved.length} import(s), left unchanged: ${unresolved.join(', ')}`;
         }
         return true;
       },

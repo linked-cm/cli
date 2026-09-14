@@ -7,7 +7,10 @@ import ts from 'typescript';
 const RESOLVED_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.json']);
 
 const isRelative = (spec: string) =>
-  spec.startsWith('./') || spec.startsWith('../');
+  spec === '.' ||
+  spec === '..' ||
+  spec.startsWith('./') ||
+  spec.startsWith('../');
 
 const isFile = (file: string) => {
   try {
@@ -23,12 +26,15 @@ const resolveSpecifier = (spec: string, fromDir: string): string | null => {
   if (!isRelative(spec) || RESOLVED_EXTENSIONS.has(path.extname(spec))) {
     return spec;
   }
-  const target = path.resolve(fromDir, spec);
-  if (isFile(target + '.js')) {
-    return spec + '.js';
+  // './dir/' -> './dir'; '.' and '..' name a directory, never '<spec>.js'.
+  const base = spec.replace(/\/+$/, '');
+  const target = path.resolve(fromDir, base);
+  const namesDirectory = /(^|\/)\.\.?$/.test(base);
+  if (!namesDirectory && isFile(target + '.js')) {
+    return base + '.js';
   }
   if (isFile(path.join(target, 'index.js'))) {
-    return spec.replace(/\/$/, '') + '/index.js';
+    return base + '/index.js';
   }
   // Another existing file (e.g. './styles.css') is left as written.
   return isFile(target) ? spec : null;
@@ -59,12 +65,20 @@ const collectSpecifiers = (source: ts.SourceFile): ts.StringLiteral[] => {
   return found;
 };
 
-/** Appends `.js` (or `/index.js`) to extensionless relative specifiers in emitted ESM. Returns files changed. */
+export type RewriteResult = {
+  /** Number of files rewritten. */
+  changed: number;
+  /** Specifiers left as written because no file matched, as `'<spec>' in <file>`. */
+  unresolved: string[];
+};
+
+/** Appends `.js` (or `/index.js`) to extensionless relative specifiers in emitted ESM. */
 export async function rewriteExtensionlessImports(
   libEsmDir: string,
-): Promise<number> {
-  const files = await glob('**/*.js', {cwd: libEsmDir, absolute: true});
+): Promise<RewriteResult> {
+  const files = (await glob('**/*.js', {cwd: libEsmDir, absolute: true})).sort();
   let changed = 0;
+  const unresolved: string[] = [];
   for (const file of files) {
     const text = await fs.readFile(file, 'utf8');
     const source = ts.createSourceFile(
@@ -77,13 +91,12 @@ export async function rewriteExtensionlessImports(
     let output = text;
     // Apply edits back to front so earlier offsets stay valid.
     const literals = collectSpecifiers(source).reverse();
+    const fileUnresolved: string[] = [];
     for (const literal of literals) {
       const spec = literal.text;
       const rewritten = resolveSpecifier(spec, path.dirname(file));
       if (rewritten === null) {
-        console.warn(
-          `Could not resolve import '${spec}' in ${path.relative(libEsmDir, file)}; left unchanged`,
-        );
+        fileUnresolved.unshift(`'${spec}' in ${path.relative(libEsmDir, file)}`);
         continue;
       }
       if (rewritten !== spec) {
@@ -97,6 +110,7 @@ export async function rewriteExtensionlessImports(
       await fs.writeFile(file, output);
       changed++;
     }
+    unresolved.push(...fileUnresolved);
   }
-  return changed;
+  return {changed, unresolved};
 }

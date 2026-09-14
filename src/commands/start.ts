@@ -112,7 +112,7 @@ export function configureLinkedServer(
     return await vite.ssrLoadModule('/src/routes.tsx');
   };
 
-  // Vite SSR CSS collection support (plan-010 iter1 gap A):
+  // Vite SSR CSS collection support:
   // List all `src/pages/*.{ts,tsx}` files so LinkedServer can ssrLoadModule
   // each into Vite's moduleGraph BEFORE the first render of a session.
   // React.lazy() doesn't auto-fire — without this, only App's eager
@@ -140,7 +140,7 @@ interface WorkspacePackage {
 }
 
 /**
- * Plan-011 phase 3b — discover workspace packages from the app's
+ * Discover workspace packages from the app's
  * `package.json` `workspaces` field. No hand-maintained list anywhere;
  * adding a new linked package = appearing in the right glob.
  *
@@ -312,12 +312,12 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   const vite = await createViteServer(await resolveViteServerConfig(cwd, apiOnly));
   configureLinkedServer(linkedConfig.server, vite, cwd, apiOnly);
 
-  // plan-011 §P5 (2A) — load the storage config through Vite SSR so it
+  // Load the storage config through Vite SSR so it
   // configures the SAME LinkedStorage instance the rest of the SSR graph
   // (LinkedServer, CN providers) uses. Replaces the former Node-direct
   // `loadBackendStorageConfig()` (which resolved @_linked/core via the
   // `default`→lib condition, a SEPARATE instance). Safe now that core's lib
-  // `initTree` is idempotent (§P1). `loadBackendStorageConfig` stays in
+  // `initTree` is idempotent. `loadBackendStorageConfig` stays in
   // lifecycle.ts for the Node-only CLI commands (`script`/`call`) that have no
   // Vite server (contract C5).
   for (const rel of ['/linked.backend.storage.ts', '/linked.backend.storage.js']) {
@@ -327,7 +327,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     }
   }
 
-  // Plan-011 — load LinkedServer through Vite SSR so it shares the SAME
+  // Load LinkedServer through Vite SSR so it shares the SAME
   // module instances as everything else in the SSR call graph. Without
   // this, LinkedServer is loaded by Node (→ lib/esm) while CN's App.tsx +
   // its transitive imports are loaded by Vite (→ src/). React contexts
@@ -354,7 +354,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
 
   await server.start();
 
-  // Plan-011 phase 3b — watcher → onSourceChange wiring.
+  // Watcher → onSourceChange wiring.
   //
   // Discover workspace packages once at boot. On each change, look up
   // which workspace package the file belongs to and call onSourceChange
@@ -381,7 +381,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
       });
   });
 
-  // Plan-011 phase 3c — r/o keyboard shortcuts.
+  // r/o keyboard shortcuts.
   const port = (linkedConfig.server as any).port ?? opts.port ?? 4040;
   installShortcuts({
     url: `http://localhost:${port}/`,

@@ -454,7 +454,7 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         sourcemap: true,
       },
       plugins: [
-        // Plan-011 phase 3a — Direct workspace specifier resolver.
+        // Direct workspace specifier resolver.
         //
         // The package.json `"./*": { "development": "./src/*.ts" }` wildcard
         // can't express "try .ts, fall back to .tsx" (Node's exports spec
@@ -523,8 +523,8 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
           },
         }),
         // Dev-only: log every file the watcher sees change. Without this,
-        // backend edits look silent (no JS rebuild step, no Node restart —
-        // see plan-010 §"Rebuild chain") and it's hard to tell whether
+        // backend edits look silent (no JS rebuild step, no Node restart)
+        // and it's hard to tell whether
         // Vite picked up the change at all.
         isDev
           ? ({
@@ -589,15 +589,15 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
             },
           }
         : {}),
-      // Plan-011 phase 3a — `ssr.external` is now a minimal allowlist of
+      // `ssr.external` is a minimal allowlist of
       // npm deps that genuinely can't (or shouldn't) go through Vite's
       // SSR transform. Workspace packages (`@_linked/*`, `lincd-*`) are
       // DELIBERATELY removed so Vite resolves them via each package's
       // `development → ./src/*.ts` conditional export and HMR works on
-      // source changes (see plan-011 §I1).
+      // source changes.
       //
       // "Multiple LINCD" warnings may resurface during the interim until
-      // LINCD eradication completes (plan-011 §I2 — accepted).
+      // LINCD eradication completes (accepted).
       ssr: {
         // NOTE: Vite's `ssr.external` only accepts exact package-name strings
         // (not regex). Standalone `@_linked/*` / `lincd-*` are NOT force-listed

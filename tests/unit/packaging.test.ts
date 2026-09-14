@@ -1,6 +1,6 @@
 // Guards the CLI tarball against nested ignore files under defaults/. npm
 // honours a nested .npmignore (and strips .gitignore) when packing the CLI, which
-// silently dropped defaults/package/src from the published package (D15a).
+// silently dropped defaults/package/src from the published package.
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -17,6 +17,37 @@ describe('packaging', () => {
       ignore: '**/node_modules/**',
     });
     expect(found).toEqual([]);
+  });
+
+  test('react-native template ships no dotfiles or dot-directories', async () => {
+    const found = await glob('defaults/app-react-native/**/.*', {
+      cwd: repoRoot,
+      dot: true,
+      ignore: '**/node_modules/**',
+    });
+    expect(found).toEqual([]);
+  });
+
+  test('renames nested dotfiles', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'linked-cli-dotfiles-'));
+    try {
+      fs.mkdirSync(path.join(tmp, 'services', 'api'), {recursive: true});
+      fs.writeFileSync(path.join(tmp, 'services', 'api', 'env.example.template'), 'PORT=4000\n');
+      fs.writeFileSync(path.join(tmp, 'services', 'gitignore.template'), 'lib/\n');
+      fs.mkdirSync(path.join(tmp, 'node_modules', 'x'), {recursive: true});
+      fs.writeFileSync(path.join(tmp, 'node_modules', 'x', 'gitignore.template'), '');
+
+      renameShippedDotfiles(tmp);
+
+      expect(fs.readFileSync(path.join(tmp, 'services', 'api', '.env.example'), 'utf8')).toBe(
+        'PORT=4000\n',
+      );
+      expect(fs.existsSync(path.join(tmp, 'services', '.gitignore'))).toBe(true);
+      // node_modules is never touched.
+      expect(fs.existsSync(path.join(tmp, 'node_modules', 'x', 'gitignore.template'))).toBe(true);
+    } finally {
+      fs.rmSync(tmp, {recursive: true, force: true});
+    }
   });
 
   test('createPackage renames npmignore.template', () => {
