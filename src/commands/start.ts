@@ -125,7 +125,13 @@ export function configureLinkedServer(
     const files = fsExtra.readdirSync(pagesDir, {withFileTypes: true});
     const paths: string[] = [];
     for (const file of files) {
-      if (file.isFile() && /\.(tsx|ts)$/.test(file.name)) {
+      // Test files live beside pages but call vi.mock() at module scope,
+      // which throws outside Vitest — never load them into the SSR graph.
+      if (
+        file.isFile() &&
+        /\.(tsx|ts)$/.test(file.name) &&
+        !/\.(test|spec)\.(tsx|ts)$/.test(file.name)
+      ) {
         paths.push(`/src/pages/${file.name}`);
       }
     }
