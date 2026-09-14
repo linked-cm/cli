@@ -28,11 +28,9 @@ describe('packaging', () => {
     expect(found).toEqual([]);
   });
 
-  test('renames nested dotfiles and dot-directories', () => {
+  test('renames nested dotfiles', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'linked-cli-dotfiles-'));
     try {
-      fs.mkdirSync(path.join(tmp, 'github.template', 'workflows'), {recursive: true});
-      fs.writeFileSync(path.join(tmp, 'github.template', 'workflows', 'ci.yml'), 'name: CI\n');
       fs.mkdirSync(path.join(tmp, 'services', 'api'), {recursive: true});
       fs.writeFileSync(path.join(tmp, 'services', 'api', 'env.example.template'), 'PORT=4000\n');
       fs.writeFileSync(path.join(tmp, 'services', 'gitignore.template'), 'lib/\n');
@@ -41,10 +39,6 @@ describe('packaging', () => {
 
       renameShippedDotfiles(tmp);
 
-      expect(fs.readFileSync(path.join(tmp, '.github', 'workflows', 'ci.yml'), 'utf8')).toBe(
-        'name: CI\n',
-      );
-      expect(fs.existsSync(path.join(tmp, 'github.template'))).toBe(false);
       expect(fs.readFileSync(path.join(tmp, 'services', 'api', '.env.example'), 'utf8')).toBe(
         'PORT=4000\n',
       );

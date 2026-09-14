@@ -158,14 +158,12 @@ describe('scaffoldReactNativeApp', () => {
       fs.readFileSync(path.join(target, 'apps/mobile/App.tsx'), 'utf8'),
     ).toContain("import { Example } from 'formae-shapes';");
 
-    // Fuseki dataset tokens, including inside a renamed dot-directory.
+    // Fuseki dataset tokens in a renamed nested dotfile.
     expect(
       fs.readFileSync(path.join(target, 'services/api/.env.example'), 'utf8'),
     ).toBe('FUSEKI_DATASET=formae-dev\n');
-    expect(
-      fs.readFileSync(path.join(target, '.github/workflows/ci.yml'), 'utf8'),
-    ).toContain('formae-test');
-    expect(fs.existsSync(path.join(target, 'github.template'))).toBe(false);
+    // The template ships no CI workflow.
+    expect(fs.existsSync(path.join(target, '.github'))).toBe(false);
 
     expect(fs.existsSync(path.join(target, 'yarn.lock'))).toBe(false);
   });
@@ -248,7 +246,6 @@ describe('scaffoldReactNativeApp', () => {
       'services/api/linked.backend.datasets.json',
       'services/api/scripts/wait-for-fuseki.mjs',
       'services/api/.env.example',
-      '.github/workflows/ci.yml',
       'docker-compose.yml',
       'eslint.config.js',
       'scripts/check-react.mjs',
@@ -298,7 +295,7 @@ describe('scaffoldReactNativeApp', () => {
     });
     expect(stillNamed).toEqual([]);
     expect(listFiles(target).filter((file) => file.endsWith('.template'))).toEqual([]);
-    expect(fs.existsSync(path.join(target, 'github.template'))).toBe(false);
+    expect(fs.existsSync(path.join(target, '.github'))).toBe(false);
 
     expect(findFiles(target, '.npmignore')).toEqual([]);
     expect(fs.existsSync(path.join(target, 'yarn.lock'))).toBe(false);

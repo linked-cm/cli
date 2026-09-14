@@ -44,7 +44,19 @@ and `FUSEKI_BASE_URL` in `services/api/.env`.
 | `npm run build -w packages/app-shapes` | `linked build` emits `lib/esm` with `.js` specifiers, loadable by Node |
 | `cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export` | Metro resolves `@_linked/*` (including subpaths) and the workspace packages |
 
-`.github/workflows/ci.yml` runs the checks on every PR and the integration test on `main`.
+## Before every PR
+
+There is no CI workflow. Run every check locally before opening or updating a PR, and paste the results into the
+PR description:
+
+```bash
+npm run check:react
+npm run lint
+npm run typecheck
+npm test
+npm run fuseki:up && npm run test:integration
+cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export
+```
 
 ## React Native specifics
 
