@@ -125,6 +125,54 @@ Conventions:
 - The backend dispatcher is registry-free (dynamic `await import(entry.store)`). The frontend hardcodes each `new StoreClass(config)` because webpack can't bundle dynamic imports of arbitrary npm specifiers.
 - Each store class accepts a single config-object constructor argument — `new FusekiStore({ endpoint, credentials? })`, `new BackendAPIStore({ name?, id? })`.
 
+### `linked create-app --template react-native`
+
+`linked create-app <name> --template react-native` (with the usual `--app-name`, `--app-prefix`, `--app-domain`,
+`--skip-install`) copies `defaults/app-react-native/` instead of cloning the web template. The result is an npm
+workspaces monorepo for Expo SDK 57 / React Native 0.86 / React 19.2:
+
+```
+<name>/
+  package.json              workspaces (enumerated) + overrides pinning @_linked/react's react to 19.2.3
+  .gitignore                node_modules/, packages/*, !packages/<prefix>-shapes/
+  apps/mobile/              Expo app: app.json, App.tsx, index.ts, metro.config.js, jest config in package.json
+    .gitignore              includes /ios and /android
+    src/shell/linkedDefaults.tsx   React Native loader/error defaults for @_linked/react
+    __tests__/              shapes.test.ts, linkedDefaults.test.tsx
+  packages/<prefix>-shapes/ Linked shapes package, TypeScript source, extensionless imports, no build step
+  services/api/             backend stub
+```
+
+What the scaffold does:
+
+- Refuses, before writing anything, a prefix that does not match `^[a-z][a-z0-9-]*$`, and a target folder that
+  exists and is not empty.
+- Renames `gitignore.template` files to `.gitignore`. npm strips real `.gitignore` files from the CLI tarball.
+- Renames `packages/app-shapes` to `packages/<prefix>-shapes`, and replaces the literal `app-shapes` token in
+  every text file.
+- Sets the root `name` to `<hyphen-name>-monorepo`, and `app.json` `expo.name`, `expo.slug` and
+  `expo.ios.bundleIdentifier`. The bundle ID is the reversed domain plus the prefix, e.g.
+  `com.formaestudios.formae`.
+- Never runs the `${…}` placeholder substitution, so template literals in the sources are left alone.
+- Installs with `npm install` (never Yarn) unless `--skip-install` is given. If the install fails, the files
+  stay and the command exits non-zero; run `npm install` in the folder to retry.
+
+`ios/` (and `android/`) are **generated, not committed**: `npx expo run:ios` (or `npx expo prebuild`) creates
+them from `app.json`, and `apps/mobile/.gitignore` ignores them.
+
+Quick commands in the generated app:
+
+```bash
+npm ls react                                    # exactly one react@19.2.3
+npm test -w apps/mobile                         # Jest: shape registration + render defaults
+cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export   # Metro bundle check
+cd apps/mobile && npx expo run:ios              # build the dev client and run on the iOS Simulator
+```
+
+Tests for this template in this repo: `yarn test:unit` covers the scaffold offline. It scaffolds the fixture in
+`tests/fixtures/app-react-native-min` and the real template. `npm run test:template` builds nothing itself. It
+runs the built CLI with install, then the three checks above. It needs network and takes several minutes.
+
 ## Repository
 
 `linked-cm/cli` on GitHub. License: MPL-2.0.

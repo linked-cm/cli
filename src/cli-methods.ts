@@ -18,6 +18,8 @@ import {
   isInvalidLINCDImport,
   needsRebuilding,
 } from './utils.js';
+import {renameShippedDotfiles} from './utils/shippedDotfiles.js';
+import {planPackageSetup} from './utils/packageSetup.js';
 
 import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
@@ -75,7 +77,29 @@ function promptUser(question: string): Promise<string> {
   });
 }
 
-export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean} = {}) => {
+export type AppTemplate = 'web' | 'react-native';
+
+type AppIdentity = {
+  appName: string;
+  appPrefix: string;
+  appDomain: string;
+  hyphenName: string;
+};
+
+export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean, template?: AppTemplate} = {}) => {
+  // Reject unknown templates before prompting or writing anything.
+  const template = options.template;
+  if (
+    template !== undefined &&
+    template !== 'web' &&
+    template !== 'react-native'
+  ) {
+    console.warn(
+      chalk.red(`Unknown template "${template}". Use "web" or "react-native".`),
+    );
+    return;
+  }
+
   // If no name provided, prompt for folder name first
   if (!name) {
     console.log(chalk.blue('\n📁 Folder name for your app:\n'));
@@ -133,6 +157,17 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   setVariable('app_domain', appDomain);
 
   let targetFolder = path.join(basePath, hyphenName);
+
+  if (template === 'react-native') {
+    // Called through reactNativeInternals so tests can stub the scaffold step.
+    await reactNativeInternals.scaffoldReactNativeApp(
+      targetFolder,
+      {appName, appPrefix, appDomain, hyphenName},
+      {skipInstall: options.skipInstall},
+    );
+    return;
+  }
+
   if (!fs.existsSync(targetFolder)) {
     fs.mkdirSync(targetFolder);
   }
@@ -260,6 +295,187 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     `  ${chalk.blueBright(`cd ${hyphenName} && ${startCommand}`)}`,
   );
 };
+
+/**
+ * iOS bundle identifier from the app domain and prefix:
+ * ('formaestudios.com', 'formae') -> 'com.formaestudios.formae'.
+ */
+export function reactNativeBundleId(
+  appDomain: string,
+  appPrefix: string,
+): string {
+  const host = appDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .split(/[/?#]/)[0]
+    .replace(/:\d*$/, '');
+  const hostLabels = host.split('.').filter(Boolean);
+  // A bare host such as `localhost` gets a `com` top level: com.localhost.<prefix>.
+  if (hostLabels.length === 1) hostLabels.push('com');
+  return [...hostLabels.reverse(), appPrefix.toLowerCase()]
+    .map((label) => label.replace(/_/g, '-').replace(/[^a-z0-9-]/g, ''))
+    .filter(Boolean)
+    .join('.');
+}
+
+/**
+ * The prefix becomes a directory, an npm package name, a bundle-ID label and a
+ * literal inside a Jest regex; this form is valid in all four unescaped.
+ */
+export const RN_PREFIX_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+/** Throws when the prefix is invalid or the target folder is non-empty. */
+function assertReactNativeScaffoldable(targetFolder: string, appPrefix: string) {
+  if (typeof appPrefix !== 'string' || !RN_PREFIX_PATTERN.test(appPrefix)) {
+    throw new Error(
+      `Invalid app prefix "${appPrefix ?? ''}": it must match ${RN_PREFIX_PATTERN.source} ` +
+        '(start with a lowercase letter; only lowercase letters, digits and hyphens).',
+    );
+  }
+  if (fs.existsSync(targetFolder) && fs.readdirSync(targetFolder).length > 0) {
+    throw new Error(
+      `Target folder ${targetFolder} already exists and is not empty. ` +
+        'Choose another name or remove the folder.',
+    );
+  }
+}
+
+/** Placeholder name of the shapes package in defaults/app-react-native. */
+export const RN_SHAPES_TOKEN = 'app-shapes';
+
+/**
+ * Replace every occurrence of `token` in the text files under `folder`
+ * (node_modules and files containing a NUL byte are skipped). A literal token
+ * replacement, not the ${...} variable substitution.
+ */
+function replaceTokenInTextFiles(folder: string, token: string, value: string) {
+  if (token === value) return;
+  for (const entry of fs.readdirSync(folder, {withFileTypes: true})) {
+    const full = path.join(folder, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules' && entry.name !== '.git') {
+        replaceTokenInTextFiles(full, token, value);
+      }
+    } else if (entry.isFile()) {
+      const buffer = fs.readFileSync(full);
+      if (buffer.includes(0)) continue;
+      const text = buffer.toString('utf8');
+      if (text.includes(token)) {
+        fs.writeFileSync(full, text.split(token).join(value));
+      }
+    }
+  }
+}
+
+const readJSON = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'));
+const writeJSON = (file: string, data: any) =>
+  fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
+
+/**
+ * Scaffold the React Native monorepo from defaults/app-react-native.
+ * Identity is stamped into named fields only; the global ${...} substitution
+ * (replaceVariablesInFolder) is never used, so template literals in TypeScript
+ * sources stay intact.
+ */
+export async function scaffoldReactNativeApp(
+  targetFolder: string,
+  id: AppIdentity,
+  options: {skipInstall?: boolean; templateDir?: string} = {},
+): Promise<void> {
+  const {appName, appPrefix, appDomain, hyphenName} = id;
+  // Validate before writing anything.
+  assertReactNativeScaffoldable(targetFolder, appPrefix);
+  // lib/esm/ (built) is two levels below the package root; src/ (Jest) is one.
+  const templateDir =
+    options.templateDir ||
+    [
+      path.join(getScriptDir(), '..', '..', 'defaults', 'app-react-native'),
+      path.join(getScriptDir(), '..', 'defaults', 'app-react-native'),
+    ].find((dir) => fs.existsSync(dir));
+  if (!templateDir) {
+    throw new Error('React Native template not found (defaults/app-react-native)');
+  }
+  const shapesName = `${appPrefix}-shapes`;
+
+  log("Creating new Linked React Native app '" + appName + "'");
+
+  // 1. Copy the template.
+  fs.copySync(templateDir, targetFolder);
+
+  // 2. Restore dotfiles npm would strip from the CLI tarball.
+  renameShippedDotfiles(targetFolder);
+
+  // 3. Rename the shapes package directory.
+  const oldShapesDir = path.join(targetFolder, 'packages', RN_SHAPES_TOKEN);
+  const shapesDir = path.join(targetFolder, 'packages', shapesName);
+  if (fs.existsSync(oldShapesDir) && oldShapesDir !== shapesDir) {
+    fs.renameSync(oldShapesDir, shapesDir);
+  }
+
+  // 4a. Rename the shapes package token everywhere: workspaces, .gitignore
+  // negation, package names, dependency keys, Jest patterns, import specifiers,
+  // test expectations and docs. Only the literal `app-shapes` token is replaced.
+  replaceTokenInTextFiles(targetFolder, RN_SHAPES_TOKEN, shapesName);
+
+  // 4b. Stamp the identity fields that are not the shapes token.
+  const rootPkgPath = path.join(targetFolder, 'package.json');
+  if (fs.existsSync(rootPkgPath)) {
+    const rootPkg = readJSON(rootPkgPath);
+    rootPkg.name = `${hyphenName}-monorepo`;
+    writeJSON(rootPkgPath, rootPkg);
+  }
+
+  const mobileDir = path.join(targetFolder, 'apps', 'mobile');
+  const appJsonPath = path.join(mobileDir, 'app.json');
+  if (fs.existsSync(appJsonPath)) {
+    const appJson = readJSON(appJsonPath);
+    appJson.expo = appJson.expo || {};
+    appJson.expo.name = appName;
+    appJson.expo.slug = hyphenName;
+    appJson.expo.ios = appJson.expo.ios || {};
+    appJson.expo.ios.bundleIdentifier = reactNativeBundleId(
+      appDomain,
+      appPrefix,
+    );
+    writeJSON(appJsonPath, appJson);
+  }
+
+  // 5. Install with npm: the template is an npm workspaces monorepo.
+  if (!options.skipInstall) {
+    const spinner = ora({
+      text: 'Installing dependencies (npm)...',
+      spinner: 'dots',
+    }).start();
+    try {
+      await execPromise('npm install', false, false, {
+        cwd: targetFolder,
+        maxBuffer: 50 * 1024 * 1024,
+      });
+      spinner.succeed('Dependencies installed (npm)');
+    } catch (err) {
+      spinner.fail('Could not install dependencies');
+      if (err?.stdout) process.stdout.write(err.stdout);
+      if (err?.stderr) process.stderr.write(err.stderr);
+      throw new Error(
+        `npm install failed. The files are in ${targetFolder}; ` +
+          `run \`npm install\` there to retry.`,
+      );
+    }
+  }
+
+  // 6. Next steps.
+  log(
+    `Your Linked React Native app is ready at ${chalk.blueBright(targetFolder)}`,
+    `\nNext steps:`,
+    `  ${chalk.blueBright(`cd ${path.basename(targetFolder)}`)}`,
+    `  ${chalk.blueBright('npm test -w apps/mobile')}`,
+    `  ${chalk.blueBright('cd apps/mobile && npx expo run:ios')}`,
+  );
+}
+
+// Indirection so tests can replace the scaffold step when exercising createApp.
+export const reactNativeInternals = {scaffoldReactNativeApp};
 
 /** Set or append a `KEY=value` line in a `.env`-style text blob. */
 function setEnvVar(envText: string, key: string, value: string): string {
@@ -2422,6 +2638,7 @@ export const createPackage = async (
     path.join(getScriptDir(), '..', '..', 'defaults', 'package'),
     targetFolder,
   );
+  renameShippedDotfiles(targetFolder);
 
   //replace variables in some of the copied files
   await Promise.all(
@@ -2464,15 +2681,30 @@ export const createPackage = async (
     console.log('yarn probably not working');
     return '';
   })) as string;
-  let installCommand = version.toString().match(/[0-9]+/)
-    ? 'yarn install'
-    : 'npm install';
-  await execp(
-    `cd ${targetFolder} && ${installCommand} && npm exec linked build`,
-    true,
-  ).catch((err) => {
-    console.warn('Could not install dependencies');
-  });
+  const setup = planPackageSetup(
+    version.toString(),
+    path.join(getScriptDir(), 'launch.js'),
+  );
+  if (setup.yarnrc) {
+    fs.writeFileSync(path.join(targetFolder, '.yarnrc.yml'), setup.yarnrc);
+  }
+  const installed = await execp(setup.installCommand, true, false, {
+    cwd: targetFolder,
+  })
+    .then(() => true)
+    .catch(() => {
+      console.warn(`Could not install dependencies (${setup.installCommand})`);
+      process.exitCode = 1;
+      return false;
+    });
+  if (installed) {
+    await execp(setup.buildCommand, true, false, {cwd: targetFolder}).catch(
+      () => {
+        console.warn('Dependencies installed, but the initial build failed');
+        process.exitCode = 1;
+      },
+    );
+  }
 
   log(
     `Prepared a new LINCD package in ${chalk.magenta(targetFolder)}`,
