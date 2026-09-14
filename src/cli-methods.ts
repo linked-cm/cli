@@ -20,6 +20,7 @@ import {
 } from './utils.js';
 import {renameShippedDotfiles} from './utils/shippedDotfiles.js';
 import {planPackageSetup} from './utils/packageSetup.js';
+import {rewriteExtensionlessImports} from './utils/esmSpecifiers.js';
 
 import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
@@ -2889,84 +2890,12 @@ export const buildPackage = async (
     });
   };
 
-  buildStep({
-    name: 'Checking imports',
-    apply: () => checkImports(packagePath + '/src'),
-  });
-  buildStep({
-    name: 'Compiling ESM',
-    apply: async () => {
-      return compilePackageESM(packagePath);
-    },
-  });
-  buildStep({
-    name: 'Compiling CJS',
-    apply: async () => {
-      return compilePackageCJS(packagePath);
-    },
-  });
-  buildStep({
-    name: 'Copying files to lib folder',
-    apply: async () => {
-      const files = await glob(packagePath + '/src/**/*.{json,d.ts,css,scss}');
-      return Promise.all(
-        files.map(async (file) => {
-          try {
-            await fs.copy(
-              file,
-              packagePath +
-                '/lib/esm/' +
-                file.replace(packagePath + '/src/', ''),
-            );
-            await fs.copy(
-              file,
-              packagePath +
-                '/lib/cjs/' +
-                file.replace(packagePath + '/src/', ''),
-            );
-            return true;
-          } catch (err) {
-            console.warn(err);
-            return false;
-          }
-        }),
-      ).then((allResults) => {
-        return allResults.every((r) => r === true);
-      });
-    },
-  });
-  buildStep({
-    name: 'Dual package support',
-    apply: () => {
-      // Skip if no tsconfig files (e.g. pure-CSS packages).
-      if (
-        !fs.existsSync(path.join(packagePath, 'tsconfig-esm.json')) ||
-        !fs.existsSync(path.join(packagePath, 'tsconfig-cjs.json'))
-      ) {
-        return Promise.resolve(true);
-      }
-      // Resolve the binary from the nearest node_modules (supports both
-      // per-package and workspace-root installs of tsconfig-to-dual-package).
-      return execPromise(
-        'npx tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json',
-        false,
-        false,
-        {cwd: packagePath},
-      ).then((res) => {
-        return res === '';
-      });
-    },
-  });
-  buildStep({
-    name: 'Removing old files from lib folder',
-    apply: async () => {
-      return removeOldFiles(packagePath);
-    },
-  });
-  buildStep({
-    name: 'Checking dependencies',
-    apply: () => depCheck(packagePath),
-  });
+  if (pkgJson.linked?.extensionlessImports === true) {
+    const skipped =
+      "Skipping the import check: package.json sets 'linked.extensionlessImports'";
+    logResults ? spinner.info(skipped) : console.log(skipped);
+  }
+  planBuildSteps(pkgJson, packagePath).forEach(buildStep);
 
   let success = await buildProcess.catch((err) => {
     let msg =
@@ -3007,6 +2936,114 @@ export const buildPackage = async (
     }
   }
   return success;
+};
+
+type BuildStep = {
+  name: string;
+  // true/undefined: success; a string: success with a warning; {error}: stop.
+  apply: () => Promise<unknown>;
+};
+
+// The ordered `linked build` steps for a linkedPackage. A package whose source
+// uses extensionless relative imports (`"linked": {"extensionlessImports": true}`)
+// skips the import check and gets `.js` added to its emitted ESM specifiers.
+export const planBuildSteps = (pkgJson, packagePath: string): BuildStep[] => {
+  const extensionlessImports = pkgJson.linked?.extensionlessImports === true;
+  const steps: BuildStep[] = [];
+  if (!extensionlessImports) {
+    steps.push({
+      name: 'Checking imports',
+      apply: () => checkImports(packagePath + '/src'),
+    });
+  }
+  steps.push({
+    name: 'Compiling ESM',
+    apply: async () => {
+      return compilePackageESM(packagePath);
+    },
+  });
+  if (extensionlessImports) {
+    steps.push({
+      name: 'Rewriting ESM import specifiers',
+      apply: async () => {
+        const libEsm = path.join(packagePath, 'lib', 'esm');
+        if (fs.existsSync(libEsm)) {
+          await rewriteExtensionlessImports(libEsm);
+        }
+        return true;
+      },
+    });
+  }
+  steps.push({
+    name: 'Compiling CJS',
+    apply: async () => {
+      return compilePackageCJS(packagePath);
+    },
+  });
+  steps.push({
+    name: 'Copying files to lib folder',
+    apply: async () => {
+      const files = await glob(packagePath + '/src/**/*.{json,d.ts,css,scss}');
+      return Promise.all(
+        files.map(async (file) => {
+          try {
+            await fs.copy(
+              file,
+              packagePath +
+                '/lib/esm/' +
+                file.replace(packagePath + '/src/', ''),
+            );
+            await fs.copy(
+              file,
+              packagePath +
+                '/lib/cjs/' +
+                file.replace(packagePath + '/src/', ''),
+            );
+            return true;
+          } catch (err) {
+            console.warn(err);
+            return false;
+          }
+        }),
+      ).then((allResults) => {
+        return allResults.every((r) => r === true);
+      });
+    },
+  });
+  steps.push({
+    name: 'Dual package support',
+    apply: () => {
+      // Skip if no tsconfig files (e.g. pure-CSS packages).
+      if (
+        !fs.existsSync(path.join(packagePath, 'tsconfig-esm.json')) ||
+        !fs.existsSync(path.join(packagePath, 'tsconfig-cjs.json'))
+      ) {
+        return Promise.resolve(true);
+      }
+      // Resolve the binary from the nearest node_modules (supports both
+      // per-package and workspace-root installs of tsconfig-to-dual-package).
+      return execPromise(
+        'npx tsconfig-to-dual-package ./tsconfig-cjs.json ./tsconfig-esm.json',
+        false,
+        false,
+        {cwd: packagePath},
+      ).then((res) => {
+        return res === '';
+      });
+    },
+  });
+  steps.push({
+    name: 'Removing old files from lib folder',
+    apply: async () => {
+      return removeOldFiles(packagePath);
+    },
+  });
+  steps.push({
+    name: 'Checking dependencies',
+    apply: () => depCheck(packagePath),
+  });
+
+  return steps;
 };
 export const compilePackage = async (packagePath = process.cwd()) => {
   //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json

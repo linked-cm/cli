@@ -17,9 +17,120 @@ import fs from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import fsExtra from 'fs-extra';
 
+import type {InlineConfig, UserConfigExport, ViteDevServer} from 'vite';
+
 export interface StartOptions {
   env?: string;
   port?: number;
+  /**
+   * Serve only the backend API (`/call/...`, `/api/...`, provider routes).
+   * No `vite.config.*`, `src/App.tsx` or `src/routes.tsx` is needed, and page
+   * requests get a 404 instead of server-side rendering.
+   */
+  apiOnly?: boolean;
+}
+
+export const VITE_CONFIG_FILES = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs'];
+
+/**
+ * API-only mode is explicit: `linked start --api-only`, or `server.apiOnly: true`
+ * in `linked.config.js`. It is never inferred from missing frontend files, so a
+ * web app that lost its `vite.config.ts` still fails loudly instead of silently
+ * serving no pages.
+ */
+export function isApiOnly(opts: StartOptions, linkedConfig: any): boolean {
+  return opts.apiOnly === true || linkedConfig?.server?.apiOnly === true;
+}
+
+/**
+ * The Vite dev-server config for `linked start`.
+ *
+ * With a `vite.config.*` in `cwd`, Vite loads it itself. Without one, API-only
+ * mode uses `createViteConfig()`'s defaults inline — Vite is still needed on the
+ * backend to transform TypeScript, decorators and extensionless imports of
+ * source-only shape packages. Without one in page mode, it is an error.
+ */
+export async function resolveViteServerConfig(
+  cwd: string,
+  apiOnly: boolean,
+): Promise<InlineConfig> {
+  const base: InlineConfig = {
+    root: cwd,
+    server: {middlewareMode: true},
+    appType: 'custom',
+  };
+  if (VITE_CONFIG_FILES.some((c) => fsExtra.existsSync(path.join(cwd, c)))) {
+    return base;
+  }
+  if (!apiOnly) {
+    throw new Error(
+      `[linked start] no vite.config.{ts,js,mjs} found in ${cwd}. Add one:\n\n  import {createViteConfig} from '@_linked/cli/vite-config';\n  export default createViteConfig({port: 4040, cssMode: 'tailwind'});\n\nFor a backend without a web frontend, run \`linked start --api-only\` instead.\n`,
+    );
+  }
+  const {createViteConfig} = await import('../vite-config.js');
+  const exported: UserConfigExport = createViteConfig();
+  const defaults =
+    typeof exported === 'function'
+      ? await exported({command: 'serve', mode: 'development'})
+      : await exported;
+  return {
+    ...defaults,
+    ...base,
+    configFile: false,
+    server: {...defaults.server, ...base.server},
+    // No browser client: skip the client dependency scan, whose entry
+    // (`src/index.tsx`) does not exist in a backend.
+    optimizeDeps: {...defaults.optimizeDeps, noDiscovery: true},
+  };
+}
+
+/**
+ * Inject Vite into LinkedServer's config:
+ *   - vite: handle for ssrLoadModule (used to load app's backend.ts via self-reference)
+ * and, unless API-only (where `apiOnly` makes LinkedServer skip page rendering):
+ *   - viteMiddleware: mounted instead of webpack-dev-middleware
+ *   - loadAppComponent / loadRoutes: route through vite.ssrLoadModule for SSR transform
+ *   - viteSsrPreload: page modules to preload for SSR CSS collection
+ */
+export function configureLinkedServer(
+  serverConfig: any,
+  vite: Pick<ViteDevServer, 'middlewares' | 'ssrLoadModule'>,
+  cwd: string,
+  apiOnly: boolean,
+): void {
+  serverConfig.vite = vite;
+  if (apiOnly) {
+    serverConfig.apiOnly = true;
+    return;
+  }
+  serverConfig.viteMiddleware = vite.middlewares;
+  serverConfig.loadAppComponent = async () => {
+    const mod = await vite.ssrLoadModule('/src/App.tsx');
+    return mod.default;
+  };
+  serverConfig.loadRoutes = async () => {
+    return await vite.ssrLoadModule('/src/routes.tsx');
+  };
+
+  // Vite SSR CSS collection support (plan-010 iter1 gap A):
+  // List all `src/pages/*.{ts,tsx}` files so LinkedServer can ssrLoadModule
+  // each into Vite's moduleGraph BEFORE the first render of a session.
+  // React.lazy() doesn't auto-fire — without this, only App's eager
+  // imports' CSS is collected; lazy pages' CSS arrives after hydration
+  // causing an unstyled flash. After the first preload sweep, all
+  // subsequent renders have full CSS available.
+  serverConfig.viteSsrPreload = async () => {
+    const pagesDir = path.join(cwd, 'src', 'pages');
+    if (!fsExtra.existsSync(pagesDir)) return [];
+    const files = fsExtra.readdirSync(pagesDir, {withFileTypes: true});
+    const paths: string[] = [];
+    for (const file of files) {
+      if (file.isFile() && /\.(tsx|ts)$/.test(file.name)) {
+        paths.push(`/src/pages/${file.name}`);
+      }
+    }
+    return paths;
+  };
 }
 
 interface WorkspacePackage {
@@ -187,21 +298,6 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   const {ensureEnvironmentLoaded} = await import('../lifecycle.js');
   await ensureEnvironmentLoaded();
 
-  // Apps must have a vite.config.{ts,js} at CWD that exports the result of
-  // `createViteConfig({...})`. We don't load it ourselves — Vite picks it
-  // up automatically from `cwd`.
-  const viteConfigCandidates = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs'];
-  const viteConfigFound = viteConfigCandidates.find((c) =>
-    fsExtra.existsSync(path.join(cwd, c)),
-  );
-  if (!viteConfigFound) {
-    throw new Error(
-      `[linked start --vite] no vite.config.{ts,js,mjs} found in ${cwd}. Add one:\n\n  import {createViteConfig} from '@_linked/cli/vite-config';\n  export default createViteConfig({port: 4040, cssMode: 'tailwind'});\n`,
-    );
-  }
-
-  const {createServer: createViteServer} = await import('vite');
-
   // Load user's linked.config.js (legacy hook). It still drives things
   // like server.cachePaths and the rest of LinkedServer's options.
   const linkedConfigPath = path.join(cwd, 'linked.config.js');
@@ -210,47 +306,11 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
     linkedConfig = (await import(linkedConfigPath)).default ?? {};
   }
   linkedConfig.server = linkedConfig.server || {};
+  const apiOnly = isApiOnly(opts, linkedConfig);
 
-  const vite = await createViteServer({
-    root: cwd,
-    server: {middlewareMode: true},
-    appType: 'custom',
-  });
-
-  // Inject Vite into LinkedServer's config:
-  //   - vite: handle for ssrLoadModule (used to load app's backend.ts via self-reference)
-  //   - viteMiddleware: mounted instead of webpack-dev-middleware
-  //   - loadAppComponent: route through vite.ssrLoadModule for SSR transform
-  //   - loadRoutes: same
-  linkedConfig.server.vite = vite;
-  linkedConfig.server.viteMiddleware = vite.middlewares;
-  linkedConfig.server.loadAppComponent = async () => {
-    const mod = await vite.ssrLoadModule('/src/App.tsx');
-    return mod.default;
-  };
-  linkedConfig.server.loadRoutes = async () => {
-    return await vite.ssrLoadModule('/src/routes.tsx');
-  };
-
-  // Vite SSR CSS collection support (plan-010 iter1 gap A):
-  // List all `src/pages/*.{ts,tsx}` files so LinkedServer can ssrLoadModule
-  // each into Vite's moduleGraph BEFORE the first render of a session.
-  // React.lazy() doesn't auto-fire — without this, only App's eager
-  // imports' CSS is collected; lazy pages' CSS arrives after hydration
-  // causing an unstyled flash. After the first preload sweep, all
-  // subsequent renders have full CSS available.
-  linkedConfig.server.viteSsrPreload = async () => {
-    const pagesDir = path.join(cwd, 'src', 'pages');
-    if (!fsExtra.existsSync(pagesDir)) return [];
-    const files = fsExtra.readdirSync(pagesDir, {withFileTypes: true});
-    const paths: string[] = [];
-    for (const file of files) {
-      if (file.isFile() && /\.(tsx|ts)$/.test(file.name)) {
-        paths.push(`/src/pages/${file.name}`);
-      }
-    }
-    return paths;
-  };
+  const {createServer: createViteServer} = await import('vite');
+  const vite = await createViteServer(await resolveViteServerConfig(cwd, apiOnly));
+  configureLinkedServer(linkedConfig.server, vite, cwd, apiOnly);
 
   // plan-011 §P5 (2A) — load the storage config through Vite SSR so it
   // configures the SAME LinkedStorage instance the rest of the SSR graph

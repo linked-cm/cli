@@ -21,9 +21,10 @@ import type {Plugin, UserConfig} from 'vite';
  * module-level state (`@_linked/core`'s shape registry, `LinkedStorage`, the query
  * context) or register shapes into it. Two copies in one runtime split that state
  * and mangle shape identity (`Person`→`Person2`). This ONE list is the single source
- * of truth for every single-instance lever below — the standalone `optimizeDeps.exclude`
- * (`linkedDeps`) and `ssr.noExternal`. Add a new stateful framework scope here and it's
- * covered everywhere.
+ * of truth for the standalone `optimizeDeps.exclude` (`linkedDeps`). In workspace mode
+ * `ssr.noExternal` is keyed on the discovered source workspaces instead (see
+ * `ssrNoExternal`), so published framework packages stay external and single-instance
+ * under Node.
  */
 const FRAMEWORK_PKG_PATTERNS: RegExp[] = [/^@_linked\//, /^lincd-/];
 const isFrameworkPkg = (name: string): boolean =>
@@ -65,15 +66,144 @@ interface WorkspaceEntry {
   srcDir: string;
 }
 
+// Resolve a dependency name to its installed package.json the way Node does:
+// look in `<dir>/node_modules/<name>`, then each parent directory's
+// node_modules, starting from the requiring package's directory. This finds
+// deps that npm/yarn workspaces HOISTED to the monorepo root (an app under
+// `services/api` whose dep lives in `<root>/node_modules`). The walk stops
+// after the nearest directory whose package.json declares `workspaces` (the
+// workspace root), or at the filesystem root. Returns null when the package
+// isn't installed (e.g. an optional dep) — we skip rather than throw.
+async function isWorkspaceRoot(dir: string): Promise<boolean> {
+  try {
+    const json = await fsExtra.readJson(path.join(dir, 'package.json'));
+    return !!json.workspaces;
+  } catch {
+    return false;
+  }
+}
+
+async function readInstalledPkg(
+  name: string,
+  fromDir: string,
+): Promise<{root: string; json: any} | null> {
+  let dir = path.resolve(fromDir);
+  while (true) {
+    const root = path.join(dir, 'node_modules', name);
+    const pkgJson = path.join(root, 'package.json');
+    if (await fsExtra.pathExists(pkgJson)) {
+      try {
+        return {root, json: await fsExtra.readJson(pkgJson)};
+      } catch {
+        return null;
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir || (await isWorkspaceRoot(dir))) return null;
+    dir = parent;
+  }
+}
+
+/**
+ * Names of installed packages that depend, directly or transitively (via
+ * `dependencies` / `peerDependencies`), on a discovered source workspace. Such a
+ * package must also go through Vite SSR: if Node loaded it natively, it would
+ * import its own Node-loaded copy of the workspace (e.g. published
+ * `@_linked/fuseki` importing a workspace `@_linked/core`), splitting module
+ * state. Vite rewrites the dynamic `import()` in code it transforms, so bundling
+ * the dependents keeps one instance.
+ *
+ * Only the dependency closure of the app's `package.json` (dependencies +
+ * devDependencies) and of the workspaces themselves is scanned. Packages are
+ * resolved Node-style, keyed by real path, and unresolvable ones are ignored.
+ * Workspace names are not included in the result.
+ */
+export async function workspaceDependents(
+  workspaces: {name: string; srcDir?: string}[],
+  cwd: string = process.cwd(),
+): Promise<string[]> {
+  if (workspaces.length === 0) return [];
+  const fs = await import('node:fs/promises');
+  const wsNames = new Set(workspaces.map((w) => w.name));
+  // realRoot -> {name, deps (realRoots)}
+  const nodes = new Map<string, {name: string; deps: Set<string>}>();
+  const realpath = async (p: string): Promise<string> => {
+    try {
+      return await fs.realpath(p);
+    } catch {
+      return path.resolve(p);
+    }
+  };
+
+  const visit = async (root: string, json: any): Promise<string> => {
+    const real = await realpath(root);
+    if (nodes.has(real)) return real;
+    const node = {name: json.name as string, deps: new Set<string>()};
+    nodes.set(real, node);
+    const names = new Set([
+      ...Object.keys(json.dependencies ?? {}),
+      ...Object.keys(json.peerDependencies ?? {}),
+    ]);
+    for (const dep of names) {
+      const resolved = await readInstalledPkg(dep, real);
+      if (resolved) node.deps.add(await visit(resolved.root, resolved.json));
+    }
+    return real;
+  };
+
+  // Seed: the app's direct deps, plus each workspace package's own deps.
+  try {
+    const appPkg = await fsExtra.readJson(path.join(cwd, 'package.json'));
+    for (const dep of Object.keys({...appPkg.dependencies, ...appPkg.devDependencies})) {
+      const resolved = await readInstalledPkg(dep, cwd);
+      if (resolved) await visit(resolved.root, resolved.json);
+    }
+  } catch {}
+  for (const ws of workspaces) {
+    if (!ws.srcDir) continue;
+    const root = path.dirname(ws.srcDir);
+    try {
+      await visit(root, await fsExtra.readJson(path.join(root, 'package.json')));
+    } catch {}
+  }
+
+  // Walk reverse edges from every workspace node: everything reached depends on one.
+  const dependentsOf = new Map<string, string[]>();
+  for (const [key, node] of nodes) {
+    for (const dep of node.deps) {
+      if (!dependentsOf.has(dep)) dependentsOf.set(dep, []);
+      dependentsOf.get(dep)!.push(key);
+    }
+  }
+  const queue = [...nodes].filter(([, n]) => wsNames.has(n.name)).map(([k]) => k);
+  const marked = new Set(queue);
+  while (queue.length) {
+    for (const parent of dependentsOf.get(queue.pop()!) ?? []) {
+      if (!marked.has(parent)) {
+        marked.add(parent);
+        queue.push(parent);
+      }
+    }
+  }
+  const out = new Set<string>();
+  for (const key of marked) {
+    const name = nodes.get(key)!.name;
+    if (name && !wsNames.has(name)) out.add(name);
+  }
+  return [...out].sort();
+}
+
 /**
  * Walk the app's package.json `workspaces` field to build a lookup table
  * from npm name → absolute src/ directory. Used by the resolver plugin
  * to map bare specifiers like `@_linked/foo/bar` directly to source.
  * No glob library: workspaces only support trailing `/*` patterns.
  */
-async function discoverWorkspaces(extraGlobs: string[] = []): Promise<WorkspaceEntry[]> {
+export async function discoverWorkspaces(
+  extraGlobs: string[] = [],
+  cwd: string = process.cwd(),
+): Promise<WorkspaceEntry[]> {
   const fs = await import('node:fs/promises');
-  const cwd = process.cwd();
   const out: WorkspaceEntry[] = [];
   const seen = new Set<string>();
   // Register a package root iff it ships a `src/` dir (source install). Published
@@ -139,44 +269,33 @@ async function discoverWorkspaces(extraGlobs: string[] = []): Promise<WorkspaceE
   //    custom-scope published linked package (e.g. `@acme/foo` with
   //    `linkedPackage:true`) is picked up too, and linked packages present in
   //    node_modules but not depended upon are ignored.
-  const nm = path.join(cwd, 'node_modules');
-
-  // Resolve a dependency name to its installed package.json path. A symlinked
-  // workspace clone resolves under the app's node_modules just like a normal
-  // install. Returns null when the package isn't installed (e.g. an optional
-  // or unhoisted dep) — we skip rather than throw.
-  const readInstalledPkg = async (
-    name: string,
-  ): Promise<{root: string; json: any} | null> => {
-    const root = path.join(nm, name);
-    const pkgJson = path.join(root, 'package.json');
-    if (!(await fsExtra.pathExists(pkgJson))) return null;
-    try {
-      return {root, json: await fsExtra.readJson(pkgJson)};
-    } catch {
-      return null;
-    }
-  };
-
   const visited = new Set<string>();
-  const walk = async (deps: Record<string, string> | undefined): Promise<void> => {
+  const walk = async (
+    deps: Record<string, string> | undefined,
+    fromDir: string,
+  ): Promise<void> => {
     for (const name of Object.keys(deps ?? {})) {
       if (visited.has(name)) continue;
       visited.add(name);
-      const resolved = await readInstalledPkg(name);
+      const resolved = await readInstalledPkg(name, fromDir);
       if (!resolved) continue;
       if (resolved.json.linkedPackage !== true) continue;
       // Register if it ships source (addFromRoot gates on src/ existing).
       await addFromRoot(resolved.root);
-      // Recurse into this linked package's own dependencies.
-      await walk(resolved.json.dependencies);
+      // Recurse into this linked package's own dependencies, resolved from its
+      // real location (a symlinked workspace clone resolves from its source dir).
+      let realRoot = resolved.root;
+      try {
+        realRoot = await fs.realpath(resolved.root);
+      } catch {}
+      await walk(resolved.json.dependencies, realRoot);
     }
   };
 
   if (await fsExtra.pathExists(pkgPath)) {
     const appPkg = await fsExtra.readJson(pkgPath);
-    await walk(appPkg.dependencies);
-    await walk(appPkg.devDependencies);
+    await walk(appPkg.dependencies, cwd);
+    await walk(appPkg.devDependencies, cwd);
   }
 
   return out;
@@ -218,6 +337,23 @@ async function resolveWorkspaceSpecifier(
     }
   }
   return null;
+}
+
+/**
+ * `ssr.noExternal` for the dev SSR runner. With source workspaces, only those
+ * package names are bundled by Vite; everything else in node_modules (including
+ * published `@_linked/*`) is externalized to Node. Vite matches these entries
+ * against the bare package name, so subpath imports (`pkg/shapes/Foo`) match too.
+ * Installed packages that depend on a workspace (`dependents`, from
+ * `workspaceDependents`) are bundled too, so they share the Vite-loaded workspace.
+ * Standalone (no workspaces): the context-holding framework packages are bundled.
+ */
+export function ssrNoExternal(
+  workspaces: {name: string}[],
+  dependents: string[] = [],
+): (string | RegExp)[] {
+  if (workspaces.length === 0) return [/^@_linked\/server-utils$/, /^@_linked\/react$/];
+  return [...new Set([...workspaces.map((w) => w.name), ...dependents])];
 }
 
 export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType<typeof defineConfig> {
@@ -501,10 +637,17 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // out". Bundling makes them one instance in Vite's SSR module graph (matching how
         // workspace mode bundles everything). Native-dep packages (`server`/`fuseki`) stay
         // external so their prebuilt binaries load via Node.
-        noExternal:
-          workspaces.length > 0
-            ? FRAMEWORK_PKG_PATTERNS
-            : [/^@_linked\/server-utils$/, /^@_linked\/react$/],
+        //
+        // WORKSPACE: bundle ONLY the discovered source workspaces (they resolve to `src/`
+        // for HMR). Published framework packages installed under node_modules (lib-only)
+        // stay EXTERNAL, so Vite-loaded source and Node-native `import()` share Node's
+        // single instance of them. Force-bundling every `@_linked/*` here made Vite
+        // evaluate its own `@_linked/core` while `loadStores` (core) loaded a store such
+        // as `@_linked/fuseki/shapes/FusekiStore` through native `import()`, which pulled
+        // a SECOND Node-loaded core and split the shape registry. Installed packages
+        // that depend on a workspace (e.g. published fuseki when core itself is a
+        // workspace) are bundled too, so they import the Vite-loaded workspace.
+        noExternal: ssrNoExternal(workspaces, await workspaceDependents(workspaces)),
         // STANDALONE: the SSR module runner (`vite.ssrLoadModule`, used to
         // load LinkedServer + the app graph in commands/start.ts) has its OWN
         // condition list, defaulting to `resolve.conditions`. Set it

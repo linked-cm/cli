@@ -82,9 +82,13 @@ program
       return startServer();
     }
     const {startWithVite} = await import('./commands/start.js');
-    return startWithVite({env: options?.env});
+    return startWithVite({env: options?.env, apiOnly: options?.apiOnly});
   })
   .option('--env <env>', 'The node environment to use. Default is "development"')
+  .option(
+    '--api-only',
+    'Serve only the backend API: no vite.config, src/App.tsx or src/routes.tsx needed; page requests get a 404',
+  )
   .option('--legacy', 'Use the pre-Vite webpack dev server (deprecated; will be removed)')
   .description(
     'Start the Linked dev server. Vite-backed by default.',
