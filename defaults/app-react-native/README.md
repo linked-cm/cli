@@ -90,4 +90,7 @@ cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export
   map `.js` specifiers to `.ts` source. `"linked": {"extensionlessImports": true}` in its `package.json` makes
   `linked build` skip the import check and add `.js` to the emitted `lib/esm` specifiers. The app, Jest and the
   API in development consume `src/` through the `react-native` and `development` export conditions.
-- **Decorators** work with the stock `babel-preset-expo`; no extra Babel plugin is needed.
+- **Decorators** work with the stock `babel-preset-expo`.
+- **JSON import attributes.** Metro rejects `import('x.json', { with: { type: 'json' } })`, which Linked ontology
+  packages use. `apps/mobile/babel.config.js` registers `babel/stripJsonImportAttributes.js`, which drops the
+  options argument for static `.json` specifiers; `__tests__/stripJsonImportAttributes.test.ts` covers it.

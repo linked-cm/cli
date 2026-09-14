@@ -13,6 +13,12 @@ describe('resolveApiUrl', () => {
     );
   });
 
+  test('ignores a non-string apiUrl (the dev-client manifest turns null into {})', () => {
+    expect(resolveApiUrl({ extra: { apiUrl: {}, apiPort: 4000 }, hostUri: '192.168.1.5:8081' })).toBe(
+      'http://192.168.1.5:4000',
+    );
+  });
+
   test('falls back to localhost', () => {
     expect(resolveApiUrl({ extra: { apiUrl: null, apiPort: 4000 }, hostUri: undefined })).toBe(
       'http://localhost:4000',

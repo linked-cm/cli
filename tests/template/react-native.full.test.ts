@@ -21,12 +21,6 @@ const TEN_MINUTES = 10 * 60 * 1000;
 const PREFIX = 'formae';
 
 const describeFull = process.env.RUN_TEMPLATE_FULL === '1' ? describe : describe.skip;
-// TODO(T15): Metro rejects `import(json, {with: {type: 'json'}})` in @_linked/server
-// and @_linked/schema ontologies until the template ships the Babel plugin that
-// strips JSON import attributes. The export runs once apps/mobile/babel.config.js exists.
-const testWithMetroJsonFix = fs.existsSync(path.join(TEMPLATE, 'apps', 'mobile', 'babel.config.js'))
-  ? test
-  : test.skip;
 
 const run = (command: string, cwd: string) => {
   try {
@@ -158,7 +152,7 @@ describeFull('create-app --template react-native (full)', () => {
     () => {
       // Jest reports its summary on stderr.
       const out = run('npm test 2>&1', app);
-      expect(out).toMatch(/Tests:\s+11 passed, 11 total/);
+      expect(out).toMatch(/Tests:\s+18 passed, 18 total/);
       expect(out).toMatch(/# pass 4\s+# fail 0/);
     },
     TEN_MINUTES,
@@ -185,7 +179,7 @@ describeFull('create-app --template react-native (full)', () => {
     TEN_MINUTES,
   );
 
-  testWithMetroJsonFix(
+  test(
     'expo export bundles for iOS',
     () => {
       const dist = path.join(tmp, 'dist');
