@@ -19,6 +19,43 @@ describe('packaging', () => {
     expect(found).toEqual([]);
   });
 
+  test('react-native template ships no dotfiles or dot-directories', async () => {
+    const found = await glob('defaults/app-react-native/**/.*', {
+      cwd: repoRoot,
+      dot: true,
+      ignore: '**/node_modules/**',
+    });
+    expect(found).toEqual([]);
+  });
+
+  test('renames nested dotfiles and dot-directories', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'linked-cli-dotfiles-'));
+    try {
+      fs.mkdirSync(path.join(tmp, 'github.template', 'workflows'), {recursive: true});
+      fs.writeFileSync(path.join(tmp, 'github.template', 'workflows', 'ci.yml'), 'name: CI\n');
+      fs.mkdirSync(path.join(tmp, 'services', 'api'), {recursive: true});
+      fs.writeFileSync(path.join(tmp, 'services', 'api', 'env.example.template'), 'PORT=4000\n');
+      fs.writeFileSync(path.join(tmp, 'services', 'gitignore.template'), 'lib/\n');
+      fs.mkdirSync(path.join(tmp, 'node_modules', 'x'), {recursive: true});
+      fs.writeFileSync(path.join(tmp, 'node_modules', 'x', 'gitignore.template'), '');
+
+      renameShippedDotfiles(tmp);
+
+      expect(fs.readFileSync(path.join(tmp, '.github', 'workflows', 'ci.yml'), 'utf8')).toBe(
+        'name: CI\n',
+      );
+      expect(fs.existsSync(path.join(tmp, 'github.template'))).toBe(false);
+      expect(fs.readFileSync(path.join(tmp, 'services', 'api', '.env.example'), 'utf8')).toBe(
+        'PORT=4000\n',
+      );
+      expect(fs.existsSync(path.join(tmp, 'services', '.gitignore'))).toBe(true);
+      // node_modules is never touched.
+      expect(fs.existsSync(path.join(tmp, 'node_modules', 'x', 'gitignore.template'))).toBe(true);
+    } finally {
+      fs.rmSync(tmp, {recursive: true, force: true});
+    }
+  });
+
   test('createPackage renames npmignore.template', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'linked-cli-package-'));
     try {
