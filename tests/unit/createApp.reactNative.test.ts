@@ -158,6 +158,15 @@ describe('scaffoldReactNativeApp', () => {
       fs.readFileSync(path.join(target, 'apps/mobile/App.tsx'), 'utf8'),
     ).toContain("import { Example } from 'formae-shapes';");
 
+    // Fuseki dataset tokens, including inside a renamed dot-directory.
+    expect(
+      fs.readFileSync(path.join(target, 'services/api/.env.example'), 'utf8'),
+    ).toBe('FUSEKI_DATASET=formae-dev\n');
+    expect(
+      fs.readFileSync(path.join(target, '.github/workflows/ci.yml'), 'utf8'),
+    ).toContain('formae-test');
+    expect(fs.existsSync(path.join(target, 'github.template'))).toBe(false);
+
     expect(fs.existsSync(path.join(target, 'yarn.lock'))).toBe(false);
   });
 
@@ -203,29 +212,93 @@ describe('scaffoldReactNativeApp', () => {
     expect(mobilePkg.dependencies['expo-dev-client']).toBeDefined();
     expect(mobilePkg.devDependencies['@react-native/jest-preset']).toBeDefined();
 
+    // No root overrides: @_linked/react 1.5.0 accepts React 19.
+    expect(rootPkg.overrides).toBeUndefined();
+    for (const script of ['fuseki:up', 'api', 'lint', 'typecheck', 'test', 'test:integration', 'check:react']) {
+      expect(rootPkg.scripts[script]).toBeDefined();
+    }
+    expect(rootPkg.scripts.typecheck).toContain('packages/formae-shapes');
+    expect(mobilePkg.dependencies['@_linked/react']).toBe('1.5.0');
+    expect(mobilePkg.jest.testPathIgnorePatterns).toContain(
+      '<rootDir>/__tests__/integration/',
+    );
+
+    // Identity stays in app.json; app.config.ts only adds the API URL.
     const appJson = readJSON(path.join(target, 'apps/mobile/app.json'));
     expect(appJson.expo.name).toBe('Formae');
     expect(appJson.expo.slug).toBe('formae');
     expect(appJson.expo.ios.bundleIdentifier).toBe('com.formaestudios.formae');
 
     for (const file of [
-      'apps/mobile/src/shell/linkedDefaults.tsx',
+      'apps/mobile/app.config.ts',
+      'apps/mobile/src/shell/env.ts',
+      'apps/mobile/src/shell/storage.ts',
+      'apps/mobile/src/components/PersonOverview.tsx',
+      'apps/mobile/src/components/PersonPreview.tsx',
+      'apps/mobile/src/components/PersonOverviewContext.tsx',
       'apps/mobile/__tests__/shapes.test.ts',
-      'apps/mobile/__tests__/linkedDefaults.test.tsx',
+      'apps/mobile/__tests__/env.test.ts',
+      'apps/mobile/__tests__/nativeDefaults.test.tsx',
+      'apps/mobile/__tests__/integration/personOverview.test.tsx',
+      'apps/mobile/jest.integration.config.js',
       'packages/formae-shapes/src/shapes/Example.ts',
+      'packages/formae-shapes/tsconfig-esm.json',
+      'services/api/src/backend.ts',
+      'services/api/linked.backend.storage.ts',
+      'services/api/linked.backend.datasets.json',
+      'services/api/scripts/wait-for-fuseki.mjs',
+      'services/api/.env.example',
+      '.github/workflows/ci.yml',
+      'docker-compose.yml',
+      'eslint.config.js',
+      'scripts/check-react.mjs',
     ]) {
       expect(fs.existsSync(path.join(target, file))).toBe(true);
     }
     expect(
+      fs.existsSync(path.join(target, 'apps/mobile/src/shell/linkedDefaults.tsx')),
+    ).toBe(false);
+    expect(
       fs.readFileSync(path.join(target, 'apps/mobile/App.tsx'), 'utf8'),
     ).toContain("from 'formae-shapes'");
 
-    // Regression guard: no file may still name the placeholder package.
+    const shapes = readJSON(path.join(target, 'packages/formae-shapes/package.json'));
+    expect(shapes.linkedPackage).toBe(true);
+    expect(shapes.linked).toEqual({extensionlessImports: true});
+
+    const apiPkg = readJSON(path.join(target, 'services/api/package.json'));
+    expect(apiPkg.dependencies['formae-shapes']).toBe('*');
+    expect(apiPkg.scripts.start).toContain('linked start --api-only');
+
+    // Dataset names come from the prefix.
+    expect(
+      fs.readFileSync(path.join(target, 'services/api/.env.example'), 'utf8'),
+    ).toContain('FUSEKI_DATASET=formae-dev');
+    expect(
+      fs.readFileSync(
+        path.join(target, 'services/api/linked.backend.datasets.json'),
+        'utf8',
+      ),
+    ).toContain('${FUSEKI_DATASET:-formae-dev}');
+    expect(
+      fs.readFileSync(
+        path.join(target, 'apps/mobile/__tests__/integration/apiEnv.ts'),
+        'utf8',
+      ),
+    ).toContain("'formae-test'");
+
+    // Regression guard: no file may still name a placeholder token.
     const stillNamed = listFiles(target).filter((file) => {
       const buffer = fs.readFileSync(file);
-      return !buffer.includes(0) && buffer.toString('utf8').includes('app-shapes');
+      const text = buffer.toString('utf8');
+      return (
+        !buffer.includes(0) &&
+        ['app-shapes', 'app-dev', 'app-test'].some((token) => text.includes(token))
+      );
     });
     expect(stillNamed).toEqual([]);
+    expect(listFiles(target).filter((file) => file.endsWith('.template'))).toEqual([]);
+    expect(fs.existsSync(path.join(target, 'github.template'))).toBe(false);
 
     expect(findFiles(target, '.npmignore')).toEqual([]);
     expect(fs.existsSync(path.join(target, 'yarn.lock'))).toBe(false);

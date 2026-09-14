@@ -4,3 +4,8 @@ packages/*
 !packages/app-shapes/
 .expo/
 dist/
+# Docker Compose overrides (e.g. FUSEKI_PORT); see services/api/README.md.
+/.env
+services/api/.env
+services/api/*-files/
+packages/app-shapes/lib/

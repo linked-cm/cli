@@ -1,0 +1,56 @@
+name: CI
+
+# Fast checks on every PR; the Fuseki + API round trip guards main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: One React for the app
+        run: npm run check:react
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - name: iOS bundle export
+        working-directory: apps/mobile
+        run: npx expo export --platform ios --output-dir "$RUNNER_TEMP/dist"
+
+  integration:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      FUSEKI_PORT: 3030
+      FUSEKI_BASE_URL: http://localhost:3030
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start Fuseki (Docker Compose)
+        run: npm run fuseki:up
+      - name: Round trip (API-only backend + app screen)
+        run: npm run test:integration
+      - name: Fuseki logs
+        if: failure()
+        run: docker compose logs fuseki
+      - name: Stop Fuseki
+        if: always()
+        run: npm run fuseki:down

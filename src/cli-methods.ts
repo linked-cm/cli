@@ -346,6 +346,18 @@ function assertReactNativeScaffoldable(targetFolder: string, appPrefix: string) 
 export const RN_SHAPES_TOKEN = 'app-shapes';
 
 /**
+ * Literal tokens in defaults/app-react-native that are replaced by names
+ * derived from the app prefix: the shapes package and the Fuseki datasets.
+ */
+export function reactNativeTokens(appPrefix: string): Record<string, string> {
+  return {
+    [RN_SHAPES_TOKEN]: `${appPrefix}-shapes`,
+    'app-dev': `${appPrefix}-dev`,
+    'app-test': `${appPrefix}-test`,
+  };
+}
+
+/**
  * Replace every occurrence of `token` in the text files under `folder`
  * (node_modules and files containing a NUL byte are skipped). A literal token
  * replacement, not the ${...} variable substitution.
@@ -416,8 +428,11 @@ export async function scaffoldReactNativeApp(
 
   // 4a. Rename the shapes package token everywhere: workspaces, .gitignore
   // negation, package names, dependency keys, Jest patterns, import specifiers,
-  // test expectations and docs. Only the literal `app-shapes` token is replaced.
-  replaceTokenInTextFiles(targetFolder, RN_SHAPES_TOKEN, shapesName);
+  // test expectations and docs. The Fuseki dataset tokens (`app-dev`,
+  // `app-test`) are replaced the same way. Only these literal tokens change.
+  for (const [token, value] of Object.entries(reactNativeTokens(appPrefix))) {
+    replaceTokenInTextFiles(targetFolder, token, value);
+  }
 
   // 4b. Stamp the identity fields that are not the shapes token.
   const rootPkgPath = path.join(targetFolder, 'package.json');
@@ -470,8 +485,13 @@ export async function scaffoldReactNativeApp(
     `Your Linked React Native app is ready at ${chalk.blueBright(targetFolder)}`,
     `\nNext steps:`,
     `  ${chalk.blueBright(`cd ${path.basename(targetFolder)}`)}`,
-    `  ${chalk.blueBright('npm test -w apps/mobile')}`,
+    `  ${chalk.blueBright('npm test')}                                        app and API unit tests`,
+    `  ${chalk.blueBright('cp services/api/.env.example services/api/.env')}  once`,
+    `  ${chalk.blueBright('npm run fuseki:up')}                               Fuseki on :3030 (Docker)`,
+    `  ${chalk.blueBright('npm run api')}                                     API-only backend on :4000`,
+    `  ${chalk.blueBright('npm run test:integration')}                        round trip against Fuseki`,
     `  ${chalk.blueBright('cd apps/mobile && npx expo run:ios')}`,
+    `See README.md (and services/api/README.md if port 3030 is taken).`,
   );
 }
 
