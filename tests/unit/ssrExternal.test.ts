@@ -1,7 +1,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import {createViteConfig, ssrNoExternal} from '../../src/vite-config';
+import {
+  createViteConfig,
+  discoverWorkspaces,
+  ssrNoExternal,
+  workspaceDependents,
+} from '../../src/vite-config';
 
 // In workspace mode only the source workspaces go through Vite SSR. Published
 // framework packages (lib-only, under node_modules) must stay external so Vite-
@@ -69,6 +74,72 @@ describe('ssr.noExternal', () => {
     // Workspace mode keeps Vite's default conditions (`development` → src).
     expect(config.resolve).toBeUndefined();
     expect(config.ssr.resolve).toBeUndefined();
+  });
+
+  // Helpers for workspaceDependents fixtures.
+  const sourcePkg = (dir: string, json: Record<string, unknown>) => {
+    writeJson(path.join(dir, 'package.json'), json);
+    fs.mkdirSync(path.join(dir, 'src'), {recursive: true});
+    fs.writeFileSync(path.join(dir, 'src', 'index.ts'), 'export {};');
+  };
+  const publishedPkg = (name: string, json: Record<string, unknown> = {}) => {
+    const dir = path.join(tmp, 'node_modules', ...name.split('/'));
+    writeJson(path.join(dir, 'package.json'), {name, ...json});
+    fs.mkdirSync(path.join(dir, 'lib'), {recursive: true});
+  };
+  const link = (name: string, target: string) => {
+    const at = path.join(tmp, 'node_modules', ...name.split('/'));
+    fs.mkdirSync(path.dirname(at), {recursive: true});
+    fs.symlinkSync(target, at, 'dir');
+  };
+
+  it('formae layout: published core, so fuseki stays external', async () => {
+    writeJson(path.join(tmp, 'package.json'), {name: 'root', workspaces: ['packages/*', 'services/*']});
+    const shapes = path.join(tmp, 'packages', 'shapes');
+    sourcePkg(shapes, {name: 'shapes', linkedPackage: true, dependencies: {'@_linked/core': '1'}});
+    link('shapes', shapes);
+    publishedPkg('@_linked/core');
+    publishedPkg('@_linked/fuseki', {dependencies: {'@_linked/core': '1'}});
+    publishedPkg('left-pad');
+    const app = path.join(tmp, 'services', 'api');
+    writeJson(path.join(app, 'package.json'), {
+      name: 'api',
+      dependencies: {'@_linked/core': '1', '@_linked/fuseki': '1', shapes: '*', 'left-pad': '1'},
+    });
+
+    const workspaces = await discoverWorkspaces([], app);
+    expect(workspaces.map((w) => w.name)).toEqual(['shapes']);
+    const dependents = await workspaceDependents(workspaces, app);
+    expect(dependents).toEqual([]);
+    expect(ssrNoExternal(workspaces, dependents)).toEqual(['shapes']);
+  });
+
+  it('core-as-workspace layout: fuseki and its transitive dependents go through Vite', async () => {
+    writeJson(path.join(tmp, 'package.json'), {
+      name: 'root',
+      workspaces: ['packages/*'],
+      dependencies: {'@_linked/core': '*', shapes: '*', app: '1', 'left-pad': '1'},
+    });
+    const core = path.join(tmp, 'packages', 'core');
+    sourcePkg(core, {name: '@_linked/core', linkedPackage: true});
+    link('@_linked/core', core);
+    const shapes = path.join(tmp, 'packages', 'shapes');
+    sourcePkg(shapes, {name: 'shapes', linkedPackage: true, dependencies: {'@_linked/core': '*'}});
+    link('shapes', shapes);
+    publishedPkg('@_linked/fuseki', {peerDependencies: {'@_linked/core': '1'}});
+    publishedPkg('uses-fuseki', {dependencies: {'@_linked/fuseki': '1'}});
+    publishedPkg('app', {dependencies: {'uses-fuseki': '1', missing: '1'}});
+    publishedPkg('left-pad', {dependencies: {'also-missing': '1'}});
+
+    const workspaces = await discoverWorkspaces([], tmp);
+    expect(workspaces.map((w) => w.name).sort()).toEqual(['@_linked/core', 'shapes']);
+    const dependents = await workspaceDependents(workspaces, tmp);
+    expect(dependents).toEqual(['@_linked/fuseki', 'app', 'uses-fuseki']);
+    const noExternal = ssrNoExternal(workspaces, dependents);
+    for (const pkg of ['@_linked/core', 'shapes', '@_linked/fuseki', 'uses-fuseki']) {
+      expect(bundled(noExternal, pkg)).toBe(true);
+    }
+    expect(bundled(noExternal, 'left-pad')).toBe(false);
   });
 
   it('standalone bundles only the context-holding framework packages', () => {
