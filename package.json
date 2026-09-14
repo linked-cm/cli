@@ -68,6 +68,13 @@
   "bin": {
     "linked": "lib/esm/launch.js"
   },
+  "files": [
+    "lib",
+    "defaults",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@_linked/core": "^2.6.0",
     "@babel/cli": "^7.23.9",

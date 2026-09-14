@@ -5,6 +5,7 @@ yarn.lock
 .idea
 *.log
 .DS_Store
+test-results/
 
 # tsc sourcemap output — always in lib/, never src/.
 # (.d.ts not gitignored — hand-written type declarations like
