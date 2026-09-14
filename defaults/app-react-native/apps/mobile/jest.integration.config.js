@@ -1,4 +1,4 @@
-// Round-trip tests against a real API and Fuseki: `npm run fuseki:up && npm run test:integration`.
+// Integration tests against a real API and Fuseki: `npm run fuseki:up && npm run test:integration`.
 // Same preset, transforms and module mapping as the unit config in package.json. jest-expo replaces the global
 // fetch with a stubbed `expo/fetch` that never sends a request (it is not a jest mock), so the environment saves
 // Node's fetch and restoreNodeFetch.ts reinstates it.
