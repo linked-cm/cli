@@ -21,9 +21,10 @@ import type {Plugin, UserConfig} from 'vite';
  * module-level state (`@_linked/core`'s shape registry, `LinkedStorage`, the query
  * context) or register shapes into it. Two copies in one runtime split that state
  * and mangle shape identity (`Person`→`Person2`). This ONE list is the single source
- * of truth for every single-instance lever below — the standalone `optimizeDeps.exclude`
- * (`linkedDeps`) and `ssr.noExternal`. Add a new stateful framework scope here and it's
- * covered everywhere.
+ * of truth for the standalone `optimizeDeps.exclude` (`linkedDeps`). In workspace mode
+ * `ssr.noExternal` is keyed on the discovered source workspaces instead (see
+ * `ssrNoExternal`), so published framework packages stay external and single-instance
+ * under Node.
  */
 const FRAMEWORK_PKG_PATTERNS: RegExp[] = [/^@_linked\//, /^lincd-/];
 const isFrameworkPkg = (name: string): boolean =>
@@ -246,6 +247,19 @@ async function resolveWorkspaceSpecifier(
     }
   }
   return null;
+}
+
+/**
+ * `ssr.noExternal` for the dev SSR runner. With source workspaces, only those
+ * package names are bundled by Vite; everything else in node_modules (including
+ * published `@_linked/*`) is externalized to Node. Vite matches these entries
+ * against the bare package name, so subpath imports (`pkg/shapes/Foo`) match too.
+ * Standalone (no workspaces): the context-holding framework packages are bundled.
+ */
+export function ssrNoExternal(workspaces: {name: string}[]): (string | RegExp)[] {
+  return workspaces.length > 0
+    ? workspaces.map((w) => w.name)
+    : [/^@_linked\/server-utils$/, /^@_linked\/react$/];
 }
 
 export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType<typeof defineConfig> {
@@ -529,10 +543,15 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
         // out". Bundling makes them one instance in Vite's SSR module graph (matching how
         // workspace mode bundles everything). Native-dep packages (`server`/`fuseki`) stay
         // external so their prebuilt binaries load via Node.
-        noExternal:
-          workspaces.length > 0
-            ? FRAMEWORK_PKG_PATTERNS
-            : [/^@_linked\/server-utils$/, /^@_linked\/react$/],
+        //
+        // WORKSPACE: bundle ONLY the discovered source workspaces (they resolve to `src/`
+        // for HMR). Published framework packages installed under node_modules (lib-only)
+        // stay EXTERNAL, so Vite-loaded source and Node-native `import()` share Node's
+        // single instance of them. Force-bundling every `@_linked/*` here made Vite
+        // evaluate its own `@_linked/core` while `loadStores` (core) loaded a store such
+        // as `@_linked/fuseki/shapes/FusekiStore` through native `import()`, which pulled
+        // a SECOND Node-loaded core and split the shape registry.
+        noExternal: ssrNoExternal(workspaces),
         // STANDALONE: the SSR module runner (`vite.ssrLoadModule`, used to
         // load LinkedServer + the app graph in commands/start.ts) has its OWN
         // condition list, defaulting to `resolve.conditions`. Set it

@@ -16,3 +16,5 @@ Add `"linked": {"extensionlessImports": true}` to a package's `package.json` for
 - Packages without the field build exactly as before.
 
 Fix linked-package discovery in `linked start` for apps inside an npm/yarn workspaces monorepo: dependencies are now resolved the way Node resolves them, walking up parent `node_modules` directories to the workspace root. A linked package hoisted to the root `node_modules` is found, so the app no longer falls into standalone mode (which dropped the `development` export condition).
+
+In workspace mode, `linked start` now bundles only the discovered source workspaces through Vite SSR (`ssr.noExternal`). Published framework packages installed in `node_modules` (such as `@_linked/core`) stay external and load through Node. Before, every `@_linked/*` package was force-bundled, so Vite ran its own `@_linked/core` while a store loaded by core's `loadStores` through a native `import()` (for example `@_linked/fuseki/shapes/FusekiStore`) pulled in a second, Node-loaded core. That split the shape registry ("Cannot resolve an rdf:type for shape").
