@@ -113,6 +113,14 @@ export interface LinkedServerConfig {
    * Should return a RoutesModule from 'lincd-server'
    */
   loadRoutes?: () => Promise<any>;
+
+  /**
+   * Serve only the backend API (`/call/...`, `/api/...` and provider routes):
+   * no server-side page rendering, so page requests get a 404.
+   * `linked start --api-only` sets this.
+   * @default false
+   */
+  apiOnly?: boolean;
 }
 
 /**
