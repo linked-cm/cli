@@ -6,16 +6,9 @@
 // Needs network and takes several minutes. Gated by RUN_TEMPLATE_FULL=1 (set by
 // `npm run test:template`) so it never runs by accident.
 //
-// Unreleased dependencies:
-// - The scaffold's `node_modules/@_linked/cli/lib` is replaced with this repo's
-//   `lib`, so the scaffold's `linked build` is the CLI under test (the
-//   `extensionlessImports` build). This stays correct after release: the test
-//   always exercises the checkout it runs in.
-// - `@_linked/server` is a separate repo. TODO(after release): the template
-//   pins a `@_linked/server` without `BackendAPIStore.askQuery`, so the scaffold
-//   typecheck needs a newer server. Set LINKED_SERVER_LIB to a built server
-//   `lib` directory to overlay it and run the typecheck; remove the guard once
-//   the template pins the released server.
+// The scaffold's `node_modules/@_linked/cli/lib` is replaced with this repo's
+// `lib`, so the scaffold's `linked build` is the CLI under test, not the pinned
+// release.
 import {execFileSync, execSync} from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -28,8 +21,6 @@ const TEN_MINUTES = 10 * 60 * 1000;
 const PREFIX = 'formae';
 
 const describeFull = process.env.RUN_TEMPLATE_FULL === '1' ? describe : describe.skip;
-const SERVER_LIB = process.env.LINKED_SERVER_LIB;
-const testWithServerLib = SERVER_LIB ? test : test.skip;
 // TODO(T15): Metro rejects `import(json, {with: {type: 'json'}})` in @_linked/server
 // and @_linked/schema ontologies until the template ships the Babel plugin that
 // strips JSON import attributes. The export runs once apps/mobile/babel.config.js exists.
@@ -90,7 +81,6 @@ describeFull('create-app --template react-native (full)', () => {
     );
     overlayLib(app, '@_linked/cli', path.join(CLI_ROOT, 'lib'));
     fs.chmodSync(path.join(app, 'node_modules/@_linked/cli/lib/esm/launch.js'), 0o755);
-    if (SERVER_LIB) overlayLib(app, '@_linked/server', SERVER_LIB);
   }, TEN_MINUTES);
 
   afterAll(() => {
@@ -108,7 +98,6 @@ describeFull('create-app --template react-native (full)', () => {
   test('ships the backend files and renamed dotfiles', () => {
     for (const file of [
       '.gitignore',
-      '.github/workflows/ci.yml',
       'docker-compose.yml',
       'eslint.config.js',
       'scripts/check-react.mjs',
@@ -130,7 +119,7 @@ describeFull('create-app --template react-native (full)', () => {
     ]) {
       expect([file, fs.existsSync(path.join(app, file))]).toEqual([file, true]);
     }
-    expect(fs.existsSync(path.join(app, 'github.template'))).toBe(false);
+    expect(fs.existsSync(path.join(app, '.github'))).toBe(false);
     expect(fs.existsSync(path.join(app, 'services/api/env.example.template'))).toBe(false);
   });
 
@@ -160,7 +149,7 @@ describeFull('create-app --template react-native (full)', () => {
     run('npm run lint', app);
   }, TEN_MINUTES);
 
-  testWithServerLib('npm run typecheck passes', () => {
+  test('npm run typecheck passes', () => {
     run('npm run typecheck', app);
   }, TEN_MINUTES);
 
