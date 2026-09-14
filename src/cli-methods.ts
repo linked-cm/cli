@@ -19,6 +19,7 @@ import {
   needsRebuilding,
 } from './utils.js';
 import {renameShippedDotfiles} from './utils/shippedDotfiles.js';
+import {planPackageSetup} from './utils/packageSetup.js';
 
 import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
@@ -2680,15 +2681,30 @@ export const createPackage = async (
     console.log('yarn probably not working');
     return '';
   })) as string;
-  let installCommand = version.toString().match(/[0-9]+/)
-    ? 'yarn install'
-    : 'npm install';
-  await execp(
-    `cd ${targetFolder} && ${installCommand} && npm exec linked build`,
-    true,
-  ).catch((err) => {
-    console.warn('Could not install dependencies');
-  });
+  const setup = planPackageSetup(
+    version.toString(),
+    path.join(getScriptDir(), 'launch.js'),
+  );
+  if (setup.yarnrc) {
+    fs.writeFileSync(path.join(targetFolder, '.yarnrc.yml'), setup.yarnrc);
+  }
+  const installed = await execp(setup.installCommand, true, false, {
+    cwd: targetFolder,
+  })
+    .then(() => true)
+    .catch(() => {
+      console.warn(`Could not install dependencies (${setup.installCommand})`);
+      process.exitCode = 1;
+      return false;
+    });
+  if (installed) {
+    await execp(setup.buildCommand, true, false, {cwd: targetFolder}).catch(
+      () => {
+        console.warn('Dependencies installed, but the initial build failed');
+        process.exitCode = 1;
+      },
+    );
+  }
 
   log(
     `Prepared a new LINCD package in ${chalk.magenta(targetFolder)}`,
