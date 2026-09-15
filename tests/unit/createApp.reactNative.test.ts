@@ -237,6 +237,7 @@ describe('scaffoldReactNativeApp', () => {
       'apps/mobile/src/components/PersonOverviewContext.tsx',
       'apps/mobile/__tests__/shapes.test.ts',
       'apps/mobile/__tests__/env.test.ts',
+      'apps/mobile/__tests__/composePort.test.ts',
       'apps/mobile/__tests__/storage.test.ts',
       'apps/mobile/__tests__/stripJsonImportAttributes.test.ts',
       'apps/mobile/babel.config.js',
