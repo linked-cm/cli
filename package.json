@@ -18,22 +18,6 @@
     "./*": {
       "types": "./lib/esm/*.d.ts",
       "import": "./lib/esm/*.js"
-    },
-    "./commands/*.js": {
-      "types": "./lib/esm/commands/*.d.ts",
-      "import": "./lib/esm/commands/*.js"
-    },
-    "./commands/*": {
-      "types": "./lib/esm/commands/*.d.ts",
-      "import": "./lib/esm/commands/*.js"
-    },
-    "./plugins/*.js": {
-      "types": "./lib/esm/plugins/*.d.ts",
-      "import": "./lib/esm/plugins/*.js"
-    },
-    "./plugins/*": {
-      "types": "./lib/esm/plugins/*.d.ts",
-      "import": "./lib/esm/plugins/*.js"
     }
   },
   "typesVersions": {
