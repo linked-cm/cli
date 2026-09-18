@@ -130,7 +130,8 @@ export function configureLinkedServer(
       if (
         file.isFile() &&
         /\.(tsx|ts)$/.test(file.name) &&
-        !/\.(test|spec)\.(tsx|ts)$/.test(file.name)
+        !/\.(test|spec)\.(tsx|ts)$/.test(file.name) &&
+        !file.name.endsWith('.d.ts')
       ) {
         paths.push(`/src/pages/${file.name}`);
       }
@@ -306,7 +307,13 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
 
   // Load user's linked.config.js (legacy hook). It still drives things
   // like server.cachePaths and the rest of LinkedServer's options.
-  const linkedConfigPath = path.join(cwd, 'linked.config.js');
+  // Existing apps may still use the legacy lincd.config.js name; keep that
+  // fallback while the file contents migrate to ESM.
+  const linkedConfigPath =
+    ['linked.config.js', 'lincd.config.js']
+      .map((name) => path.join(cwd, name))
+      .find((candidate) => fsExtra.existsSync(candidate)) ??
+    path.join(cwd, 'linked.config.js');
   let linkedConfig: any = {};
   if (fsExtra.existsSync(linkedConfigPath)) {
     linkedConfig = (await import(linkedConfigPath)).default ?? {};
@@ -326,7 +333,15 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   // `initTree` is idempotent. `loadBackendStorageConfig` stays in
   // lifecycle.ts for the Node-only CLI commands (`script`/`call`) that have no
   // Vite server (contract C5).
-  for (const rel of ['/linked.backend.storage.ts', '/linked.backend.storage.js']) {
+  for (const rel of [
+    '/linked.backend.storage.ts',
+    '/linked.backend.storage.js',
+    '/backend-storage-config.ts',
+    '/backend-storage-config.js',
+    '/scripts/backend-storage-config.ts',
+    '/scripts/backend-storage-config.js',
+    '/scripts/storage-config.js',
+  ]) {
     if (fsExtra.existsSync(path.join(cwd, rel.slice(1)))) {
       await vite.ssrLoadModule(rel);
       break;

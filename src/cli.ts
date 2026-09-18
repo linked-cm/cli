@@ -284,20 +284,54 @@ program
     const hasViteConfig = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs']
       .some((f) => fs.existsSync(path.join(process.cwd(), f)));
     if (hasViteConfig) {
-      const {ensureEnvironmentLoaded} = await import('./cli-methods.js');
-      await ensureEnvironmentLoaded();
-      const {build} = await import('vite');
-      console.log('🛠 Building production client bundle via vite build');
-      await build({root: process.cwd()});
-      console.log('✅ vite build complete');
-      return;
+      // Vite apps use the manifest-verified build and static publishing flow.
+      const {buildViteApp} = await import('./commands/build-app.js');
+      return buildViteApp({
+        environmentNames: options?.env ? options.env.split(',') : [],
+        target: options?.target,
+      });
     }
-    buildApp();
+    // Older apps without Vite keep the existing Webpack build temporarily.
+    return buildApp();
   })
-  .option('--env', 'The node environment to use. Default is "development"')
+  .option('--env <env>', 'The node environment to use. Default is "development"')
+  .option('--target <target>', 'Build target: web or capacitor')
   .description(
-    'Build the linked app for production. Uses `vite build` when vite.config exists; falls back to webpack.',
+    'Build the linked app frontend and backend for production. Uses Vite for the frontend when vite.config exists; falls back to webpack.',
   );
+
+program
+  .command('publish-app')
+  .option('--env <env>', 'The node environment to use')
+  .option('--manifest <path>', 'Release manifest path')
+  .option('--dry-run', 'Validate and print the release plan without uploading')
+  .option('--yes', 'Upload the verified release')
+  .action(async (options) => {
+    // Retry or inspect an existing release without rebuilding the app.
+    const {ensureEnvironmentLoaded} = await import('./lifecycle.js');
+    const {loadStaticArtifactStore} = await import('./commands/build-app.js');
+    const {publishApp} = await import('./commands/publish-app.js');
+    await ensureEnvironmentLoaded();
+    const store = await loadStaticArtifactStore();
+    await publishApp({
+      manifestPath: options?.manifest,
+      store,
+      yes: options?.yes === true && options?.dryRun !== true,
+    });
+  })
+  .description(
+    'Validate or retry publishing a previously built release. Defaults to dry run.',
+  );
+
+program
+  .command('serve-app')
+  .option('--env <env>', 'The node environment to use')
+  .action(async () => {
+    // Production runtime loads compiled output and never starts Vite/HMR.
+    const {serveCompiledApp} = await import('./commands/serve-app.js');
+    await serveCompiledApp();
+  })
+  .description('Start a compiled Linked app without Vite or HMR.');
 
 program.command('publish-updated').action(() => {
   return publishUpdated();
