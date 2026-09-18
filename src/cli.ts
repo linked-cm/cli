@@ -259,7 +259,10 @@ program
       process.exitCode = 1;
     }
   })
-  .option('--silent', 'No output to console unless errors occur');
+  .option(
+    '--silent',
+    'No output to console unless errors occur. The exit code is unaffected: 0 when the build succeeds (warnings included), 1 when it fails',
+  );
 
 program
   .command('compile-only')
@@ -436,9 +439,20 @@ program.command('depcheck').action((target, mode) => {
 program.command('depcheck-staged').action((target, mode) => {
   depCheckStaged();
 });
-program.command('check-imports').action((target, mode) => {
-  checkImports();
-});
+program
+  .command('check-imports')
+  .description(
+    'Check the imports of the package in the current folder. Exits 1 when an invalid import is found',
+  )
+  .action(async () => {
+    try {
+      await checkImports();
+    } catch (report) {
+      // checkImports throws the formatted report of every invalid import.
+      console.error(typeof report === 'string' ? report : String(report));
+      process.exitCode = 1;
+    }
+  });
 
 program
   .command('package')
