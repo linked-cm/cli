@@ -87,9 +87,9 @@ cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export
   `@_linked/server/shapes/quadstores/BackendAPIStore`): the root barrel pulls express, webpack and react-dom.
   ESLint `no-restricted-imports` enforces it.
 - **Shapes package imports are extensionless** (`./shapes/Example`, not `./shapes/Example.js`): Metro does not
-  map `.js` specifiers to `.ts` source. `"linked": {"extensionlessImports": true}` in its `package.json` makes
-  `linked build` skip the import check and add `.js` to the emitted `lib/esm` specifiers. The app, Jest and the
-  API in development consume `src/` through the `react-native` and `development` export conditions.
+  map `.js` specifiers to `.ts` source. No configuration is needed — `linked build` always adds `.js` to the
+  relative specifiers in the emitted `lib/esm` JS and declarations. The app, Jest and the API in development
+  consume `src/` through the `react-native` and `development` export conditions.
 - **Decorators** work with the stock `babel-preset-expo`. The one custom Babel plugin,
   `apps/mobile/babel/stripJsonImportAttributes.js`, strips `with { type: 'json' }` from dynamic `import()`, which
   Metro rejects and Linked ontology packages use; `__tests__/stripJsonImportAttributes.test.ts` covers it. After

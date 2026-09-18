@@ -31,15 +31,50 @@ export var getFileImports = async function (filePath) {
   try {
     const importing: string[] = [];
 
+    const add = (literal: ts.Node) => {
+      const moduleName = literal.getText().replace(/['"`]/g, '');
+      if (
+        !moduleName.startsWith('node:') &&
+        !builtinModules.includes(moduleName)
+      ) {
+        importing.push(moduleName);
+      }
+    };
+    // Every form that names a module: `import ... from 'x'`, `import 'x'`,
+    // `export ... from 'x'`, `import('x')` (value and type position) and
+    // `import x = require('x')`. Children are always visited, so specifiers
+    // nested inside functions or a `declare module` body are found too.
     const delintNode = (node: ts.Node) => {
-      if (ts.isImportDeclaration(node)) {
-        const moduleName = node.moduleSpecifier.getText().replace(/['"]/g, '');
-        if (
-          !moduleName.startsWith('node:') &&
-          !builtinModules.includes(moduleName)
-        )
-          importing.push(moduleName);
-      } else ts.forEachChild(node, delintNode);
+      if (
+        (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteralLike(node.moduleSpecifier)
+      ) {
+        add(node.moduleSpecifier);
+      } else if (
+        ts.isCallExpression(node) &&
+        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments.length >= 1 &&
+        ts.isStringLiteralLike(node.arguments[0])
+      ) {
+        // `import('x')` with a literal argument. A computed specifier cannot be
+        // checked statically and is skipped.
+        add(node.arguments[0]);
+      } else if (
+        // `type A = import('x').B`, and the same inside `typeof import('x')`.
+        ts.isImportTypeNode(node) &&
+        ts.isLiteralTypeNode(node.argument) &&
+        ts.isStringLiteral(node.argument.literal)
+      ) {
+        add(node.argument.literal);
+      } else if (
+        // `import x = require('x')`.
+        ts.isExternalModuleReference(node) &&
+        ts.isStringLiteralLike(node.expression)
+      ) {
+        add(node.expression);
+      }
+      ts.forEachChild(node, delintNode);
     };
     const sourceFile = tsHost.getSourceFile(
       filePath,
@@ -66,67 +101,81 @@ export var getFileImports = async function (filePath) {
   }
 };
 
+// The package name part of a bare specifier: '@scope/name' for a scoped
+// package, the first segment otherwise. Returns null for anything that is not a
+// bare specifier (relative and absolute paths). The 'node:' case is redundant
+// for callers that use getFileImports (which drops builtins already), and is
+// kept so the helper is correct standalone.
+var barePackageName = function (importPath: string): string | null {
+  if (
+    importPath.startsWith('.') ||
+    importPath.startsWith('/') ||
+    importPath.startsWith('node:')
+  ) {
+    return null;
+  }
+  const segments = importPath.split('/');
+  const name = importPath.startsWith('@')
+    ? segments.slice(0, 2).join('/')
+    : segments[0];
+  return name || null;
+};
+
+var isLinkedPackageName = function (name: string) {
+  // The current '@_linked/*' scope, and the legacy 'lincd'-prefixed names
+  // ('lincd', 'lincd-foo', ...).
+  return name.startsWith('@_linked/') || /^lincd(-|$)/.test(name);
+};
+
 /**
+ * True when the import reaches into ANOTHER Linked package's internals — a
+ * '/src/' or '/lib/' path inside '@_linked/<pkg>' or a 'lincd'-prefixed package
+ * — instead of going through that package's public subpath. Such an import
+ * breaks when the other package changes its build layout, and it bypasses the
+ * exports map, so the two are not interchangeable.
+ *
+ * Relative specifiers are exempt on purpose: the rule is about other packages,
+ * and a relative path can only reach files inside the current package, where a
+ * './lib/helpers' folder is a perfectly ordinary local module. Escaping the
+ * package with '../' is already caught by isImportOutsideOfPackage.
+ *
+ * @param importPath The import path to check
+ */
+export var isInternalLinkedImport = function (importPath: string) {
+  const name = barePackageName(importPath);
+  if (!name || !isLinkedPackageName(name)) {
+    return false;
+  }
+  // Match whole path segments, so '@_linked/core/library/x' is not a hit.
+  const subPath = importPath.slice(name.length).split('/').filter(Boolean);
+  return subPath.includes('src') || subPath.includes('lib');
+};
+/**
+ * True when a relative import escapes the package source root. Normalising
+ * first is what makes this correct: only leading '..' segments that survive
+ * normalisation actually climb out, so './a..b' is an ordinary file name and
+ * '../a/../b' climbs one level, not two.
  *
  * @param importPath The import path to check
  * @param curFileDepth How many folders deep the current file is (0 = src, 1 = src/foo, etc.)
- * @returns
  */
-export var isInvalidLINCDImport = function (
-  importPath: string,
-  curFileDepth: number,
-) {
-  return (
-    importPath.includes('lincd') &&
-    (importPath.includes('/src/') || importPath.includes('/lib/'))
-  );
-};
 export var isImportOutsideOfPackage = function (
   importPath: string,
   curFileDepth: number,
 ) {
-  if (importPath.includes('..')) {
-    //the number of '..' in the import path should be less than or equal to the current file depth
-    //if its bigger then the import is outside of the package
-    return importPath.split('..').length - 1 > curFileDepth;
+  if (!importPath.startsWith('.')) {
+    return false;
   }
-  return false;
-};
-
-/**
- *
- * @param importPath The import path to check
- * @param curFileDepth How many folders deep the current file is (0 = src, 1 = src/foo, etc.)
- * @returns
- */
-export var isValidLINCDImport = function (
-  importPath: string,
-  curFileDepth: number,
-) {
-  const validLincdPath =
-    importPath.includes('lincd') && !importPath.includes('/src/');
-  let validRelativePath = false;
-  if (importPath.includes('..')) {
-    // '../bad/path' from 'src/file.ts' should be invalid:
-    //    ^ should get split into ['', '/bad/path'], and the file depth is 0
-    //    meaning that it'll be invalid.
-    // And this should be true for all relative imports containing '..'
-    validRelativePath = importPath.split('..').length - 1 <= curFileDepth;
+  const segments = path.posix
+    .normalize(importPath.split('\\').join('/'))
+    .split('/');
+  // How many folders the specifier climbs: the leading '..' segments that
+  // normalisation could not cancel out.
+  let climbs = 0;
+  while (segments[climbs] === '..') {
+    climbs++;
   }
-
-  return validLincdPath || validRelativePath;
-};
-
-export var isImportWithMissingExtension = function (importPath: string) {
-  //if  a relative import then it needs an extension
-  if (importPath.startsWith('../') || importPath.startsWith('./')) {
-    //check if the last part of the import after the last slash has a file extension
-    if (importPath.split('/').pop().split('.').length < 2) {
-      //if it doesn't have an extension, then it's missing, so return true
-      return true;
-    }
-  }
-  return false;
+  return climbs > curFileDepth;
 };
 
 export var getPackageJSON = function (root = process.cwd(), error = true) {
