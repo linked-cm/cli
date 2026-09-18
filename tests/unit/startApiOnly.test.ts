@@ -6,6 +6,7 @@ import path from 'path';
 import {
   configureLinkedServer,
   isApiOnly,
+  resolveLinkedConfigPath,
   resolveViteServerConfig,
 } from '../../src/commands/start.js';
 
@@ -40,6 +41,38 @@ describe('isApiOnly', () => {
   test('is never inferred from missing frontend files', () => {
     // An empty cwd has no vite.config, App.tsx or routes.tsx.
     expect(isApiOnly({}, {})).toBe(false);
+  });
+});
+
+describe('resolveLinkedConfigPath', () => {
+  test('finds the current linked.config.js name', () => {
+    fs.writeFileSync(path.join(cwd, 'linked.config.js'), 'export default {};');
+    expect(resolveLinkedConfigPath(cwd)).toBe(path.join(cwd, 'linked.config.js'));
+  });
+
+  test('falls back to the legacy lincd.config.js name', () => {
+    fs.writeFileSync(path.join(cwd, 'lincd.config.js'), 'export default {};');
+    expect(resolveLinkedConfigPath(cwd)).toBe(path.join(cwd, 'lincd.config.js'));
+  });
+
+  test('prefers the current name when both exist', () => {
+    fs.writeFileSync(path.join(cwd, 'linked.config.js'), 'export default {};');
+    fs.writeFileSync(path.join(cwd, 'lincd.config.js'), 'export default {};');
+    expect(resolveLinkedConfigPath(cwd)).toBe(path.join(cwd, 'linked.config.js'));
+  });
+
+  test('with no config at all, returns a path that does not exist', () => {
+    const resolved = resolveLinkedConfigPath(cwd);
+    expect(resolved).toBe(path.join(cwd, 'linked.config.js'));
+    expect(fs.existsSync(resolved)).toBe(false);
+  });
+
+  test('a legacy config still drives server.apiOnly', () => {
+    // The fallback must not cost an app its whole `server` block — the config
+    // this path resolves is what isApiOnly() reads.
+    fs.writeFileSync(path.join(cwd, 'lincd.config.js'), 'export default {};');
+    expect(resolveLinkedConfigPath(cwd)).toBe(path.join(cwd, 'lincd.config.js'));
+    expect(isApiOnly({}, {server: {apiOnly: true}})).toBe(true);
   });
 });
 
@@ -102,6 +135,21 @@ describe('configureLinkedServer', () => {
     expect(server.viteMiddleware).toBe(vite.middlewares);
     expect(await server.loadAppComponent()).toBe('/src/App.tsx');
     expect(await server.loadRoutes()).toEqual({default: '/src/routes.tsx'});
+    expect(await server.viteSsrPreload()).toEqual(['/src/pages/Home.tsx']);
+  });
+
+  test('page discovery skips tests, specs and type declarations', async () => {
+    for (const name of [
+      'Home.tsx',
+      'Home.test.tsx',
+      'Home.spec.ts',
+      'pages.d.ts',
+      'style.css',
+    ]) {
+      fs.outputFileSync(path.join(cwd, 'src', 'pages', name), '');
+    }
+    const server: any = {};
+    configureLinkedServer(server, fakeVite(), cwd, false);
     expect(await server.viteSsrPreload()).toEqual(['/src/pages/Home.tsx']);
   });
 });

@@ -33,6 +33,26 @@ export interface StartOptions {
 export const VITE_CONFIG_FILES = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs'];
 
 /**
+ * Names for the app's linked config, in priority order. `lincd.config.js` is
+ * the legacy name: apps predating the rename still ship it, and dropping it
+ * would silently discard their whole `server` config (cachePaths, `apiOnly`, …).
+ */
+export const LINKED_CONFIG_FILES = ['linked.config.js', 'lincd.config.js'];
+
+/**
+ * Absolute path to the app's linked config. Returns the first name that exists;
+ * when none does, the current name — the caller still `existsSync`-guards the
+ * import, so this is simply the "no config here" path, not a promise of a file.
+ */
+export function resolveLinkedConfigPath(cwd: string): string {
+  return (
+    LINKED_CONFIG_FILES.map((name) => path.join(cwd, name)).find((candidate) =>
+      fsExtra.existsSync(candidate),
+    ) ?? path.join(cwd, LINKED_CONFIG_FILES[0])
+  );
+}
+
+/**
  * API-only mode is explicit: `linked start --api-only`, or `server.apiOnly: true`
  * in `linked.config.js`. It is never inferred from missing frontend files, so a
  * web app that lost its `vite.config.ts` still fails loudly instead of silently
@@ -307,14 +327,8 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   await ensureEnvironmentLoaded();
 
   // Load user's linked.config.js (legacy hook). It still drives things
-  // like server.cachePaths and the rest of LinkedServer's options. Existing
-  // apps may still use the legacy lincd.config.js name; keep that fallback
-  // while the file contents migrate to ESM.
-  const linkedConfigPath =
-    ['linked.config.js', 'lincd.config.js']
-      .map((name) => path.join(cwd, name))
-      .find((candidate) => fsExtra.existsSync(candidate)) ??
-    path.join(cwd, 'linked.config.js');
+  // like server.cachePaths and the rest of LinkedServer's options.
+  const linkedConfigPath = resolveLinkedConfigPath(cwd);
   let linkedConfig: any = {};
   if (fsExtra.existsSync(linkedConfigPath)) {
     linkedConfig = (await import(linkedConfigPath)).default ?? {};
