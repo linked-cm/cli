@@ -23,29 +23,36 @@ const isFile = (file: string) => {
 // A module exists at `<base>` when either the JS or its declaration is there:
 // a declaration-only emit still resolves, and TypeScript's node16/nodenext
 // resolution maps the `.js` specifier we write back onto the `.d.ts`.
-const moduleExists = (base: string, declarationsToo: boolean) =>
-  isFile(base + '.js') || (declarationsToo && isFile(base + '.d.ts'));
+const moduleExists = (
+  base: string,
+  {allowDeclarationOnly}: {allowDeclarationOnly: boolean},
+) => isFile(base + '.js') || (allowDeclarationOnly && isFile(base + '.d.ts'));
 
 // Returns the rewritten specifier, the same specifier when it needs no change,
-// or null when an extensionless specifier cannot be resolved. `declarationsToo`
-// is set while rewriting a `.d.ts`, where a sibling `.d.ts` with no `.js` (a
-// types-only module) is a valid target.
+// or null when an extensionless specifier cannot be resolved.
+// `allowDeclarationOnly` is set while rewriting a `.d.ts`, where a sibling
+// `.d.ts` with no `.js` (a types-only module) is a valid target.
 const resolveSpecifier = (
   spec: string,
   fromDir: string,
-  declarationsToo: boolean,
+  allowDeclarationOnly: boolean,
 ): string | null => {
   if (!isRelative(spec) || RESOLVED_EXTENSIONS.has(path.extname(spec))) {
     return spec;
   }
-  // './dir/' -> './dir'; '.' and '..' name a directory, never '<spec>.js'.
+  // './dir/' -> './dir'. A trailing slash, like '.' and '..', explicitly names
+  // a directory, so such a specifier must never resolve to a sibling '<x>.js'.
   const base = spec.replace(/\/+$/, '');
   const target = path.resolve(fromDir, base);
-  const namesDirectory = /(^|\/)\.\.?$/.test(base);
-  if (!namesDirectory && moduleExists(target, declarationsToo)) {
+  const namesDirectory = base !== spec || /(^|\/)\.\.?$/.test(base);
+  const options = {allowDeclarationOnly};
+  // A file wins over a directory of the same name: Node's own resolution of
+  // './x' inside an ESM package likewise never falls back to './x/index.js',
+  // and tsc emits './x' for a source file './x.ts' sitting next to an './x/'.
+  if (!namesDirectory && moduleExists(target, options)) {
     return base + '.js';
   }
-  if (moduleExists(path.join(target, 'index'), declarationsToo)) {
+  if (moduleExists(path.join(target, 'index'), options)) {
     return base + '/index.js';
   }
   // Another existing file (e.g. './styles.css') is left as written.
@@ -56,6 +63,9 @@ const resolveSpecifier = (
 // imports), of `import()` calls with a literal argument, and — in declarations —
 // of `import('./x')` types. Nested nodes are visited, so imports and exports
 // inside a `declare module` body are covered as well.
+// A template literal with substitutions — `import(`./${name}`)` — is not a
+// literal specifier and is deliberately skipped: its target is only known at
+// runtime, so it is neither rewritten nor reported as unresolved.
 const collectSpecifiers = (source: ts.SourceFile): ts.StringLiteral[] => {
   const found: ts.StringLiteral[] = [];
   const visit = (node: ts.Node) => {
@@ -134,7 +144,9 @@ export async function rewriteExtensionlessImports(
         isDeclaration,
       );
       if (rewritten === null) {
-        fileUnresolved.unshift(`'${spec}' in ${path.relative(libEsmDir, file)}`);
+        fileUnresolved.unshift(
+          `'${spec}' in ${path.relative(libEsmDir, file)}`,
+        );
         continue;
       }
       if (rewritten !== spec) {
