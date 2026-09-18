@@ -4,9 +4,6 @@
   "private": true,
   "type": "module",
   "linkedPackage": true,
-  "linked": {
-    "extensionlessImports": true
-  },
   "exports": {
     ".": {
       "types": "./src/index.ts",

@@ -122,10 +122,10 @@ describeFull('create-app --template react-native (full)', () => {
     expect(read(app, 'apps/mobile/src/shell/storage.ts')).toContain("import './env';");
   });
 
-  test('the shapes package builds with extensionless imports', () => {
+  test('the shapes package builds with extensionless imports, without an opt-in', () => {
     const shapes = JSON.parse(read(app, `packages/${PREFIX}-shapes/package.json`));
     expect(shapes.linkedPackage).toBe(true);
-    expect(shapes.linked).toEqual({extensionlessImports: true});
+    expect(shapes.linked).toBeUndefined();
   });
 
   test('dataset names come from the prefix', () => {

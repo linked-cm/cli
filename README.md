@@ -93,28 +93,21 @@ The CLI recognizes two flags in `package.json`:
 
 The legacy `lincd: true` / `lincdApp: true` flags are no longer read. Migrate to `linkedPackage` / `linkedApp`.
 
-### `"linked": {"extensionlessImports": true}`
+### Extensionless relative imports
 
-```json
-{
-  "linkedPackage": true,
-  "type": "module",
-  "linked": {"extensionlessImports": true}
-}
-```
+Package source may use extensionless relative imports (`./shapes/Example` rather than `./shapes/Example.js`) —
+useful for a shapes package consumed as TypeScript source by Metro, which does not map `.js` specifiers to `.ts`
+files. No configuration is needed. After compiling ESM, `linked build` rewrites every relative specifier in
+`lib/esm` — in the emitted `.js` and in the `.d.ts` declarations beside them, so consumers on TypeScript
+`node16`/`nodenext` resolution get valid declarations — to `./x.js` or `./dir/index.js`, so Node can load the
+output. For a package that already writes `.js` specifiers the rewrite is a no-op.
 
-By default `linked build` rejects relative imports without an extension (`./shapes/Example`), because Node's ESM
-loader cannot resolve them. Set this flag when the package source must use extensionless imports, for example a
-shapes package consumed as TypeScript source by Metro (which does not map `.js` specifiers to `.ts` files).
-With the flag, `linked build`:
+The build finishes "with warnings" and lists each relative specifier it could not resolve (left unchanged), and
+fails when `tsconfig-esm.json` is present but `lib/esm` was not emitted. A package without a `tsconfig-esm.json`
+has no ESM build, so the step is skipped.
 
-- skips the import check;
-- after compiling ESM, rewrites every relative specifier in `lib/esm` (static imports and exports, `export * as`,
-  side-effect imports and `import()` with a literal) to `./x.js` or `./dir/index.js`, so Node can load the output;
-- fails if `lib/esm` was not emitted;
-- finishes "with warnings" and lists each specifier it could not resolve (left unchanged).
-
-Requirements: `"linkedPackage": true`, `"type": "module"` and a `tsconfig-esm.json` in the package.
+The import check (`linked check-imports`, also run as the first build step) still fails the build for imports
+that reach outside the package source root, and for imports into another linked package's `/src/` or `/lib/`.
 
 ## API-only backend
 
@@ -172,8 +165,8 @@ workspaces monorepo for Expo SDK 57 / React Native 0.86 / React 19.2 with an API
     src/shell/              env.ts (API URL), storage.ts (BackendAPIStore)
     src/components/         PersonOverview / PersonPreview: example add/edit/delete screen
     __tests__/              unit tests; __tests__/integration/ runs against the API and Fuseki
-  packages/<prefix>-shapes/ Linked shapes package: TypeScript source, extensionless imports,
-                            "linked": {"extensionlessImports": true} so `linked build` emits Node-loadable lib/esm
+  packages/<prefix>-shapes/ Linked shapes package: TypeScript source with extensionless imports; `linked build`
+                            rewrites the emitted specifiers so lib/esm is Node-loadable
   services/api/             API-only backend (`linked start --api-only`) on @_linked/server, Fuseki through
                             linked.backend.datasets.json, node --test unit tests
 ```

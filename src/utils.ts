@@ -117,18 +117,6 @@ export var isValidLINCDImport = function (
   return validLincdPath || validRelativePath;
 };
 
-export var isImportWithMissingExtension = function (importPath: string) {
-  //if  a relative import then it needs an extension
-  if (importPath.startsWith('../') || importPath.startsWith('./')) {
-    //check if the last part of the import after the last slash has a file extension
-    if (importPath.split('/').pop().split('.').length < 2) {
-      //if it doesn't have an extension, then it's missing, so return true
-      return true;
-    }
-  }
-  return false;
-};
-
 export var getPackageJSON = function (root = process.cwd(), error = true) {
   // console.log('Getting package.json from ' + chalk.cyan(root));
   //log stack trace

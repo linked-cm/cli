@@ -20,9 +20,21 @@ const isFile = (file: string) => {
   }
 };
 
+// A module exists at `<base>` when either the JS or its declaration is there:
+// a declaration-only emit still resolves, and TypeScript's node16/nodenext
+// resolution maps the `.js` specifier we write back onto the `.d.ts`.
+const moduleExists = (base: string, declarationsToo: boolean) =>
+  isFile(base + '.js') || (declarationsToo && isFile(base + '.d.ts'));
+
 // Returns the rewritten specifier, the same specifier when it needs no change,
-// or null when an extensionless specifier cannot be resolved.
-const resolveSpecifier = (spec: string, fromDir: string): string | null => {
+// or null when an extensionless specifier cannot be resolved. `declarationsToo`
+// is set while rewriting a `.d.ts`, where a sibling `.d.ts` with no `.js` (a
+// types-only module) is a valid target.
+const resolveSpecifier = (
+  spec: string,
+  fromDir: string,
+  declarationsToo: boolean,
+): string | null => {
   if (!isRelative(spec) || RESOLVED_EXTENSIONS.has(path.extname(spec))) {
     return spec;
   }
@@ -30,10 +42,10 @@ const resolveSpecifier = (spec: string, fromDir: string): string | null => {
   const base = spec.replace(/\/+$/, '');
   const target = path.resolve(fromDir, base);
   const namesDirectory = /(^|\/)\.\.?$/.test(base);
-  if (!namesDirectory && isFile(target + '.js')) {
+  if (!namesDirectory && moduleExists(target, declarationsToo)) {
     return base + '.js';
   }
-  if (isFile(path.join(target, 'index.js'))) {
+  if (moduleExists(path.join(target, 'index'), declarationsToo)) {
     return base + '/index.js';
   }
   // Another existing file (e.g. './styles.css') is left as written.
@@ -41,7 +53,9 @@ const resolveSpecifier = (spec: string, fromDir: string): string | null => {
 };
 
 // The string literals of static imports/exports (including side-effect
-// imports) and of `import()` calls with a literal argument.
+// imports), of `import()` calls with a literal argument, and — in declarations —
+// of `import('./x')` types. Nested nodes are visited, so imports and exports
+// inside a `declare module` body are covered as well.
 const collectSpecifiers = (source: ts.SourceFile): ts.StringLiteral[] => {
   const found: ts.StringLiteral[] = [];
   const visit = (node: ts.Node) => {
@@ -58,6 +72,19 @@ const collectSpecifiers = (source: ts.SourceFile): ts.StringLiteral[] => {
       ts.isStringLiteralLike(node.arguments[0])
     ) {
       found.push(node.arguments[0] as ts.StringLiteral);
+    } else if (
+      // `type A = import('./x').B` and the same in `typeof import('./x')`.
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      found.push(node.argument.literal);
+    } else if (
+      // `import x = require('./y')`, which node16 declarations still emit.
+      ts.isExternalModuleReference(node) &&
+      ts.isStringLiteral(node.expression)
+    ) {
+      found.push(node.expression);
     }
     ts.forEachChild(node, visit);
   };
@@ -72,21 +99,28 @@ export type RewriteResult = {
   unresolved: string[];
 };
 
-/** Appends `.js` (or `/index.js`) to extensionless relative specifiers in emitted ESM. */
+/**
+ * Appends `.js` (or `/index.js`) to extensionless relative specifiers in emitted
+ * ESM — in `.js` and in the `.d.ts` declarations beside them, so consumers on
+ * TypeScript `node16`/`nodenext` resolution get valid declarations too.
+ */
 export async function rewriteExtensionlessImports(
   libEsmDir: string,
 ): Promise<RewriteResult> {
-  const files = (await glob('**/*.js', {cwd: libEsmDir, absolute: true})).sort();
+  const files = (
+    await glob('**/*.{js,d.ts}', {cwd: libEsmDir, absolute: true})
+  ).sort();
   let changed = 0;
   const unresolved: string[] = [];
   for (const file of files) {
+    const isDeclaration = file.endsWith('.d.ts');
     const text = await fs.readFile(file, 'utf8');
     const source = ts.createSourceFile(
       file,
       text,
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.JS,
+      isDeclaration ? ts.ScriptKind.TS : ts.ScriptKind.JS,
     );
     let output = text;
     // Apply edits back to front so earlier offsets stay valid.
@@ -94,7 +128,11 @@ export async function rewriteExtensionlessImports(
     const fileUnresolved: string[] = [];
     for (const literal of literals) {
       const spec = literal.text;
-      const rewritten = resolveSpecifier(spec, path.dirname(file));
+      const rewritten = resolveSpecifier(
+        spec,
+        path.dirname(file),
+        isDeclaration,
+      );
       if (rewritten === null) {
         fileUnresolved.unshift(`'${spec}' in ${path.relative(libEsmDir, file)}`);
         continue;

@@ -14,7 +14,6 @@ import {
   getLastCommitTime,
   getPackageJSON,
   isImportOutsideOfPackage,
-  isImportWithMissingExtension,
   isInvalidLINCDImport,
   needsRebuilding,
 } from './utils.js';
@@ -1854,9 +1853,10 @@ export const createComponent = async (name, basePath = process.cwd()) => {
   }
 };
 
-//read the source of all ts/tsx files in the src folder
-//if there is an import that imports a lincd package with /src/ in it, then warn
-//if there is an import that imports something from outside the src folder, then warn
+// Reads the source of all ts/tsx files in the src folder and fails on imports
+// that reach outside the package source root ('outside_package'), or that point
+// into another linked package's /src/ or /lib/ ('lincd'). Extensionless relative
+// imports are fine: `linked build` rewrites the emitted ESM specifiers.
 export const checkImports = async (
   sourceFolder: string = getSourceFolder(),
   depth: number = 0, // Used to check if the import is outside the src folder
@@ -1872,12 +1872,8 @@ export const checkImports = async (
   for (const file of dir) {
     const filename = path.join(sourceFolder, file);
 
-    // Skip test sources. Test files (and their helpers/probes)
-    // are not part of the shipped ESM contract, so the missing-extension rule
-    // isn't load-bearing for them; enforcing it only blocks `linked build`
-    // (the real ESM-output gate stays in force for shipped source). This is
-    // what makes `linked build` green for packages whose tests use
-    // extensionless imports (e.g. @_linked/core).
+    // Skip test sources. Test files (and their helpers/probes) are not part
+    // of the shipped package, so the import rules do not apply to them.
     if (
       /(?:^|[\\/])(?:tests?|__tests__|test-helpers)(?:[\\/]|$)/.test(filename) ||
       /\.(?:test|spec)\.tsx?$/.test(file) ||
@@ -1922,12 +1918,6 @@ export const checkImports = async (
           importPath: i,
         });
       }
-      if (isImportWithMissingExtension(i)) {
-        invalidImports.get(filename).push({
-          type: 'missing_extension',
-          importPath: i,
-        });
-      }
     });
   }
 
@@ -1950,16 +1940,12 @@ export const checkImports = async (
           message +=
             ' which should not contain /src/ or /lib/ in the import path';
         }
-        if (type === 'missing_extension') {
-          message +=
-            ' which should end with a file extension. Like .js or .scss';
-        }
         res += chalk.red(message + '\n');
       });
     });
 
-    // Throw so buildStep aborts the compile pipeline — relative imports MUST
-    // have .js (or .scss) extensions for native-ESM-compatible output.
+    // Throw so buildStep aborts the compile pipeline: importing from outside
+    // the package, or through /src/ or /lib/, breaks the published package.
     throw res;
   } else if (depth === 0 && invalidImports.size === 0) {
     // console.info('All imports OK');
@@ -2921,11 +2907,6 @@ export const buildPackage = async (
     });
   };
 
-  if (pkgJson.linked?.extensionlessImports === true) {
-    const skipped =
-      "Skipping the import check: package.json sets 'linked.extensionlessImports'";
-    logResults ? spinner.info(skipped) : console.log(skipped);
-  }
   planBuildSteps(pkgJson, packagePath).forEach(buildStep);
 
   let success = await buildProcess.catch((err) => {
@@ -2975,43 +2956,44 @@ type BuildStep = {
   apply: () => Promise<unknown>;
 };
 
-// The ordered `linked build` steps for a linkedPackage. A package whose source
-// uses extensionless relative imports (`"linked": {"extensionlessImports": true}`)
-// skips the import check and gets `.js` added to its emitted ESM specifiers.
+// The ordered `linked build` steps for a linkedPackage. Source may use
+// extensionless relative imports: after the ESM compile, every package gets
+// `.js` added to the relative specifiers in its emitted `lib/esm` (JS and
+// declarations). For a package that already writes `.js` this is a no-op.
 export const planBuildSteps = (pkgJson, packagePath: string): BuildStep[] => {
-  const extensionlessImports = pkgJson.linked?.extensionlessImports === true;
   const steps: BuildStep[] = [];
-  if (!extensionlessImports) {
-    steps.push({
-      name: 'Checking imports',
-      apply: () => checkImports(packagePath + '/src'),
-    });
-  }
+  steps.push({
+    name: 'Checking imports',
+    apply: () => checkImports(packagePath + '/src'),
+  });
   steps.push({
     name: 'Compiling ESM',
     apply: async () => {
       return compilePackageESM(packagePath);
     },
   });
-  if (extensionlessImports) {
-    steps.push({
-      name: 'Rewriting ESM import specifiers',
-      apply: async () => {
-        const libEsm = path.join(packagePath, 'lib', 'esm');
-        if (!fs.existsSync(libEsm)) {
-          return {
-            error:
-              "lib/esm was not emitted. 'linked.extensionlessImports' needs an ESM build: add tsconfig-esm.json to the package.",
-          };
-        }
-        const {unresolved} = await rewriteExtensionlessImports(libEsm);
-        if (unresolved.length > 0) {
-          return `could not resolve ${unresolved.length} import(s), left unchanged: ${unresolved.join(', ')}`;
-        }
+  steps.push({
+    name: 'Rewriting ESM import specifiers',
+    apply: async () => {
+      // No tsconfig-esm.json means the ESM compile was skipped (e.g. pure-CSS
+      // packages), so there is nothing to rewrite and nothing to fail over.
+      if (!fs.existsSync(path.join(packagePath, 'tsconfig-esm.json'))) {
         return true;
-      },
-    });
-  }
+      }
+      const libEsm = path.join(packagePath, 'lib', 'esm');
+      if (!fs.existsSync(libEsm)) {
+        return {
+          error:
+            'lib/esm was not emitted while tsconfig-esm.json is present. Check the ESM compile.',
+        };
+      }
+      const {unresolved} = await rewriteExtensionlessImports(libEsm);
+      if (unresolved.length > 0) {
+        return `could not resolve ${unresolved.length} import(s), left unchanged: ${unresolved.join(', ')}`;
+      }
+      return true;
+    },
+  });
   steps.push({
     name: 'Compiling CJS',
     apply: async () => {
