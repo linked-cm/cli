@@ -28,7 +28,33 @@ export function readApiEnvFile(): Record<string, string> {
   return existsSync(envFile) ? parseEnvFile(readFileSync(envFile, 'utf8')) : {};
 }
 
-export type FusekiEnv = { baseUrl: string; user: string; password: string };
+/** The parts of a `spawnSync('docker', ['compose', 'port', 'fuseki', '3030'])` result that explain a failure. */
+export type ComposePortResult = {
+  error?: (Error & { code?: string }) | undefined;
+  status: number | null;
+  stdout?: string | null;
+  stderr?: string | null;
+};
+
+/**
+ * Why `docker compose port fuseki 3030` gave no port: Docker is not installed, Docker Compose is unavailable, or
+ * this repo's Compose Fuseki is not running.
+ */
+export function describeComposePortFailure(result: ComposePortResult): string {
+  const output = (result.stderr || result.error?.message || result.stdout || '').trim();
+  if (result.error?.code === 'ENOENT') {
+    return 'Docker is not installed or not on PATH (`docker` could not be started). Install Docker, then run `npm run fuseki:up`.';
+  }
+  const composeMissing =
+    /is not a docker command/i.test(output) ||
+    (result.status !== 0 && /compose/i.test(output) && !/not running|no container/i.test(output));
+  if (composeMissing) {
+    return `Docker Compose is not available (\`docker compose port fuseki 3030\`: ${output}). Install the Docker Compose plugin, then run \`npm run fuseki:up\`.`;
+  }
+  return `this repo's Compose Fuseki is not running (\`docker compose port fuseki 3030\`: ${output}). Run \`npm run fuseki:up\`.`;
+}
+
+export type FusekiEnv ={ baseUrl: string; user: string; password: string };
 
 /**
  * The Fuseki the tests talk to. services/api/.env is the source, and the shell wins: FUSEKI_BASE_URL, or

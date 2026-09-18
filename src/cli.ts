@@ -75,9 +75,9 @@ program
 program
   .command('start')
   .action(async (options) => {
-    // Vite is the default. The pre-Vite webpack path
-    // lives in cli-methods startServer for now as `--legacy` escape
-    // hatch during the migration window (Phase 7 deletes it).
+    // Vite is the default. The pre-Vite webpack dev server in
+    // cli-methods startServer stays reachable through the deprecated
+    // `--legacy` flag for projects that have not moved to Vite yet.
     if (options?.legacy) {
       return startServer();
     }

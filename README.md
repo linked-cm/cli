@@ -41,6 +41,10 @@ linked build-updated              # incremental: only packages that changed sinc
 linked build-package <file>       # walk up from a file path to find its package and rebuild
 ```
 
+`linked build` exits with code 1 whenever the build does not succeed, including when it is run in a `linkedApp` or
+in a package without `"linkedPackage": true` (it used to exit 0 there). A build that finishes with warnings still
+exits 0.
+
 ### Publishing / release
 
 ```bash

@@ -4,7 +4,16 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-import { API_PORT, API_URL, FUSEKI_DATASET, apiDir, readApiEnvFile, repoRoot, resolveFusekiEnv } from './apiEnv';
+import {
+  API_PORT,
+  API_URL,
+  FUSEKI_DATASET,
+  apiDir,
+  describeComposePortFailure,
+  readApiEnvFile,
+  repoRoot,
+  resolveFusekiEnv,
+} from './apiEnv';
 
 // The variables that select S3FileStore (services/api/src/fileStoreEnv.ts); blanked even when unset anywhere.
 const S3_ENV_KEYS = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'S3_BUCKET_ENDPOINT', 'S3_FILES_BUCKET_NAME'];
@@ -40,12 +49,7 @@ function assertSafeTarget(baseUrl: string) {
 
   const compose = spawnSync('docker', ['compose', 'port', 'fuseki', '3030'], { cwd: repoRoot, encoding: 'utf8' });
   const composePort = compose.status === 0 ? /:(\d+)\s*$/.exec(compose.stdout.trim())?.[1] : undefined;
-  if (!composePort) {
-    refuse(
-      `this repo's Compose Fuseki is not running (\`docker compose port fuseki 3030\`: ` +
-        `${(compose.stderr || compose.error?.message || compose.stdout || '').trim()}). Run \`npm run fuseki:up\`.`,
-    );
-  }
+  if (!composePort) refuse(describeComposePortFailure(compose));
   if (composePort !== urlPort) {
     refuse(`port ${urlPort} is not the Compose Fuseki port ${composePort}. Set FUSEKI_PORT=${composePort}.`);
   }
