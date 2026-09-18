@@ -5,6 +5,7 @@
 // import babelRegister from '@babel/register';
 // babelRegister({extensions: ['.ts', '.tsx']});
 
+import chalk from 'chalk';
 import {
   addCapacitor,
   buildAll,
@@ -48,6 +49,11 @@ program
       appPrefix: options.appPrefix,
       appDomain: options.appDomain,
       skipInstall: options.skipInstall,
+      template: options.template,
+    }).catch((err) => {
+      // Report and fail the process without cutting off pending output.
+      console.error(chalk.red(err?.message ?? String(err)));
+      process.exitCode = 1;
     });
   })
   .description(
@@ -60,21 +66,29 @@ program
   .option('--app-name <name>', 'Display name for the app (skip interactive prompt)')
   .option('--app-prefix <prefix>', 'Short code prefix for data files (skip interactive prompt)')
   .option('--app-domain <domain>', 'Domain for the app (skip interactive prompt)')
-  .option('--skip-install', 'Skip running yarn/npm install after scaffolding');
+  .option('--skip-install', 'Skip running yarn/npm install after scaffolding')
+  .option(
+    '--template <template>',
+    'App template: "web" (default) or "react-native"',
+  );
 
 program
   .command('start')
   .action(async (options) => {
-    // Plan-010 iter1: Vite is the default. The pre-Vite webpack path
+    // Vite is the default. The pre-Vite webpack path
     // lives in cli-methods startServer for now as `--legacy` escape
     // hatch during the migration window (Phase 7 deletes it).
     if (options?.legacy) {
       return startServer();
     }
     const {startWithVite} = await import('./commands/start.js');
-    return startWithVite({env: options?.env});
+    return startWithVite({env: options?.env, apiOnly: options?.apiOnly});
   })
   .option('--env <env>', 'The node environment to use. Default is "development"')
+  .option(
+    '--api-only',
+    'Serve only the backend API: no vite.config, src/App.tsx or src/routes.tsx needed; page requests get a 404',
+  )
   .option('--legacy', 'Use the pre-Vite webpack dev server (deprecated; will be removed)')
   .description(
     'Start the Linked dev server. Vite-backed by default.',
@@ -239,8 +253,11 @@ program
 
 program
   .command('build [target] [target2]', {isDefault: true})
-  .action((target, target2, options) => {
-    buildPackage(target, target2, process.cwd(), !options?.silent);
+  .action(async (target, target2, options) => {
+    const result = await buildPackage(target, target2, process.cwd(), !options?.silent);
+    if (result !== true) {
+      process.exitCode = 1;
+    }
   })
   .option('--silent', 'No output to console unless errors occur');
 
@@ -259,7 +276,7 @@ program.command('build-metadata').action(() => {
 program
   .command('build-app')
   .action(async (options) => {
-    // Plan-010 iter1 gap B: if vite.config.{ts,js,mjs} exists in cwd,
+    // If vite.config.{ts,js,mjs} exists in cwd,
     // run `vite build` for the client bundle. Falls back to webpack
     // buildApp() when no Vite config (legacy apps).
     const fs = await import('fs');

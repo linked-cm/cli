@@ -18,6 +18,9 @@ import {
   isInvalidLINCDImport,
   needsRebuilding,
 } from './utils.js';
+import {renameShippedDotfiles} from './utils/shippedDotfiles.js';
+import {planPackageSetup} from './utils/packageSetup.js';
+import {rewriteExtensionlessImports} from './utils/esmSpecifiers.js';
 
 import {spawn as spawnChild} from 'child_process';
 import {findNearestPackageJson} from 'find-nearest-package-json';
@@ -46,7 +49,7 @@ let dirname__ =
  * `scripts/storage-config.js` (pre-rename). The fallback chain lets older
  * app clones keep booting through the rename.
  */
-// Plan-011: extracted to ./lifecycle.ts so the Vite SSR loader doesn't
+// Extracted to ./lifecycle.ts so the Vite SSR loader doesn't
 // have to graph-walk the rest of cli-methods.ts (which contains many
 // dynamic imports Vite can't analyze). We import for internal callers
 // AND re-export so external consumers can keep importing from here.
@@ -75,7 +78,29 @@ function promptUser(question: string): Promise<string> {
   });
 }
 
-export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean} = {}) => {
+export type AppTemplate = 'web' | 'react-native';
+
+type AppIdentity = {
+  appName: string;
+  appPrefix: string;
+  appDomain: string;
+  hyphenName: string;
+};
+
+export const createApp = async (name, basePath = process.cwd(), options: {appName?: string, appPrefix?: string, appDomain?: string, skipInstall?: boolean, template?: AppTemplate} = {}) => {
+  // Reject unknown templates before prompting or writing anything.
+  const template = options.template;
+  if (
+    template !== undefined &&
+    template !== 'web' &&
+    template !== 'react-native'
+  ) {
+    console.warn(
+      chalk.red(`Unknown template "${template}". Use "web" or "react-native".`),
+    );
+    return;
+  }
+
   // If no name provided, prompt for folder name first
   if (!name) {
     console.log(chalk.blue('\n📁 Folder name for your app:\n'));
@@ -133,6 +158,17 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   setVariable('app_domain', appDomain);
 
   let targetFolder = path.join(basePath, hyphenName);
+
+  if (template === 'react-native') {
+    // Called through reactNativeInternals so tests can stub the scaffold step.
+    await reactNativeInternals.scaffoldReactNativeApp(
+      targetFolder,
+      {appName, appPrefix, appDomain, hyphenName},
+      {skipInstall: options.skipInstall},
+    );
+    return;
+  }
+
   if (!fs.existsSync(targetFolder)) {
     fs.mkdirSync(targetFolder);
   }
@@ -260,6 +296,207 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
     `  ${chalk.blueBright(`cd ${hyphenName} && ${startCommand}`)}`,
   );
 };
+
+/**
+ * iOS bundle identifier from the app domain and prefix:
+ * ('example.com', 'demo') -> 'com.example.demo'.
+ */
+export function reactNativeBundleId(
+  appDomain: string,
+  appPrefix: string,
+): string {
+  const host = appDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .split(/[/?#]/)[0]
+    .replace(/:\d*$/, '');
+  const hostLabels = host.split('.').filter(Boolean);
+  // A bare host such as `localhost` gets a `com` top level: com.localhost.<prefix>.
+  if (hostLabels.length === 1) hostLabels.push('com');
+  return [...hostLabels.reverse(), appPrefix.toLowerCase()]
+    .map((label) => label.replace(/_/g, '-').replace(/[^a-z0-9-]/g, ''))
+    .filter(Boolean)
+    .join('.');
+}
+
+/**
+ * The prefix becomes a directory, an npm package name, a bundle-ID label and a
+ * literal inside a Jest regex; this form is valid in all four unescaped.
+ */
+export const RN_PREFIX_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+/** Throws when the prefix is invalid or the target folder is non-empty. */
+function assertReactNativeScaffoldable(targetFolder: string, appPrefix: string) {
+  if (typeof appPrefix !== 'string' || !RN_PREFIX_PATTERN.test(appPrefix)) {
+    throw new Error(
+      `Invalid app prefix "${appPrefix ?? ''}": it must match ${RN_PREFIX_PATTERN.source} ` +
+        '(start with a lowercase letter; only lowercase letters, digits and hyphens).',
+    );
+  }
+  if (fs.existsSync(targetFolder) && fs.readdirSync(targetFolder).length > 0) {
+    throw new Error(
+      `Target folder ${targetFolder} already exists and is not empty. ` +
+        'Choose another name or remove the folder.',
+    );
+  }
+}
+
+/** Placeholder name of the shapes package in defaults/app-react-native. */
+export const RN_SHAPES_TOKEN = 'app-shapes';
+
+/**
+ * Literal tokens in defaults/app-react-native that are replaced by names
+ * derived from the app prefix: the shapes package and the Fuseki datasets.
+ */
+export function reactNativeTokens(appPrefix: string): Record<string, string> {
+  return {
+    [RN_SHAPES_TOKEN]: `${appPrefix}-shapes`,
+    'app-dev': `${appPrefix}-dev`,
+    'app-test': `${appPrefix}-test`,
+  };
+}
+
+/**
+ * Replace every occurrence of `token` in the text files under `folder`
+ * (node_modules and files containing a NUL byte are skipped). A literal token
+ * replacement, not the ${...} variable substitution.
+ */
+function replaceTokenInTextFiles(folder: string, token: string, value: string) {
+  if (token === value) return;
+  for (const entry of fs.readdirSync(folder, {withFileTypes: true})) {
+    const full = path.join(folder, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules' && entry.name !== '.git') {
+        replaceTokenInTextFiles(full, token, value);
+      }
+    } else if (entry.isFile()) {
+      const buffer = fs.readFileSync(full);
+      if (buffer.includes(0)) continue;
+      const text = buffer.toString('utf8');
+      if (text.includes(token)) {
+        fs.writeFileSync(full, text.split(token).join(value));
+      }
+    }
+  }
+}
+
+const readJSON = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'));
+const writeJSON = (file: string, data: any) =>
+  fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
+
+/**
+ * Scaffold the React Native monorepo from defaults/app-react-native.
+ * Identity is stamped into named fields only; the global ${...} substitution
+ * (replaceVariablesInFolder) is never used, so template literals in TypeScript
+ * sources stay intact.
+ */
+export async function scaffoldReactNativeApp(
+  targetFolder: string,
+  id: AppIdentity,
+  options: {skipInstall?: boolean; templateDir?: string} = {},
+): Promise<void> {
+  const {appName, appPrefix, appDomain, hyphenName} = id;
+  // Validate before writing anything.
+  assertReactNativeScaffoldable(targetFolder, appPrefix);
+  // lib/esm/ (built) is two levels below the package root; src/ (Jest) is one.
+  const templateDir =
+    options.templateDir ||
+    [
+      path.join(getScriptDir(), '..', '..', 'defaults', 'app-react-native'),
+      path.join(getScriptDir(), '..', 'defaults', 'app-react-native'),
+    ].find((dir) => fs.existsSync(dir));
+  if (!templateDir) {
+    throw new Error('React Native template not found (defaults/app-react-native)');
+  }
+  const shapesName = `${appPrefix}-shapes`;
+
+  log("Creating new Linked React Native app '" + appName + "'");
+
+  // 1. Copy the template.
+  fs.copySync(templateDir, targetFolder);
+
+  // 2. Restore dotfiles npm would strip from the CLI tarball.
+  renameShippedDotfiles(targetFolder);
+
+  // 3. Rename the shapes package directory.
+  const oldShapesDir = path.join(targetFolder, 'packages', RN_SHAPES_TOKEN);
+  const shapesDir = path.join(targetFolder, 'packages', shapesName);
+  if (fs.existsSync(oldShapesDir) && oldShapesDir !== shapesDir) {
+    fs.renameSync(oldShapesDir, shapesDir);
+  }
+
+  // 4a. Rename the shapes package token everywhere: workspaces, .gitignore
+  // negation, package names, dependency keys, Jest patterns, import specifiers,
+  // test expectations and docs. The Fuseki dataset tokens (`app-dev`,
+  // `app-test`) are replaced the same way. Only these literal tokens change.
+  for (const [token, value] of Object.entries(reactNativeTokens(appPrefix))) {
+    replaceTokenInTextFiles(targetFolder, token, value);
+  }
+
+  // 4b. Stamp the identity fields that are not the shapes token.
+  const rootPkgPath = path.join(targetFolder, 'package.json');
+  if (fs.existsSync(rootPkgPath)) {
+    const rootPkg = readJSON(rootPkgPath);
+    rootPkg.name = `${hyphenName}-monorepo`;
+    writeJSON(rootPkgPath, rootPkg);
+  }
+
+  const mobileDir = path.join(targetFolder, 'apps', 'mobile');
+  const appJsonPath = path.join(mobileDir, 'app.json');
+  if (fs.existsSync(appJsonPath)) {
+    const appJson = readJSON(appJsonPath);
+    appJson.expo = appJson.expo || {};
+    appJson.expo.name = appName;
+    appJson.expo.slug = hyphenName;
+    appJson.expo.ios = appJson.expo.ios || {};
+    appJson.expo.ios.bundleIdentifier = reactNativeBundleId(
+      appDomain,
+      appPrefix,
+    );
+    writeJSON(appJsonPath, appJson);
+  }
+
+  // 5. Install with npm: the template is an npm workspaces monorepo.
+  if (!options.skipInstall) {
+    const spinner = ora({
+      text: 'Installing dependencies (npm)...',
+      spinner: 'dots',
+    }).start();
+    try {
+      await execPromise('npm install', false, false, {
+        cwd: targetFolder,
+        maxBuffer: 50 * 1024 * 1024,
+      });
+      spinner.succeed('Dependencies installed (npm)');
+    } catch (err) {
+      spinner.fail('Could not install dependencies');
+      if (err?.stdout) process.stdout.write(err.stdout);
+      if (err?.stderr) process.stderr.write(err.stderr);
+      throw new Error(
+        `npm install failed. The files are in ${targetFolder}; ` +
+          `run \`npm install\` there to retry.`,
+      );
+    }
+  }
+
+  // 6. Next steps.
+  log(
+    `Your Linked React Native app is ready at ${chalk.blueBright(targetFolder)}`,
+    `\nNext steps:`,
+    `  ${chalk.blueBright(`cd ${path.basename(targetFolder)}`)}`,
+    `  ${chalk.blueBright('npm test')}                                        app and API unit tests`,
+    `  ${chalk.blueBright('cp services/api/.env.example services/api/.env')}  once`,
+    `  ${chalk.blueBright('npm run fuseki:up')}                               Fuseki on :3030 (Docker)`,
+    `  ${chalk.blueBright('npm run api')}                                     API-only backend on :4000`,
+    `  ${chalk.blueBright('npm run test:integration')}                        round trip against Fuseki`,
+    `  ${chalk.blueBright('cd apps/mobile && npx expo run:ios')}`,
+    `See README.md (and services/api/README.md if port 3030 is taken).`,
+  );
+}
+
+// Indirection so tests can replace the scaffold step when exercising createApp.
+export const reactNativeInternals = {scaffoldReactNativeApp};
 
 /** Set or append a `KEY=value` line in a `.env`-style text blob. */
 function setEnvVar(envText: string, key: string, value: string): string {
@@ -1324,7 +1561,7 @@ export const addShapeToBarrel = function (shapeHyphenName: string, root: string 
   return barrelPath;
 };
 
-// Exported for Shape-Builder reuse (plan-010 T1d.4): CodeShapeSyncService adds
+// Exported for Shape-Builder reuse: CodeShapeSyncService adds
 // the `import './shapes/<Shape>.js';` line to a generated app package's index.
 export const addLineToIndex = function (
   line,
@@ -1535,7 +1772,7 @@ export const createShape = async (name, basePath = process.cwd()) => {
 
   // Register the shape in the shapes barrel (src/shapes/index.ts) — NOT the main index —
   // and make sure the barrel is loaded on both boot paths. This is what makes the app
-  // materialize its own shapes on boot (plan-027 / plan-028 handover).
+  // materialize its own shapes on boot.
   const barrelPath = addShapeToBarrel(hyphenName);
   log(`Registered the shape in ${chalk.magenta(barrelPath.replace(basePath, ''))}`);
 };
@@ -1635,7 +1872,7 @@ export const checkImports = async (
   for (const file of dir) {
     const filename = path.join(sourceFolder, file);
 
-    // plan-011 §P7 — skip test sources. Test files (and their helpers/probes)
+    // Skip test sources. Test files (and their helpers/probes)
     // are not part of the shipped ESM contract, so the missing-extension rule
     // isn't load-bearing for them; enforcing it only blocks `linked build`
     // (the real ESM-output gate stays in force for shipped source). This is
@@ -1906,6 +2143,12 @@ export const runMethod = async (
         .then(() => {
           console.log('Done');
           process.exit();
+        })
+        // An unmatched method (ServerCallError 501) or a provider error rejects; report it instead of an
+        // unhandled rejection.
+        .catch((err) => {
+          console.error(err?.message ?? err);
+          process.exit(1);
         });
     });
   } else {
@@ -2422,6 +2665,7 @@ export const createPackage = async (
     path.join(getScriptDir(), '..', '..', 'defaults', 'package'),
     targetFolder,
   );
+  renameShippedDotfiles(targetFolder);
 
   //replace variables in some of the copied files
   await Promise.all(
@@ -2464,15 +2708,30 @@ export const createPackage = async (
     console.log('yarn probably not working');
     return '';
   })) as string;
-  let installCommand = version.toString().match(/[0-9]+/)
-    ? 'yarn install'
-    : 'npm install';
-  await execp(
-    `cd ${targetFolder} && ${installCommand} && npm exec lincd build`,
-    true,
-  ).catch((err) => {
-    console.warn('Could not install dependencies');
-  });
+  const setup = planPackageSetup(
+    version.toString(),
+    path.join(getScriptDir(), 'launch.js'),
+  );
+  if (setup.yarnrc) {
+    fs.writeFileSync(path.join(targetFolder, '.yarnrc.yml'), setup.yarnrc);
+  }
+  const installed = await execp(setup.installCommand, true, false, {
+    cwd: targetFolder,
+  })
+    .then(() => true)
+    .catch(() => {
+      console.warn(`Could not install dependencies (${setup.installCommand})`);
+      process.exitCode = 1;
+      return false;
+    });
+  if (installed) {
+    await execp(setup.buildCommand, true, false, {cwd: targetFolder}).catch(
+      () => {
+        console.warn('Dependencies installed, but the initial build failed');
+        process.exitCode = 1;
+      },
+    );
+  }
 
   log(
     `Prepared a new LINCD package in ${chalk.magenta(targetFolder)}`,
@@ -2620,6 +2879,7 @@ export const buildPackage = async (
     }).start();
   }
   let buildProcess: Promise<boolean | string | void> = Promise.resolve(true);
+  let warned = false;
   let buildStep = (step) => {
     buildProcess = buildProcess.then((previousResult) => {
       if (!previousResult) {
@@ -2633,10 +2893,12 @@ export const buildPackage = async (
         //if a build step returns a string,
         //a warning is shown but the build is still successful with warnings
         if (typeof stepResult === 'string') {
-          // spinner.text = step.name + ' - ' + stepResult;
+          warned = true;
           if (logResults) {
             spinner.warn(step.name + ' - ' + stepResult);
             spinner.stop();
+          } else {
+            console.warn(chalk.yellow(step.name + ' - ' + stepResult));
           }
           //can still continue
           return true;
@@ -2649,6 +2911,8 @@ export const buildPackage = async (
           if (logResults) {
             spinner.fail(step.name + ' - ' + stepResult.error);
             spinner.stop();
+          } else {
+            console.error(chalk.red(step.name + ' - ' + stepResult.error));
           }
           //failed and should stop
           return false;
@@ -2657,23 +2921,104 @@ export const buildPackage = async (
     });
   };
 
-  buildStep({
-    name: 'Checking imports',
-    apply: () => checkImports(packagePath + '/src'),
+  if (pkgJson.linked?.extensionlessImports === true) {
+    const skipped =
+      "Skipping the import check: package.json sets 'linked.extensionlessImports'";
+    logResults ? spinner.info(skipped) : console.log(skipped);
+  }
+  planBuildSteps(pkgJson, packagePath).forEach(buildStep);
+
+  let success = await buildProcess.catch((err) => {
+    let msg =
+      typeof err === 'string' || err instanceof Error
+        ? err.toString()
+        : err.error && !err.error.toString().includes('Command failed:')
+          ? err.error
+          : err.stdout + '\n' + err.stderr;
+    if (logResults) {
+      spinner.stopAndPersist({
+        symbol: chalk.red('✖'),
+        // text: 'Build failed',
+      });
+    } else {
+      console.error(chalk.red(packagePath.split('/').pop(), ' - Build failed:'));
+      console.error(err);
+      return msg;
+    }
+    console.log(msg);
   });
-  buildStep({
+  //will be undefined if there was an error
+  if (typeof success !== 'undefined' && success !== false) {
+    if (logResults) {
+      spinner.stopAndPersist({
+        symbol: chalk.greenBright('✔'),
+        text:
+          success === true && !warned
+            ? 'Build successful'
+            : 'Build successful with warnings',
+      });
+    }
+  } else {
+    if (logResults) {
+      spinner.stopAndPersist({
+        symbol: chalk.red('✖'),
+        text: 'Build failed',
+      });
+    }
+  }
+  return success;
+};
+
+type BuildStep = {
+  name: string;
+  // true/undefined: success; a string: success with a warning; {error}: stop.
+  apply: () => Promise<unknown>;
+};
+
+// The ordered `linked build` steps for a linkedPackage. A package whose source
+// uses extensionless relative imports (`"linked": {"extensionlessImports": true}`)
+// skips the import check and gets `.js` added to its emitted ESM specifiers.
+export const planBuildSteps = (pkgJson, packagePath: string): BuildStep[] => {
+  const extensionlessImports = pkgJson.linked?.extensionlessImports === true;
+  const steps: BuildStep[] = [];
+  if (!extensionlessImports) {
+    steps.push({
+      name: 'Checking imports',
+      apply: () => checkImports(packagePath + '/src'),
+    });
+  }
+  steps.push({
     name: 'Compiling ESM',
     apply: async () => {
       return compilePackageESM(packagePath);
     },
   });
-  buildStep({
+  if (extensionlessImports) {
+    steps.push({
+      name: 'Rewriting ESM import specifiers',
+      apply: async () => {
+        const libEsm = path.join(packagePath, 'lib', 'esm');
+        if (!fs.existsSync(libEsm)) {
+          return {
+            error:
+              "lib/esm was not emitted. 'linked.extensionlessImports' needs an ESM build: add tsconfig-esm.json to the package.",
+          };
+        }
+        const {unresolved} = await rewriteExtensionlessImports(libEsm);
+        if (unresolved.length > 0) {
+          return `could not resolve ${unresolved.length} import(s), left unchanged: ${unresolved.join(', ')}`;
+        }
+        return true;
+      },
+    });
+  }
+  steps.push({
     name: 'Compiling CJS',
     apply: async () => {
       return compilePackageCJS(packagePath);
     },
   });
-  buildStep({
+  steps.push({
     name: 'Copying files to lib folder',
     apply: async () => {
       const files = await glob(packagePath + '/src/**/*.{json,d.ts,css,scss}');
@@ -2703,7 +3048,7 @@ export const buildPackage = async (
       });
     },
   });
-  buildStep({
+  steps.push({
     name: 'Dual package support',
     apply: () => {
       // Skip if no tsconfig files (e.g. pure-CSS packages).
@@ -2725,56 +3070,18 @@ export const buildPackage = async (
       });
     },
   });
-  buildStep({
+  steps.push({
     name: 'Removing old files from lib folder',
     apply: async () => {
       return removeOldFiles(packagePath);
     },
   });
-  buildStep({
+  steps.push({
     name: 'Checking dependencies',
     apply: () => depCheck(packagePath),
   });
 
-  let success = await buildProcess.catch((err) => {
-    let msg =
-      typeof err === 'string' || err instanceof Error
-        ? err.toString()
-        : err.error && !err.error.toString().includes('Command failed:')
-          ? err.error
-          : err.stdout + '\n' + err.stderr;
-    if (logResults) {
-      spinner.stopAndPersist({
-        symbol: chalk.red('✖'),
-        // text: 'Build failed',
-      });
-    } else {
-      console.error(chalk.red(packagePath.split('/').pop(), ' - Build failed:'));
-      console.error(err);
-      return msg;
-    }
-    console.log(msg);
-  });
-  //will be undefined if there was an error
-  if (typeof success !== 'undefined' && success !== false) {
-    if (logResults) {
-      spinner.stopAndPersist({
-        symbol: chalk.greenBright('✔'),
-        text:
-          success === true
-            ? 'Build successful'
-            : 'Build successful with warnings',
-      });
-    }
-  } else {
-    if (logResults) {
-      spinner.stopAndPersist({
-        symbol: chalk.red('✖'),
-        text: 'Build failed',
-      });
-    }
-  }
-  return success;
+  return steps;
 };
 export const compilePackage = async (packagePath = process.cwd()) => {
   //echo 'compiling CJS' && tsc -p tsconfig-cjs.json && echo 'compiling ESM' && tsc -p tsconfig-esm.json

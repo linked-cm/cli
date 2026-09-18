@@ -1,0 +1,11 @@
+node_modules/
+# Workspace packages are enumerated; `packages/*` (not `packages/`) so the negation below works.
+packages/*
+!packages/app-shapes/
+.expo/
+dist/
+# Docker Compose overrides (e.g. FUSEKI_PORT); see services/api/README.md.
+/.env
+services/api/.env
+services/api/data/
+packages/app-shapes/lib/

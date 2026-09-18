@@ -1,6 +1,6 @@
 {
   "name": "@_linked/cli",
-  "version": "1.11.1",
+  "version": "1.14.0",
   "description": "Command line tools for the @_linked/* packages and apps",
   "main": "lib/esm/index.js",
   "types": "./lib/esm/index.d.ts",
@@ -35,6 +35,7 @@
     "test": "yarn test:unit && yarn test:e2e",
     "test:unit": "jest --config jest.config.cjs",
     "test:e2e": "playwright test --config playwright.config.ts",
+    "test:template": "RUN_TEMPLATE_FULL=1 jest --config jest.template.config.cjs",
     "prettier": "prettier \"src/**/*.{js,jsx,ts,tsx,css,scss}\" --check",
     "prettier:fix": "yarn prettier --write",
     "format": "yarn prettier:fix && yarn lint:fix"
@@ -67,6 +68,13 @@
   "bin": {
     "linked": "lib/esm/launch.js"
   },
+  "files": [
+    "lib",
+    "defaults",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@_linked/core": "^2.6.0",
     "@babel/cli": "^7.23.9",

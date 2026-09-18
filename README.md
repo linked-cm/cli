@@ -62,6 +62,7 @@ linked setup-publish --scope community      # use NPM_AUTH_TOKEN_CM instead of N
 
 ```bash
 linked start                      # run the dev server (app)
+linked start --api-only           # run only the backend API (no page rendering, no vite.config needed)
 linked dev                        # file-watch rebuild (package)
 linked yarn <args>                # safe-yarn: run yarn at root while preserving nested yarn.lock files
 ```
@@ -88,6 +89,45 @@ The CLI recognizes two flags in `package.json`:
 
 The legacy `lincd: true` / `lincdApp: true` flags are no longer read. Migrate to `linkedPackage` / `linkedApp`.
 
+### `"linked": {"extensionlessImports": true}`
+
+```json
+{
+  "linkedPackage": true,
+  "type": "module",
+  "linked": {"extensionlessImports": true}
+}
+```
+
+By default `linked build` rejects relative imports without an extension (`./shapes/Example`), because Node's ESM
+loader cannot resolve them. Set this flag when the package source must use extensionless imports, for example a
+shapes package consumed as TypeScript source by Metro (which does not map `.js` specifiers to `.ts` files).
+With the flag, `linked build`:
+
+- skips the import check;
+- after compiling ESM, rewrites every relative specifier in `lib/esm` (static imports and exports, `export * as`,
+  side-effect imports and `import()` with a literal) to `./x.js` or `./dir/index.js`, so Node can load the output;
+- fails if `lib/esm` was not emitted;
+- finishes "with warnings" and lists each specifier it could not resolve (left unchanged).
+
+Requirements: `"linkedPackage": true`, `"type": "module"` and a `tsconfig-esm.json` in the package.
+
+## API-only backend
+
+`linked start --api-only`, or `server.apiOnly: true` in `linked.config.js`, serves only the backend API
+(`/call/...`, `/api/...` and provider routes). There is no server-side page rendering, page requests get a 404,
+and no `vite.config.*` is required. Use it for a backend whose frontend lives elsewhere, such as a React Native
+app:
+
+```js
+// linked.config.js
+export default {
+  server: {apiOnly: true},
+};
+```
+
+API-only mode is never inferred: a web app without a `vite.config.*` and without the flag still fails at startup.
+
 ## Development
 
 ```bash
@@ -110,20 +150,71 @@ Templates live in `defaults/`:
 
 `linked create-app <name>` copies `defaults/app-with-backend/` to the new app's folder, substitutes `${name}` / `${hyphen_name}` / `${app_prefix}` / `${app_domain}` placeholders in selected files, and copies `linked.backend.datasets.example.json` → `linked.backend.datasets.json` so first boot works zero-config.
 
-Storage configuration follows the two-layer pattern from [backlog 016](https://github.com/create-now/docs/blob/main/docs/backlog/016-ejection-export-flow.md) (canonical spec) + the symmetric backend/frontend split:
+Storage configuration follows the two-layer pattern from [backlog 016](https://github.com/c### `linked create-app --template react-native`
 
-| File | Side | Role | Git |
-|---|---|---|---|
-| `linked.backend.storage.ts` | backend | Shape→alias routing. Uses `parseDatasetsConfig` + `loadStores` from `@_linked/core`; calls `LinkedStorage.setDefaultDataset(...)` / `setDatasetForShapes(...)`. | committed |
-| `linked.backend.datasets.json` | backend | Alias → `{ store, config }`. `store` is an npm import path; `config` is the store class's constructor arg. `${VAR:-default}` placeholders resolved at boot. | **gitignored** |
-| `linked.backend.datasets.example.json` | backend | Template / seed for the gitignored file. Has placeholders matching env vars. | committed |
-| `src/linked.frontend.storage.ts` | frontend | Same shape→alias model; imports store classes explicitly (webpack-bundle-safe), constructs per alias. | committed |
-| `src/linked.frontend.datasets.json` | frontend | Frontend alias → `{ store, config }`. Public values only — never put secrets here, it ships in the browser bundle. | committed |
+`linked create-app <name> --template react-native` (with the usual `--app-name`, `--app-prefix`, `--app-domain`,
+`--skip-install`) copies `defaults/app-react-native/` instead of cloning the web template. The result is an npm
+workspaces monorepo for Expo SDK 57 / React Native 0.86 / React 19.2 with an API-only Linked backend on Fuseki:
 
-Conventions:
-- Aliases on the two sides are **independent**. The framework re-routes by shape on each side; matching alias names between FE and BE is convention, not a framework requirement.
-- The backend dispatcher is registry-free (dynamic `await import(entry.store)`). The frontend hardcodes each `new StoreClass(config)` because webpack can't bundle dynamic imports of arbitrary npm specifiers.
-- Each store class accepts a single config-object constructor argument — `new FusekiStore({ endpoint, credentials? })`, `new BackendAPIStore({ name?, id? })`.
+```
+<name>/
+  package.json              enumerated workspaces; scripts fuseki:up/down, api, check:react, lint, typecheck,
+                            test, test:integration
+  docker-compose.yml        local Fuseki (secoresearch/fuseki, host port FUSEKI_PORT, default 3030)
+  eslint.config.js          flat config; keeps apps/mobile on @_linked/server subpath imports
+  apps/mobile/              Expo app (ios/ and android/ are generated, not committed)
+    App.tsx                 imports ./src/shell/env, @_linked/react/native, ./src/shell/storage
+    babel.config.js         registers babel/stripJsonImportAttributes.js
+    src/shell/              env.ts (API URL), storage.ts (BackendAPIStore)
+    src/components/         PersonOverview / PersonPreview: example add/edit/delete screen
+    __tests__/              unit tests; __tests__/integration/ runs against the API and Fuseki
+  packages/<prefix>-shapes/ Linked shapes package: TypeScript source, extensionless imports,
+                            "linked": {"extensionlessImports": true} so `linked build` emits Node-loadable lib/esm
+  services/api/             API-only backend (`linked start --api-only`) on @_linked/server, Fuseki through
+                            linked.backend.datasets.json, node --test unit tests
+```
+
+What the scaffold does:
+
+- Refuses, before writing anything, a prefix that does not match `^[a-z][a-z0-9-]*$`, and a target folder that
+  exists and is not empty.
+- Restores shipped dotfiles at any depth (`gitignore.template` becomes `.gitignore`, `env.example.template`
+  becomes `.env.example`). npm strips real dotfiles like `.gitignore` from the CLI tarball.
+- Renames `packages/app-shapes` to `packages/<prefix>-shapes`, and replaces the literal `app-shapes` token in
+  every text file.
+- Sets the root `name` to `<hyphen-name>-monorepo`, and `app.json` `expo.name`, `expo.slug` and
+  `expo.ios.bundleIdentifier`. The bundle ID is the reversed domain plus the prefix, e.g. `com.example.demo`.
+- Stamps the Fuseki dataset names `<prefix>-dev` and `<prefix>-test` from the prefix.
+- Never runs the `${…}` placeholder substitution, so template literals in the sources are left alone.
+- Installs with `npm install` (never Yarn) unless `--skip-install` is given. If the install fails, the files
+  stay and the command exits non-zero; run `npm install` in the folder to retry.
+
+The generated app:
+
+- **Render defaults** come from `@_linked/react/native`, which replaces `@_linked/react`'s `<svg>` loader and
+  error elements (they crash on React Native).
+- **Person example.** `PersonOverview` and `PersonPreview` list, add, edit and delete `@_linked/schema`'s
+  `Person` through `BackendAPIStore` → API → Fuseki. A Jest integration test covers it.
+- **Babel plugin.** Metro rejects `import('x.json', { with: { type: 'json' } })`, which Linked ontology packages
+  use; `apps/mobile/babel/stripJsonImportAttributes.js` drops that options argument.
+- **Before every PR.** The template ships no CI workflow. Its README has a checklist to run locally and paste
+  into the PR:
+
+```bash
+npm run check:react
+npm run lint
+npm run typecheck
+npm test
+npm run fuseki:up && npm run test:integration
+cd apps/mobile && npx expo export --platform ios --output-dir /tmp/export
+```
+
+To run it: `npm run fuseki:up`, `npm run api`, then `cd apps/mobile && npx expo run:ios`.
+
+Tests for this template in this repo: `yarn test:unit` covers the scaffold offline, using the fixture in
+`tests/fixtures/app-react-native-min` and the real template. `npm run test:template` runs the built CLI with
+install, then checks the generated files, `check:react`, lint, typecheck, `npm test`, the shapes build and a
+Metro iOS bundle. It builds nothing itself, needs network and takes several minutes.
 
 ## Repository
 

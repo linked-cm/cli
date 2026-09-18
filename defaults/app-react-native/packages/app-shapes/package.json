@@ -1,0 +1,27 @@
+{
+  "name": "app-shapes",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "linkedPackage": true,
+  "linked": {
+    "extensionlessImports": true
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "react-native": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./lib/esm/index.js"
+    }
+  },
+  "scripts": {
+    "build": "linked build"
+  },
+  "dependencies": {
+    "@_linked/core": "2.18.1"
+  },
+  "devDependencies": {
+    "@_linked/cli": "1.13.0"
+  }
+}

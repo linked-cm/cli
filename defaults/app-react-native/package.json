@@ -1,0 +1,24 @@
+{
+  "name": "app-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/mobile",
+    "services/api",
+    "packages/app-shapes"
+  ],
+  "scripts": {
+    "fuseki:up": "docker compose up -d --wait fuseki",
+    "fuseki:down": "docker compose down",
+    "api": "npm start -w services/api",
+    "check:react": "node scripts/check-react.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p apps/mobile && tsc --noEmit -p services/api && tsc --noEmit -p packages/app-shapes",
+    "test": "npm test -w apps/mobile && npm test -w services/api",
+    "test:integration": "npm run test:integration -w apps/mobile"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "eslint-config-expo": "57.0.2",
+    "typescript-eslint": "8.70.0"
+  }
+}

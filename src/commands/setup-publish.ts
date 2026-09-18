@@ -73,7 +73,7 @@ export async function setupPublish(opts: SetupPublishOptions = {}): Promise<void
   await updateGitignore(cwd);
 
   // 5. package.json patches
-  await patchPackageJson(pkgJsonPath, pkgJson);
+  await patchPackageJson(pkgJsonPath, pkgJson, repoSlug);
 
   // 6. npm install --package-lock-only to generate lockfile (if not present)
   await ensureLockfile(cwd);
@@ -185,8 +185,34 @@ async function updateGitignore(cwd: string): Promise<void> {
   console.log(chalk.green('  ✓') + ' .gitignore');
 }
 
-async function patchPackageJson(pkgJsonPath: string, pkgJson: any): Promise<void> {
+async function patchPackageJson(
+  pkgJsonPath: string,
+  pkgJson: any,
+  repoSlug: string,
+): Promise<void> {
   let modified = false;
+
+  // `repository.url` must be set, and must match the repo the workflow builds in.
+  //
+  // `create-package` scaffolds it EMPTY, and npm rejects a provenance-signed publish whose
+  // attestation cannot be matched against it:
+  //
+  //   422 Error verifying sigstore provenance bundle: Failed to validate repository
+  //   information: package.json "repository.url" is "", expected to match <repo>
+  //
+  // The slug is already resolved from `git remote` above, so there is no reason to leave a
+  // package to discover this at its first release.
+  if (repoSlug !== 'OWNER/REPO') {
+    const url = `git+https://github.com/${repoSlug}.git`;
+    const current =
+      typeof pkgJson.repository === 'string'
+        ? pkgJson.repository
+        : pkgJson.repository?.url;
+    if (!current) {
+      pkgJson.repository = {type: 'git', url};
+      modified = true;
+    }
+  }
 
   if (!pkgJson.publishConfig) {
     pkgJson.publishConfig = {access: 'public'};

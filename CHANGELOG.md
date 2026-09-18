@@ -1,5 +1,112 @@
 # Changelog
 
+## 1.14.0
+
+### Minor Changes
+
+- [#81](https://github.com/linked-cm/cli/pull/81) [`d1c0729`](https://github.com/linked-cm/cli/commit/d1c07296a9470ed3c995ce83a9ade22c0632395c) Thanks [@flyon](https://github.com/flyon)! - `create-app --template react-native` now scaffolds the Linked backend next to the app.
+
+  - `services/api`: an API-only Linked backend (`linked start --api-only`) on `@_linked/server`, with Fuseki through `linked.backend.datasets.json`, a local file store (or `S3FileStore` when the S3 variables are set), a Fuseki reachability check and `node --test` unit tests.
+  - A root `docker-compose.yml` for Fuseki (`secoresearch/fuseki:5.5.0`, host port `FUSEKI_PORT`), root scripts `fuseki:up`, `fuseki:down`, `api`, `check:react`, `lint`, `typecheck`, `test` and `test:integration`, a root ESLint flat config (with a rule that keeps `apps/mobile` on `@_linked/server` subpath imports) and a "Before every PR" checklist in the README (the template ships no CI workflow).
+  - Pins `@_linked/server` 2.3.0, `@_linked/server-utils` 1.2.0 and `@_linked/cli` 1.13.0.
+  - `apps/mobile/babel.config.js` registers a Babel plugin that strips JSON import attributes (`import('x.json', { with: { type: 'json' } })`), so Metro bundles Linked ontology packages.
+  - `resolveApiUrl` ignores a non-string `extra.apiUrl`: the dev-client manifest delivers `null` as `{}`, which crashed the app with "LincdServerProxy requires a root URL".
+  - `apps/mobile` imports `@_linked/react/native` (1.5.0) instead of its own render defaults, resolves the API URL in `app.config.ts` and `src/shell/env.ts`, and sends queries to the API through `BackendAPIStore`. The root `overrides` entry is gone.
+  - An example add/edit/delete screen (`PersonOverview`, `PersonPreview`), ported from the web app-template to React Native with `@_linked/schema`'s `Person`, with a Jest integration test against the running API and Fuseki.
+  - The shapes package sets `"linked": {"extensionlessImports": true}`, so `linked build` emits Node-loadable `lib/esm`.
+  - With `linked.extensionlessImports`, `linked build` fails when `lib/esm` was not emitted (no `tsconfig-esm.json`), finishes "with warnings" listing every relative specifier it could not resolve, and handles `'.'`, `'..'` and `'./dir/'`. `linked build` now exits non-zero when the build fails.
+  - README: documents `linked start --api-only` / `server.apiOnly`, the `extensionlessImports` flag, and the react-native template as it is now.
+  - Integration tests only reset a Fuseki that is this repo's Compose `fuseki` on localhost (`docker compose port fuseki 3030`) with a `-test` dataset. They read `services/api/.env` (the shell wins), pass every `FUSEKI_*` variable to the API explicitly, blank the S3 variables (removing `AWS_REGION`, which `@_linked/s3` rejects when empty), and kill the API's process group on timeout, early exit, SIGINT, SIGTERM and exit. `INTEGRATION_API_BIN` and `INTEGRATION_API_TIMEOUT_MS` exist for testing that cleanup.
+  - Load order is enforced by imports: `storage.ts` imports `env.ts`, and the example linked components import `storage.ts`. The default API port is shared from `apps/mobile/src/shell/apiPort.json`.
+  - `wait-for-fuseki.mjs` honours `WAIT_FOR_FUSEKI_TIMEOUT_MS`. New tests: `storage.test.ts` (load order) and `waitForFuseki.test.mjs`. Local uploads go to `services/api/data/uploads/`, which is gitignored.
+  - `linked call` (a direct `callBackendMethod`) now prints the error and exits 1 when the method is unmatched or fails, instead of an unhandled rejection.
+  - The Fuseki dataset names (`<prefix>-dev`, `<prefix>-test`) are stamped from the app prefix.
+  - Shipped dotfiles are restored at any depth, and `env.example.template` becomes `.env.example`.
+
+## 1.13.0
+
+### Minor Changes
+
+- [#79](https://github.com/linked-cm/cli/pull/79) [`fd27a8d`](https://github.com/linked-cm/cli/commit/fd27a8d827b591c2d6db6bd2a7db1aa1de94b71d) Thanks [@flyon](https://github.com/flyon)! - Add `linked start --api-only` for a Linked backend without a web frontend.
+
+  - No `vite.config.*` is required: without one, Vite runs with the `createViteConfig()` defaults inline, so TypeScript, decorators and extensionless imports in source-only shape packages still work.
+  - No `src/App.tsx` or `src/routes.tsx` is loaded. The CLI sets `server.apiOnly` on the LinkedServer config instead of the page rendering hooks, so `/call/...` and `/api/...` routes are served and page requests get a 404 (needs a `@_linked/server` release that honours `server.apiOnly`).
+  - The mode is explicit and never inferred from missing files. `server.apiOnly: true` in `linked.config.js` turns it on too.
+  - `LinkedServerConfig` gains the `apiOnly` field.
+
+  Add `"linked": {"extensionlessImports": true}` to a package's `package.json` for packages whose source uses extensionless relative imports (for example, shapes shared with React Native, where Metro does not map `.js` specifiers to `.ts` source).
+
+  - `linked build` skips the "Checking imports" step for that package and logs that it did.
+  - After compiling ESM, it appends `.js` (or `/index.js` for a directory) to extensionless `./` and `../` specifiers of static imports, exports and `import()` calls in `lib/esm/**/*.js`, so the output loads under Node. Specifiers it cannot resolve are left unchanged with a warning. `.d.ts` files are not rewritten.
+  - Packages without the field build exactly as before.
+
+  Fix linked-package discovery in `linked start` for apps inside an npm/yarn workspaces monorepo: dependencies are now resolved the way Node resolves them, walking up parent `node_modules` directories to the workspace root. A linked package hoisted to the root `node_modules` is found, so the app no longer falls into standalone mode (which dropped the `development` export condition).
+
+  In workspace mode, `linked start` now bundles only the discovered source workspaces through Vite SSR (`ssr.noExternal`). Published framework packages installed in `node_modules` (such as `@_linked/core`) stay external and load through Node. Before, every `@_linked/*` package was force-bundled, so Vite ran its own `@_linked/core` while a store loaded by core's `loadStores` through a native `import()` (for example `@_linked/fuseki/shapes/FusekiStore`) pulled in a second, Node-loaded core. That split the shape registry ("Cannot resolve an rdf:type for shape"). An installed package that depends (directly or transitively, through `dependencies` or `peerDependencies`) on a discovered workspace is bundled too. For example, when `@_linked/core` is itself a source workspace, a published `@_linked/fuseki` goes through Vite and uses the same core. Only the dependency closure of the app and its workspaces is scanned.
+
+## 1.12.0
+
+### Minor Changes
+
+- [#77](https://github.com/linked-cm/cli/pull/77) [`38cf9a7`](https://github.com/linked-cm/cli/commit/38cf9a77dbeab632e617846a51d75c41a6f6edda) Thanks [@flyon](https://github.com/flyon)! - Add `linked create-app <name> --template react-native`, which scaffolds a Linked React Native monorepo.
+
+  The template ships in the CLI as `defaults/app-react-native` and needs no git clone. It generates an npm
+  workspaces monorepo:
+
+  - `apps/mobile`: an Expo SDK 57 / React Native 0.86 / React 19.2 app, with its Metro and Jest configuration
+    already set up for `@_linked/*`, and render defaults that replace `@_linked/react`'s `<svg>` loader and error
+    elements. Tests cover shape registration and those defaults.
+  - `packages/<prefix>-shapes`: a Linked shapes package, consumed as TypeScript source.
+  - `services/api`: a backend stub.
+
+  The app's identity is stamped into named places only: the shapes package name, the monorepo name, and
+  `app.json` `name`, `slug` and the reverse-domain `ios.bundleIdentifier`. The `${…}` substitution the web template
+  uses is not applied, so template literals in the sources stay intact. Dependencies install with npm. `ios/` is
+  generated by `expo run:ios` and is not committed. `--template web` stays the default and is unchanged.
+
+  Before writing anything, the React Native path checks that `--app-prefix` matches `^[a-z][a-z0-9-]*$` (it becomes
+  a directory, an npm package name, a bundle-ID label and part of a Jest pattern) and refuses a target folder that
+  exists and is not empty. A failed `npm install` keeps the files but fails the command, and `create-app` exits
+  non-zero whenever it fails. The template pins `expo-dev-client` and `@react-native/jest-preset` explicitly, so it
+  does not depend on npm auto-installing peers.
+
+  Also fixes `linked create-package` when the CLI is installed from npm. npm honoured the template's nested
+  `.npmignore` when packing the CLI, so `defaults/package/src` was missing from the published tarball and new
+  packages had no `src/`. Yarn-packed builds were unaffected. The template now ships the file as
+  `npmignore.template`, and `create-package` renames it back. `.gitignore` files in templates get the same
+  treatment.
+
+### Patch Changes
+
+- [#77](https://github.com/linked-cm/cli/pull/77) [`32791fd`](https://github.com/linked-cm/cli/commit/32791fd80b3c2b8849a35dfa4483785b601cc8b2) Thanks [@flyon](https://github.com/flyon)! - Publish only what the CLI needs at runtime: a `files` allowlist (`lib`, `defaults`, README, CHANGELOG, LICENSE) keeps test fixtures, Playwright `test-results/` and `package-lock.json` out of the tarball.
+
+  Fix `linked create-package` failing at its final step. With Yarn 2+ the new package was installed with Plug'n'Play (no `node_modules`), so `npm exec linked build` could not find the binary. Scaffolded packages now get `nodeLinker: node-modules` under Yarn 2+, the initial build runs through the CLI that is already executing, and a failed install or build sets a non-zero exit code.
+
+## 1.11.2
+
+### Patch Changes
+
+- [#74](https://github.com/linked-cm/cli/pull/74) [`b6969b1`](https://github.com/linked-cm/cli/commit/b6969b174a7e0c571a318aff7b69c601d97f3e41) Thanks [@flyon](https://github.com/flyon)! - Make `linked create-package` produce a package that builds.
+
+  Four things stopped it, none of which the scaffolded output survived:
+
+  - The final step ran `npm exec lincd build`. `lincd` is the **old** CLI's binary, and its
+    compiled output imports `lincd/lib/esm/utils/LinkedFileStorage.js`, which the current
+    workspace does not ship. The result was `Could not install dependencies` and no build.
+    It now runs `linked build`.
+  - The template's `src/package.ts` destructured `linkedComponent` from `linkedPackage()`.
+    That is not part of core's `LinkedPackageObject` — component binding lives in
+    `@_linked/react` — so every new package failed to compile on its own boilerplate.
+  - The ontology template imported `NamedNode` from bare `@_linked/core`. The symbol no
+    longer exists there, and the bare specifier cannot resolve under the template's
+    `moduleResolution: "node"` anyway. It now uses `NodeReferenceValue`, matching how the
+    framework's own ontologies are written.
+  - `src/index.ts` had `import './types'` with no extension, which the CLI's own import check
+    rejects.
+
+  Verified by scaffolding a package and building it: ESM, CJS, dual-package output, import
+  check and dependency check all pass with no edits.
+
 ## 1.11.1
 
 ### Patch Changes
