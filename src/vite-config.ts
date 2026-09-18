@@ -30,6 +30,39 @@ const FRAMEWORK_PKG_PATTERNS: RegExp[] = [/^@_linked\//, /^lincd-/];
 const isFrameworkPkg = (name: string): boolean =>
   FRAMEWORK_PKG_PATTERNS.some((re) => re.test(name));
 
+/** Default dev server port, and Vite's default HMR websocket port. */
+const DEFAULT_DEV_PORT = 4040;
+const DEFAULT_HMR_PORT = 24678;
+/** Vite may not bind below 1024 without privileges; 65535 is the TCP ceiling. */
+const MIN_HMR_PORT = 1024;
+const MAX_HMR_PORT = 65535;
+
+/**
+ * Derive an app's HMR websocket port from its dev port.
+ *
+ * Every `createViteConfig` app used to fall back to Vite's shared default
+ * 24678, so any two dev servers running at once collided ("Port 24678 is
+ * already in use") and HMR silently broke for the loser. Offsetting the HMR
+ * port by the same amount the dev port is offset from its default keeps the
+ * derivation trivial and means apps that already run on distinct dev ports get
+ * distinct HMR ports for free.
+ *
+ * The input is untrusted (`process.env.PORT` is an arbitrary string), so
+ * anything that is not a whole port number — `PORT=abc` yielding `NaN`, a
+ * negative or out-of-range value — falls back to the dev port default. The
+ * result is then clamped into the bindable range, since a far-out dev port
+ * would otherwise derive an HMR port past 65535.
+ */
+export function hmrPortFor(devPort: unknown): number {
+  const parsed = Number(devPort);
+  const validDevPort =
+    Number.isFinite(parsed) && Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535
+      ? parsed
+      : DEFAULT_DEV_PORT;
+  const derived = DEFAULT_HMR_PORT + (validDevPort - DEFAULT_DEV_PORT);
+  return Math.min(MAX_HMR_PORT, Math.max(MIN_HMR_PORT, derived));
+}
+
 export interface LinkedViteConfigOptions {
   /** Dev server port. Default 4040. */
   port?: number;
@@ -394,6 +427,10 @@ export function createViteConfig(opts: LinkedViteConfigOptions = {}): ReturnType
       server: {
         port: opts.port ?? 4040,
         middlewareMode: true,
+        // Unique HMR websocket port per app/worktree (PORT env override wins,
+        // else opts.port) — see `hmrPortFor`. Apps can still override this with
+        // their own `server.hmr` in mergeConfig.
+        hmr: {port: hmrPortFor(process.env.PORT ?? opts.port)},
       },
       build: {
         outDir: opts.outDir ?? 'public/bundles',
