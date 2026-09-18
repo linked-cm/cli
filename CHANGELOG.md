@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.15.3
+
+### Patch Changes
+
+- [#73](https://github.com/linked-cm/cli/pull/73) [`92e8f6b`](https://github.com/linked-cm/cli/commit/92e8f6ba07b80f3a72adae9238bd855fc94869b6) Thanks [@abdipramana](https://github.com/abdipramana)! - `linked start --vite`: widen development config discovery so apps that predate
+  the current filenames still start.
+
+  - The app's linked config is now looked up as `linked.config.js` **or** the
+    legacy `lincd.config.js` (current name wins when both exist). Apps that never
+    renamed the file silently lost their whole `server` block — `cachePaths`,
+    `apiOnly` and the rest of LinkedServer's options — because only the new name
+    was read. The lookup is exposed as `resolveLinkedConfigPath()`.
+  - SSR page discovery also skips `*.d.ts` files in `src/pages/` (alongside the
+    existing `.test` / `.spec` skip). Type declarations have no runtime module,
+    so preloading them into the SSR graph only produced errors.
+  - The backend storage config is discovered under several legacy filenames
+    (`backend-storage-config.*`, `scripts/backend-storage-config.*`,
+    `scripts/storage-config.js`) in addition to `linked.backend.storage.*`.
+
 ## 1.15.2
 
 ### Patch Changes
