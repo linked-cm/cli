@@ -33,6 +33,26 @@ export interface StartOptions {
 export const VITE_CONFIG_FILES = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs'];
 
 /**
+ * Names for the app's linked config, in priority order. `lincd.config.js` is
+ * the legacy name: apps predating the rename still ship it, and dropping it
+ * would silently discard their whole `server` config (cachePaths, `apiOnly`, …).
+ */
+export const LINKED_CONFIG_FILES = ['linked.config.js', 'lincd.config.js'];
+
+/**
+ * Absolute path to the app's linked config. Returns the first name that exists;
+ * when none does, the current name — the caller still `existsSync`-guards the
+ * import, so this is simply the "no config here" path, not a promise of a file.
+ */
+export function resolveLinkedConfigPath(cwd: string): string {
+  return (
+    LINKED_CONFIG_FILES.map((name) => path.join(cwd, name)).find((candidate) =>
+      fsExtra.existsSync(candidate),
+    ) ?? path.join(cwd, LINKED_CONFIG_FILES[0])
+  );
+}
+
+/**
  * API-only mode is explicit: `linked start --api-only`, or `server.apiOnly: true`
  * in `linked.config.js`. It is never inferred from missing frontend files, so a
  * web app that lost its `vite.config.ts` still fails loudly instead of silently
@@ -127,10 +147,12 @@ export function configureLinkedServer(
     for (const file of files) {
       // Test files live beside pages but call vi.mock() at module scope,
       // which throws outside Vitest — never load them into the SSR graph.
+      // `.d.ts` files are types only: they have no runtime module to load.
       if (
         file.isFile() &&
         /\.(tsx|ts)$/.test(file.name) &&
-        !/\.(test|spec)\.(tsx|ts)$/.test(file.name)
+        !/\.(test|spec)\.(tsx|ts)$/.test(file.name) &&
+        !file.name.endsWith('.d.ts')
       ) {
         paths.push(`/src/pages/${file.name}`);
       }
@@ -306,7 +328,7 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
 
   // Load user's linked.config.js (legacy hook). It still drives things
   // like server.cachePaths and the rest of LinkedServer's options.
-  const linkedConfigPath = path.join(cwd, 'linked.config.js');
+  const linkedConfigPath = resolveLinkedConfigPath(cwd);
   let linkedConfig: any = {};
   if (fsExtra.existsSync(linkedConfigPath)) {
     linkedConfig = (await import(linkedConfigPath)).default ?? {};
@@ -326,7 +348,17 @@ export async function startWithVite(opts: StartOptions = {}): Promise<void> {
   // `initTree` is idempotent. `loadBackendStorageConfig` stays in
   // lifecycle.ts for the Node-only CLI commands (`script`/`call`) that have no
   // Vite server (contract C5).
-  for (const rel of ['/linked.backend.storage.ts', '/linked.backend.storage.js']) {
+  // The first two names are current; the rest are legacy filenames kept so
+  // older apps that never renamed their storage config still start.
+  for (const rel of [
+    '/linked.backend.storage.ts',
+    '/linked.backend.storage.js',
+    '/backend-storage-config.ts',
+    '/backend-storage-config.js',
+    '/scripts/backend-storage-config.ts',
+    '/scripts/backend-storage-config.js',
+    '/scripts/storage-config.js',
+  ]) {
     if (fsExtra.existsSync(path.join(cwd, rel.slice(1)))) {
       await vite.ssrLoadModule(rel);
       break;
