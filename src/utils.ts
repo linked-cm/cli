@@ -66,20 +66,56 @@ export var getFileImports = async function (filePath) {
   }
 };
 
+// The package name part of a bare specifier: '@scope/name' for a scoped
+// package, the first segment otherwise. Returns null for anything that is not a
+// bare specifier (relative and absolute paths).
+var barePackageName = function (importPath: string): string | null {
+  if (
+    importPath.startsWith('.') ||
+    importPath.startsWith('/') ||
+    importPath.startsWith('node:')
+  ) {
+    return null;
+  }
+  const segments = importPath.split('/');
+  const name = importPath.startsWith('@')
+    ? segments.slice(0, 2).join('/')
+    : segments[0];
+  return name || null;
+};
+
+var isLinkedPackageName = function (name: string) {
+  // The current '@_linked/*' scope, and the legacy 'lincd'-prefixed names
+  // ('lincd', 'lincd-foo', ...).
+  return name.startsWith('@_linked/') || /^lincd(-|$)/.test(name);
+};
+
 /**
+ * True when the import reaches into ANOTHER Linked package's internals — a
+ * '/src/' or '/lib/' path inside '@_linked/<pkg>' or a 'lincd'-prefixed package
+ * — instead of going through that package's public subpath. Such an import
+ * breaks when the other package changes its build layout, and it bypasses the
+ * exports map, so the two are not interchangeable.
+ *
+ * Relative specifiers are exempt on purpose: the rule is about other packages,
+ * and a relative path can only reach files inside the current package, where a
+ * './lib/helpers' folder is a perfectly ordinary local module. Escaping the
+ * package with '../' is already caught by isImportOutsideOfPackage.
  *
  * @param importPath The import path to check
  * @param curFileDepth How many folders deep the current file is (0 = src, 1 = src/foo, etc.)
- * @returns
  */
-export var isInvalidLINCDImport = function (
+export var isInternalLinkedImport = function (
   importPath: string,
-  curFileDepth: number,
+  curFileDepth?: number,
 ) {
-  return (
-    importPath.includes('lincd') &&
-    (importPath.includes('/src/') || importPath.includes('/lib/'))
-  );
+  const name = barePackageName(importPath);
+  if (!name || !isLinkedPackageName(name)) {
+    return false;
+  }
+  // Match whole path segments, so '@_linked/core/library/x' is not a hit.
+  const subPath = importPath.slice(name.length).split('/').filter(Boolean);
+  return subPath.includes('src') || subPath.includes('lib');
 };
 export var isImportOutsideOfPackage = function (
   importPath: string,

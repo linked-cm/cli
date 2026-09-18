@@ -266,8 +266,32 @@ describe('checkImports', () => {
     await expect(check()).rejects.toContain('outside the package source root');
   });
 
-  test('importing another package through /src/ fails the build', async () => {
-    writeSrc('index.ts', "import {Thing} from 'lincd-foo/src/Thing.js';\n");
+  test.each([
+    ['@_linked/core/lib/esm/utils/Shape.js'],
+    ['@_linked/core/src/utils/Shape.js'],
+    ['lincd-foo/src/shapes/Thing.js'],
+    ['lincd-foo/lib/esm/shapes/Thing.js'],
+  ])("reaching into another Linked package's internals fails the build: %s", async (
+    specifier,
+  ) => {
+    writeSrc('index.ts', `import {Thing} from '${specifier}';\n`);
     await expect(check()).rejects.toContain('/src/ or /lib/');
+  });
+
+  test.each([
+    // A public subpath of a Linked package.
+    ['@_linked/core/utils/Shape.js'],
+    // 'library' is not the 'lib' segment.
+    ['@_linked/core/library/Shape.js'],
+    // A local folder that merely happens to be called lib/ or src/.
+    ['./lib/helpers.js'],
+    ['./src/helpers.js'],
+    // A non-Linked package that happens to expose a lib/ path.
+    ['some-other-pkg/lib/thing.js'],
+  ])('%s is allowed', async (specifier) => {
+    writeSrc('index.ts', `import {Thing} from '${specifier}';\n`);
+    fs.outputFileSync(path.join(src(), 'lib/helpers.ts'), 'export const a = 1;\n');
+    fs.outputFileSync(path.join(src(), 'src/helpers.ts'), 'export const a = 1;\n');
+    await expect(check()).resolves.not.toBe(false);
   });
 });

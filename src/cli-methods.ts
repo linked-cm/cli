@@ -14,7 +14,7 @@ import {
   getLastCommitTime,
   getPackageJSON,
   isImportOutsideOfPackage,
-  isInvalidLINCDImport,
+  isInternalLinkedImport,
   needsRebuilding,
 } from './utils.js';
 import {renameShippedDotfiles} from './utils/shippedDotfiles.js';
@@ -1855,7 +1855,7 @@ export const createComponent = async (name, basePath = process.cwd()) => {
 
 // Reads the source of all ts/tsx files in the src folder and fails on imports
 // that reach outside the package source root ('outside_package'), or that point
-// into another linked package's /src/ or /lib/ ('lincd'). Extensionless relative
+// into another Linked package's /src/ or /lib/ ('internal_linked'). Extensionless relative
 // imports are fine: `linked build` rewrites the emitted ESM specifiers.
 export const checkImports = async (
   sourceFolder: string = getSourceFolder(),
@@ -1912,9 +1912,9 @@ export const checkImports = async (
           importPath: i,
         });
       }
-      if (isInvalidLINCDImport(i, depth)) {
+      if (isInternalLinkedImport(i, depth)) {
         invalidImports.get(filename).push({
-          type: 'lincd',
+          type: 'internal_linked',
           importPath: i,
         });
       }
@@ -1936,16 +1936,19 @@ export const checkImports = async (
         if (type === 'outside_package') {
           message += ' which is outside the package source root';
         }
-        if (type === 'lincd') {
+        if (type === 'internal_linked') {
           message +=
-            ' which should not contain /src/ or /lib/ in the import path';
+            " which reaches into another Linked package's /src/ or /lib/." +
+            ' That breaks when its build layout changes and bypasses its' +
+            ' exports map. Import its public subpath instead.';
         }
         res += chalk.red(message + '\n');
       });
     });
 
     // Throw so buildStep aborts the compile pipeline: importing from outside
-    // the package, or through /src/ or /lib/, breaks the published package.
+    // the package, or into another Linked package's /src/ or /lib/, breaks the
+    // published package.
     throw res;
   } else if (depth === 0 && invalidImports.size === 0) {
     // console.info('All imports OK');
