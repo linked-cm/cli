@@ -189,14 +189,7 @@ export const createApp = async (name, basePath = process.cwd(), options: {appNam
   if (fs.existsSync(gitignoreTemplate)) {
     fs.renameSync(gitignoreTemplate, path.join(targetFolder, '.gitignore'));
   }
-  const yarnrcTemplate = path.join(targetFolder, 'yarnrc.yml.template');
-  if (fs.existsSync(yarnrcTemplate)) {
-    fs.renameSync(yarnrcTemplate, path.join(targetFolder, '.yarnrc.yml'));
-  }
-
-  // (Scaffolded apps install with npm, so there is no empty yarn.lock to write
-  // here any more: that file only existed to pin down Yarn's project-root
-  // search.)
+  stripYarnProjectFiles(targetFolder);
 
   // Seed the real (gitignored) Layer 2 config from the committed example so
   // the scaffolded app boots first try. Users can edit either file later.
@@ -503,13 +496,31 @@ function setEnvVar(envText: string, key: string, value: string): string {
  *  - `src/package.ts`: the runtime `linkedPackage` id — shape URIs derive from it.
  *  - pm2 process names + the VS Code launch name (cosmetic, but should match).
  */
+/**
+ * Scaffolded apps are npm apps, so the new app must not also look like a yarn
+ * project. Removes every yarn project file a template clone may still carry —
+ * including the legacy `yarnrc.yml.template` that create-app used to rename
+ * into `.yarnrc.yml`. (No empty `yarn.lock` is written any more either; that
+ * file only existed to pin down Yarn's project-root search.)
+ */
+export function stripYarnProjectFiles(targetFolder: string) {
+  for (const yarnLeftover of [
+    'yarnrc.yml.template',
+    '.yarnrc.yml',
+    '.yarn',
+    'yarn.lock',
+  ]) {
+    fs.removeSync(path.join(targetFolder, yarnLeftover));
+  }
+}
+
 function applyAppIdentity(
   targetFolder: string,
   ids: {appName: string; appPrefix: string; hyphenName: string},
 ) {
   const {appName, appPrefix, hyphenName} = ids;
 
-  // 1. .env.example (+ seed .env from it so the first `yarn start` is correct).
+  // 1. .env.example (+ seed .env from it so the first `npm start` is correct).
   const envExample = path.join(targetFolder, '.env.example');
   if (fs.existsSync(envExample)) {
     let env = fs.readFileSync(envExample, 'utf8');
